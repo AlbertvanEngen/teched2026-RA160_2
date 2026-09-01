@@ -54,6 +54,7 @@ const PROFIT_CENTERS = [
 ];
 const CURRENCIES = ['EUR', 'USD', 'GBP', 'JPY', 'CHF'];
 const FISCAL_YEARS = ['2024', '2025', '2026'];
+const FISCAL_PERIODS = ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012'];
 const TX_CATEGORIES = ['RFBU', 'RMVL', 'COIN', 'PRFI'];
 const TX_TYPES = ['SA', 'KR', 'KZ', 'DR', 'DZ', 'RE', 'AB'];
 
@@ -74,6 +75,8 @@ function generateEntries() {
             Math.abs(parseFloat(txAmount)) * 1.15,
             !isDebit
         );
+        const fiscalYear = pick(FISCAL_YEARS);
+        const fiscalPeriod = pick(FISCAL_PERIODS);
 
         entries.push({
             __metadata: {
@@ -85,7 +88,9 @@ function generateEntries() {
             Ledger: ledger.code,
             LedgerName: ledger.name,
             SourceLedger: ledger.code,
-            LedgerFiscalYear: pick(FISCAL_YEARS),
+            LedgerFiscalYear: fiscalYear,
+            FiscalPeriod: fiscalPeriod,
+            FiscalYearPeriod: `${fiscalYear}${fiscalPeriod}`,
             CompanyCode: company.code,
             CompanyCodeName: company.name,
             GLAccount: gl.code,

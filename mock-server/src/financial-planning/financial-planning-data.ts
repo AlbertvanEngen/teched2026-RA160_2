@@ -52,6 +52,7 @@ const PROFIT_CENTERS = [
 ];
 const CURRENCIES = ['EUR', 'USD', 'GBP', 'JPY', 'CHF'];
 const FISCAL_YEARS = ['2024', '2025', '2026', '2027'];
+const FISCAL_PERIODS = ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012'];
 
 function generateEntries() {
     const entries = [];
@@ -65,6 +66,8 @@ function generateEntries() {
         const txCurrency = pick(CURRENCIES);
         const txAmount = randAmount(1000, 500000);
         const globalAmount = (parseFloat(txAmount) * (0.85 + rng() * 0.3)).toFixed(2);
+        const fiscalYear = pick(FISCAL_YEARS);
+        const fiscalPeriod = pick(FISCAL_PERIODS);
 
         entries.push({
             __metadata: {
@@ -76,7 +79,9 @@ function generateEntries() {
             Ledger: ledger.code,
             LedgerName: ledger.name,
             PlanningCategory: pick(CATEGORIES),
-            LedgerFiscalYear: pick(FISCAL_YEARS),
+            LedgerFiscalYear: fiscalYear,
+            FiscalPeriod: fiscalPeriod,
+            FiscalYearPeriod: `${fiscalYear}${fiscalPeriod}`,
             GLAccount: gl.code,
             GLAccountName: gl.name,
             CompanyCode: company.code,

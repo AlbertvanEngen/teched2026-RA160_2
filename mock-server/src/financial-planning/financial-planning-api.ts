@@ -19,11 +19,11 @@ export function financialPlanningServiceDocument(context: Context) {
 const financialPlanningApi = new Hono();
 
 financialPlanningApi.get('/A_FinPlanningEntryItem', context => {
-    const topEntries = topODataResult(financialPlanningEntries, context.req.query('$top'));
-    const filteredEntries = filterODataResult(topEntries, context.req.query('$filter'));
+    const filteredEntries = filterODataResult(financialPlanningEntries, context.req.query('$filter'));
     const sortedEntries = sortODataResult(filteredEntries, context.req.query('$orderby'));
+    const topEntries = topODataResult(sortedEntries, context.req.query('$top'));
 
-    return toODataResponse(context, selectODataResult(sortedEntries, context.req.query('$select')));
+    return toODataResponse(context, selectODataResult(topEntries, context.req.query('$select')));
 });
 
 financialPlanningApi.get('/A_FinPlanningEntryItem/:id', context => {

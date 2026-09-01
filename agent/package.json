@@ -1,0 +1,26 @@
+{
+  "name": "financial-mock-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx --env-file=.env src/cli.ts",
+    "query:quarterly-budget": "tsx --env-file=.env src/cli.ts \"Show me the quarterly budget for cost center A1000 for the last 12 months.\"",
+    "query:monthly-costs": "tsx --env-file=.env src/cli.ts \"Show me the monthly cost for cost center A1000 for the last 12 months.\"",
+    "query:forecast": "tsx --env-file=.env src/cli.ts \"Forecast: plan the budget for cost center A1000 for the next 12 months based on historical data.\"",
+    "query:dual-source-rpt": "tsx --env-file=.env src/cli.ts \"Load journal entries for cost center A1000 as actuals context, load budget planning entries as prediction target, then use run_rpt_prediction_from_sources to predict amountInGlobalCurrency.\""
+  },
+  "dependencies": {
+    "@duckdb/node-api": "1.5.5-r.4",
+    "@sap-ai-sdk/langchain": "^2.15.0",
+    "@sap-ai-sdk/rpt": "^2.15.0",
+    "@sap-cloud-sdk/odata-v2": "^4.9.1",
+    "langchain": "^1.5.10",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@sap-cloud-sdk/generator": "^4.9.1",
+    "tsx": "^4.20.5",
+    "typescript": "^5.8.3"
+  }
+}

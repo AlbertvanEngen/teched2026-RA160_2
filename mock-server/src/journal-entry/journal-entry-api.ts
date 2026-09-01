@@ -19,11 +19,11 @@ export function journalEntryServiceDocument(context: Context) {
 const journalEntryApi = new Hono();
 
 journalEntryApi.get('/A_JournalEntryItemBasic', context => {
-    const topEntries = topODataResult(journalEntryItems, context.req.query('$top'));
-    const filteredEntries = filterODataResult(topEntries, context.req.query('$filter'));
+    const filteredEntries = filterODataResult(journalEntryItems, context.req.query('$filter'));
     const sortedEntries = sortODataResult(filteredEntries, context.req.query('$orderby'));
+    const topEntries = topODataResult(sortedEntries, context.req.query('$top'));
 
-    return toODataResponse(context, selectODataResult(sortedEntries, context.req.query('$select')));
+    return toODataResponse(context, selectODataResult(topEntries, context.req.query('$select')));
 });
 
 journalEntryApi.get('/A_JournalEntryItemBasic/:id', context => {
