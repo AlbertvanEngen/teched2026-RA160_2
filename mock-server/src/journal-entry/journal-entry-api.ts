@@ -1,35 +1,46 @@
-import { Hono, type Context } from 'hono';
+import { type Context, Hono } from "hono";
 import {
-    filterODataResult,
-    selectODataResult,
-    sortODataResult,
-    toODataResponse,
-    topODataResult
-} from '../odata-helpers.ts';
-import { journalEntryItems } from './journal-entry-data.ts';
+	filterODataResult,
+	selectODataResult,
+	sortODataResult,
+	toODataResponse,
+	topODataResult,
+} from "../odata-helpers.ts";
+import { journalEntryItems } from "./journal-entry-data.ts";
 
 export function journalEntryServiceDocument(context: Context) {
-    return context.json({
-        d: {
-            EntitySets: ['A_JournalEntryItemBasic']
-        }
-    });
+	return context.json({
+		d: {
+			EntitySets: ["A_JournalEntryItemBasic"],
+		},
+	});
 }
 
 const journalEntryApi = new Hono();
 
-journalEntryApi.get('/A_JournalEntryItemBasic', context => {
-    const filteredEntries = filterODataResult(journalEntryItems, context.req.query('$filter'));
-    const sortedEntries = sortODataResult(filteredEntries, context.req.query('$orderby'));
-    const topEntries = topODataResult(sortedEntries, context.req.query('$top'));
+journalEntryApi.get("/A_JournalEntryItemBasic", (context) => {
+	const filteredEntries = filterODataResult(
+		journalEntryItems,
+		context.req.query("$filter"),
+	);
+	const sortedEntries = sortODataResult(
+		filteredEntries,
+		context.req.query("$orderby"),
+	);
+	const topEntries = topODataResult(sortedEntries, context.req.query("$top"));
 
-    return toODataResponse(context, selectODataResult(topEntries, context.req.query('$select')));
+	return toODataResponse(
+		context,
+		selectODataResult(topEntries, context.req.query("$select")),
+	);
 });
 
-journalEntryApi.get('/A_JournalEntryItemBasic/:id', context => {
-    const entry = journalEntryItems.find(item => item.ID === context.req.param('id'));
+journalEntryApi.get("/A_JournalEntryItemBasic/:id", (context) => {
+	const entry = journalEntryItems.find(
+		(item) => item.ID === context.req.param("id"),
+	);
 
-    return entry ? toODataResponse(context, entry) : context.body(null, 404);
+	return entry ? toODataResponse(context, entry) : context.body(null, 404);
 });
 
 export default journalEntryApi;

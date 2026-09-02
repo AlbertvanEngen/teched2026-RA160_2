@@ -1,0 +1,22 @@
+{
+	"name": "financial-mock-sdk-client",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"generate": "generate-odata-client --input '../../specs/API_*ENTRYITEM*_SRV.edmx' --outputDir src/generated --generateESM",
+		"start": "tsx src/cli.ts",
+		"lint:fix": "biome check --write",
+		"lint": "biome check",
+		"lint:ci": "biome ci"
+	},
+	"dependencies": {
+		"@sap-cloud-sdk/odata-v2": "catalog:"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "catalog:",
+		"@sap-cloud-sdk/generator": "catalog:",
+		"tsx": "catalog:",
+		"typescript": "catalog:"
+	}
+}

@@ -1,28 +1,36 @@
-import { Hono } from 'hono';
-import { createLogger } from '@sap-cloud-sdk/util';
-import financialPlanningApi, { financialPlanningServiceDocument } from './financial-planning/financial-planning-api.ts';
-import journalEntryApi, { journalEntryServiceDocument } from './journal-entry/journal-entry-api.ts';
+import { createLogger } from "@sap-cloud-sdk/util";
+import { Hono } from "hono";
+import financialPlanningApi, {
+	financialPlanningServiceDocument,
+} from "./financial-planning/financial-planning-api.ts";
+import journalEntryApi, {
+	journalEntryServiceDocument,
+} from "./journal-entry/journal-entry-api.ts";
 
-const financialPlanningServicePath = '/sap/opu/odata/sap/API_FINPLANNINGENTRYITEM_SRV';
-const journalEntryServicePath = '/sap/opu/odata/sap/API_JOURNALENTRYITEMBASIC_SRV';
-const logger = createLogger('server');
+const financialPlanningServicePath =
+	"/sap/opu/odata/sap/API_FINPLANNINGENTRYITEM_SRV";
+const journalEntryServicePath =
+	"/sap/opu/odata/sap/API_JOURNALENTRYITEMBASIC_SRV";
+const logger = createLogger("server");
 const app = new Hono();
 
-app.use('*', async (context, next) => {
-    logger.info(`Request: ${context.req.method} ${context.req.path}`);
-    context.header('x-csrf-token', 'dummyToken123');
-    context.header('set-cookie', 'cookie');
-    await next();
+app.use("*", async (context, next) => {
+	logger.info(`Request: ${context.req.method} ${context.req.path}`);
+	context.header("x-csrf-token", "dummyToken123");
+	context.header("set-cookie", "cookie");
+	await next();
 });
 
-app.get('/', context => context.html(`<html>
+app.get("/", (context) =>
+	context.html(`<html>
     <head>
         <title>OData Mock Service</title>
     </head>
     <body>
         <div>OData mock services are running.</div>
     </body>
-</html>`));
+</html>`),
+);
 
 app.get(financialPlanningServicePath, financialPlanningServiceDocument);
 app.get(`${financialPlanningServicePath}/`, financialPlanningServiceDocument);
