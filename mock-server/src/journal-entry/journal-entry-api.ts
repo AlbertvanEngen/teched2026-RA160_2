@@ -6,7 +6,7 @@ import {
 	toODataResponse,
 	topODataResult,
 } from "../odata-helpers.ts";
-import { journalEntryItems } from "./journal-entry-data.ts";
+import { getJournalEntryItems } from "./journal-entry-data.ts";
 
 export function journalEntryServiceDocument(context: Context) {
 	return context.json({
@@ -19,6 +19,7 @@ export function journalEntryServiceDocument(context: Context) {
 const journalEntryApi = new Hono();
 
 journalEntryApi.get("/A_JournalEntryItemBasic", (context) => {
+	const journalEntryItems = getJournalEntryItems();
 	const filteredEntries = filterODataResult(
 		journalEntryItems,
 		context.req.query("$filter"),
@@ -36,6 +37,7 @@ journalEntryApi.get("/A_JournalEntryItemBasic", (context) => {
 });
 
 journalEntryApi.get("/A_JournalEntryItemBasic/:id", (context) => {
+	const journalEntryItems = getJournalEntryItems();
 	const entry = journalEntryItems.find(
 		(item) => item.ID === context.req.param("id"),
 	);

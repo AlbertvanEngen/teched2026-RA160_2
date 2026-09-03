@@ -3,6 +3,10 @@
 	"version": "1.0.0",
 	"description": "Mock server for SAP Purchase Order service",
 	"main": "src/server.ts",
+	"exports": {
+		".": "./src/server.ts",
+		"./app": "./src/app.ts"
+	},
 	"type": "module",
 	"scripts": {
 		"start": "node src/server.ts",

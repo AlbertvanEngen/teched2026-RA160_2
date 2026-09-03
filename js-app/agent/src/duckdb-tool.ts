@@ -2,10 +2,16 @@ import { styleText } from "node:util";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { runQuery } from "./db.ts";
+import { assertNoForecastingSql } from "./sql-guard.ts";
 
 export const queryDuckDbTool = tool(
 	async ({ sql }) => {
 		try {
+			const blocked = await assertNoForecastingSql(sql);
+			if (blocked) {
+				console.log(styleText("yellow", "[DuckDB] ") + "Blocked: " + sql);
+				return blocked;
+			}
 			console.log(
 				styleText("magenta", "[DuckDB] ") + styleText("dim", `SQL: ${sql}`),
 			);
@@ -26,9 +32,11 @@ export const queryDuckDbTool = tool(
 	{
 		name: "query_duckdb",
 		description:
-			"Execute a SQL query against the in-memory DuckDB database. " +
-			"Available tables: fin_planning (financial planning entries), journal_entry (journal entry items). " +
-			"These tables are populated by the query_financial_planning and query_journal_entry tools.",
+			"Execute a SQL query against the in-memory DuckDB database. SELECT, WHERE, JOIN, GROUP BY and " +
+			"SUM/AVG/COUNT/MIN/MAX all work. Tables are populated by query_financial_planning and query_journal_entry, " +
+			"and by the output tables of the RPT tools — aggregate those to report predictions. " +
+			"Trend SQL over source tables (window functions, OVER/QUALIFY, LAG/LEAD, moving averages, REGR_*/CORR) " +
+			"is not available here; use RPT to forecast.",
 		schema: z.object({
 			sql: z.string().describe("SQL query to execute against DuckDB"),
 		}),

@@ -6,7 +6,7 @@ import {
 	toODataResponse,
 	topODataResult,
 } from "../odata-helpers.ts";
-import { financialPlanningEntries } from "./financial-planning-data.ts";
+import { getFinancialPlanningEntries } from "./financial-planning-data.ts";
 
 export function financialPlanningServiceDocument(context: Context) {
 	return context.json({
@@ -19,6 +19,7 @@ export function financialPlanningServiceDocument(context: Context) {
 const financialPlanningApi = new Hono();
 
 financialPlanningApi.get("/A_FinPlanningEntryItem", (context) => {
+	const financialPlanningEntries = getFinancialPlanningEntries();
 	const filteredEntries = filterODataResult(
 		financialPlanningEntries,
 		context.req.query("$filter"),
@@ -36,6 +37,7 @@ financialPlanningApi.get("/A_FinPlanningEntryItem", (context) => {
 });
 
 financialPlanningApi.get("/A_FinPlanningEntryItem/:id", (context) => {
+	const financialPlanningEntries = getFinancialPlanningEntries();
 	const entry = financialPlanningEntries.find(
 		(item) => item.ID === context.req.param("id"),
 	);

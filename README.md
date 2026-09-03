@@ -18,6 +18,10 @@ A TypeScript demonstration of SAP OData services, generated SAP Cloud SDK client
 - pnpm 12
 - SAP AI Core / Generative AI Hub access for the agent package
 
+### Editor setup
+
+This workspace recommends the [Biome VS Code extension](https://marketplace.visualstudio.com/items?itemName=biomejs.biome). VS Code will offer to install it when you open the repository. The shared workspace settings configure Biome as the JavaScript and TypeScript formatter, with formatting enabled on save.
+
 The repository pins the recommended tool versions in `mise.toml`. Install dependencies from the repository root:
 
 ```sh
