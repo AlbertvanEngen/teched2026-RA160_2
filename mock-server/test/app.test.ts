@@ -1,31 +1,31 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import assert from 'node:assert/strict';
+import test from 'node:test';
 
-import app from "../src/app.ts";
-import { getFinancialPlanningEntries } from "../src/financial-planning/financial-planning-data.ts";
-import { getJournalEntryItems } from "../src/journal-entry/journal-entry-data.ts";
+import app from '../src/app.ts';
+import { getFinancialPlanningEntries } from '../src/financial-planning/financial-planning-data.ts';
+import { getJournalEntryItems } from '../src/journal-entry/journal-entry-data.ts';
 
 const financialPlanningServicePath =
-	"/sap/opu/odata/sap/API_FINPLANNINGENTRYITEM_SRV/";
+	'/sap/opu/odata/sap/API_FINPLANNINGENTRYITEM_SRV/';
 const journalEntryServicePath =
-	"/sap/opu/odata/sap/API_JOURNALENTRYITEMBASIC_SRV/";
+	'/sap/opu/odata/sap/API_JOURNALENTRYITEMBASIC_SRV/';
 
-test("serves the financial planning OData service document", async () => {
+test('serves the financial planning OData service document', async () => {
 	const response = await app.request(
 		`http://localhost:3141${financialPlanningServicePath}`,
 	);
 
 	assert.equal(response.status, 200);
-	assert.equal(response.headers.get("x-csrf-token"), "dummyToken123");
-	assert.equal(response.headers.get("set-cookie"), "cookie");
+	assert.equal(response.headers.get('x-csrf-token'), 'dummyToken123');
+	assert.equal(response.headers.get('set-cookie'), 'cookie');
 	assert.deepEqual(await response.json(), {
 		d: {
-			EntitySets: ["A_FinPlanningEntryItem"],
+			EntitySets: ['A_FinPlanningEntryItem'],
 		},
 	});
 });
 
-test("serves the journal entry OData service document", async () => {
+test('serves the journal entry OData service document', async () => {
 	const response = await app.request(
 		`http://localhost:3141${journalEntryServicePath}`,
 	);
@@ -33,12 +33,12 @@ test("serves the journal entry OData service document", async () => {
 	assert.equal(response.status, 200);
 	assert.deepEqual(await response.json(), {
 		d: {
-			EntitySets: ["A_JournalEntryItemBasic"],
+			EntitySets: ['A_JournalEntryItemBasic'],
 		},
 	});
 });
 
-test("returns financial planning entries in an OData collection", async () => {
+test('returns financial planning entries in an OData collection', async () => {
 	const response = await app.request(
 		`http://localhost:3141${financialPlanningServicePath}A_FinPlanningEntryItem?$top=5`,
 	);
@@ -52,7 +52,7 @@ test("returns financial planning entries in an OData collection", async () => {
 	assert.ok(body.d.results[0].AmountInCompanyCodeCurrency);
 });
 
-test("returns journal entry items in an OData collection", async () => {
+test('returns journal entry items in an OData collection', async () => {
 	const response = await app.request(
 		`http://localhost:3141${journalEntryServicePath}A_JournalEntryItemBasic?$top=5`,
 	);
@@ -66,7 +66,7 @@ test("returns journal entry items in an OData collection", async () => {
 	assert.ok(body.d.results[0].AmountInCompanyCodeCurrency);
 });
 
-test("returns a financial planning entry by ID", async () => {
+test('returns a financial planning entry by ID', async () => {
 	const response = await app.request(
 		`http://localhost:3141${financialPlanningServicePath}A_FinPlanningEntryItem/FP-0001`,
 	);
@@ -74,11 +74,11 @@ test("returns a financial planning entry by ID", async () => {
 	assert.equal(response.status, 200);
 
 	const body = await response.json();
-	assert.equal(body.d.ID, "FP-0001");
+	assert.equal(body.d.ID, 'FP-0001');
 	assert.ok(body.d.PlanningCategory);
 });
 
-test("returns a journal entry item by ID", async () => {
+test('returns a journal entry item by ID', async () => {
 	const response = await app.request(
 		`http://localhost:3141${journalEntryServicePath}A_JournalEntryItemBasic/JE-0001`,
 	);
@@ -86,11 +86,11 @@ test("returns a journal entry item by ID", async () => {
 	assert.equal(response.status, 200);
 
 	const body = await response.json();
-	assert.equal(body.d.ID, "JE-0001");
+	assert.equal(body.d.ID, 'JE-0001');
 	assert.ok(body.d.BusinessTransactionCategory);
 });
 
-test("projects financial planning entries with OData select", async () => {
+test('projects financial planning entries with OData select', async () => {
 	const response = await app.request(
 		`http://localhost:3141${financialPlanningServicePath}A_FinPlanningEntryItem?$top=1&$select=ID,CompanyCode`,
 	);
@@ -99,13 +99,13 @@ test("projects financial planning entries with OData select", async () => {
 
 	const body = await response.json();
 	assert.deepEqual(Object.keys(body.d.results[0]).sort(), [
-		"CompanyCode",
-		"ID",
-		"__metadata",
+		'CompanyCode',
+		'ID',
+		'__metadata',
 	]);
 });
 
-test("filters financial planning entries by company code", async () => {
+test('filters financial planning entries by company code', async () => {
 	const response = await app.request(
 		`http://localhost:3141${financialPlanningServicePath}A_FinPlanningEntryItem?$filter=CompanyCode%20eq%20%271010%27`,
 	);
@@ -116,12 +116,12 @@ test("filters financial planning entries by company code", async () => {
 	assert.ok(body.d.results.length > 0);
 	assert.ok(
 		body.d.results.every(
-			(item: { CompanyCode: string }) => item.CompanyCode === "1010",
+			(item: { CompanyCode: string }) => item.CompanyCode === '1010',
 		),
 	);
 });
 
-test("filters journal entry items by company code", async () => {
+test('filters journal entry items by company code', async () => {
 	const response = await app.request(
 		`http://localhost:3141${journalEntryServicePath}A_JournalEntryItemBasic?$filter=CompanyCode%20eq%20%271010%27`,
 	);
@@ -132,12 +132,12 @@ test("filters journal entry items by company code", async () => {
 	assert.ok(body.d.results.length > 0);
 	assert.ok(
 		body.d.results.every(
-			(item: { CompanyCode: string }) => item.CompanyCode === "1010",
+			(item: { CompanyCode: string }) => item.CompanyCode === '1010',
 		),
 	);
 });
 
-test("generates concentrated entity histories across a decade", () => {
+test('generates concentrated entity histories across a decade', () => {
 	for (const entries of [
 		getFinancialPlanningEntries(),
 		getJournalEntryItems(),
@@ -154,28 +154,28 @@ test("generates concentrated entity histories across a decade", () => {
 		assert.equal(entityHistories.size, 4);
 		assert.equal(Math.min(...entityHistories.values()) >= 1000, true);
 		assert.deepEqual([...fiscalYears].sort(), [
-			"2018",
-			"2019",
-			"2020",
-			"2021",
-			"2022",
-			"2023",
-			"2024",
-			"2025",
-			"2026",
-			"2027",
+			'2018',
+			'2019',
+			'2020',
+			'2021',
+			'2022',
+			'2023',
+			'2024',
+			'2025',
+			'2026',
+			'2027',
 		]);
 	}
 });
 
-test("generates stable net expense history for Corporate Finance", () => {
+test('generates stable net expense history for Corporate Finance', () => {
 	const history = new Map<string, number>();
 
 	for (const entry of getJournalEntryItems()) {
 		if (
-			entry.CostCenter === "A1000" &&
-			entry.LedgerFiscalYear >= "2024" &&
-			entry.LedgerFiscalYear <= "2026"
+			entry.CostCenter === 'A1000' &&
+			entry.LedgerFiscalYear >= '2024' &&
+			entry.LedgerFiscalYear <= '2026'
 		) {
 			const total = history.get(entry.FiscalPeriod) ?? 0;
 			history.set(
@@ -186,15 +186,18 @@ test("generates stable net expense history for Corporate Finance", () => {
 	}
 
 	assert.equal(history.size, 12);
-	assert.equal([...history.values()].every((amount) => amount < 0), true);
+	assert.equal(
+		[...history.values()].every((amount) => amount < 0),
+		true,
+	);
 });
 
-test("covers every fiscal period for budget reporting", () => {
+test('covers every fiscal period for budget reporting', () => {
 	const budgetPeriods = new Set(
 		getFinancialPlanningEntries()
 			.filter(
 				(entry) =>
-					entry.CostCenter === "A1000" && entry.PlanningCategory === "BUDGET",
+					entry.CostCenter === 'A1000' && entry.PlanningCategory === 'BUDGET',
 			)
 			.map((entry) => entry.FiscalYearPeriod),
 	);
@@ -202,7 +205,7 @@ test("covers every fiscal period for budget reporting", () => {
 	assert.equal(budgetPeriods.size, 120);
 });
 
-test("generates recurring semantic business patterns for RPT context", () => {
+test('generates recurring semantic business patterns for RPT context', () => {
 	for (const entries of [
 		getFinancialPlanningEntries(),
 		getJournalEntryItems(),
@@ -211,11 +214,11 @@ test("generates recurring semantic business patterns for RPT context", () => {
 			entries
 				.filter(
 					(entry) =>
-						entry.CompanyCode === "1710" &&
-						entry.CostCenter === "B2000" &&
-						entry.GLAccount === "410000" &&
-						entry.LedgerFiscalYear >= "2021" &&
-						entry.LedgerFiscalYear <= "2027" &&
+						entry.CompanyCode === '1710' &&
+						entry.CostCenter === 'B2000' &&
+						entry.GLAccount === '410000' &&
+						entry.LedgerFiscalYear >= '2021' &&
+						entry.LedgerFiscalYear <= '2027' &&
 						entry.FiscalPeriod === fiscalPeriod,
 				)
 				.reduce(
@@ -223,11 +226,11 @@ test("generates recurring semantic business patterns for RPT context", () => {
 					0,
 				);
 
-		assert.ok(total("005") > total("004") * 1.2);
+		assert.ok(total('005') > total('004') * 1.2);
 	}
 });
 
-test("returns 404 for unknown financial planning entry ID", async () => {
+test('returns 404 for unknown financial planning entry ID', async () => {
 	const response = await app.request(
 		`http://localhost:3141${financialPlanningServicePath}A_FinPlanningEntryItem/FP-UNKNOWN`,
 	);
@@ -235,7 +238,7 @@ test("returns 404 for unknown financial planning entry ID", async () => {
 	assert.equal(response.status, 404);
 });
 
-test("returns 404 for unknown journal entry item ID", async () => {
+test('returns 404 for unknown journal entry item ID', async () => {
 	const response = await app.request(
 		`http://localhost:3141${journalEntryServicePath}A_JournalEntryItemBasic/JE-UNKNOWN`,
 	);

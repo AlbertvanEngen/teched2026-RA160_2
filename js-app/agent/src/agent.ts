@@ -1,16 +1,16 @@
-import { OrchestrationClient } from "@sap-ai-sdk/langchain";
-import { createAgent } from "langchain";
-import { createViewTool } from "./create-view-tool.ts";
-import { dropTableTool } from "./drop-table-tool.ts";
-import { queryDuckDbTool } from "./duckdb-tool.ts";
+import { OrchestrationClient } from '@sap-ai-sdk/langchain';
+import { createAgent } from 'langchain';
+import { createViewTool } from './create-view-tool.ts';
+import { dropTableTool } from './drop-table-tool.ts';
+import { queryDuckDbTool } from './duckdb-tool.ts';
 import {
-  queryFinancialPlanningTool,
-  queryJournalEntryTool,
-} from "./odata-tools.ts";
+	queryFinancialPlanningTool,
+	queryJournalEntryTool,
+} from './odata-tools.ts';
 import {
-  runRptPredictionFromSourcesTool,
-  runRptPredictionTool,
-} from "./rpt-tool.ts";
+	runRptPredictionFromSourcesTool,
+	runRptPredictionTool,
+} from './rpt-tool.ts';
 
 export const SYSTEM_PROMPT = `You are a financial data analyst agent with access to two SAP OData services and an in-memory analytical database (DuckDB).
 
@@ -44,34 +44,35 @@ Data sources:
 - Journal entries: posted accounting transactions — fiscal year 2018–2027, fiscalPeriod 001–012`;
 
 export function createFinancialAgent() {
-  const model = new OrchestrationClient([
-    {
-      promptTemplating: {
-        model: { name: "gpt-5.6-luna" },
-      },
-    },
-    {
-      promptTemplating: {
-        model: { name: "gemini-3.5-flash" },
-      },
-    },
-    {
-      promptTemplating: {
-        model: { name: "anthropic--claude-4.6-sonnet" },
-      },
-    },
-  ]);
+	const model = new OrchestrationClient([
+		{
+			promptTemplating: {
+				model: { name: 'gpt-5.6-luna' },
+			},
+		},
+		{
+			promptTemplating: {
+				model: { name: 'gemini-3.5-flash' },
+			},
+		},
+		{
+			promptTemplating: {
+				model: { name: 'anthropic--claude-4.6-sonnet' },
+			},
+		},
+	]);
 
-  return createAgent({
-    model,
-    tools: [
-      queryFinancialPlanningTool,
-      queryJournalEntryTool,
-      queryDuckDbTool,
-      runRptPredictionTool,
-      runRptPredictionFromSourcesTool,
-      dropTableTool,
-      createViewTool,
-    ] as any,
-  });
+	return createAgent({
+		model,
+		tools: [
+			queryFinancialPlanningTool,
+			queryJournalEntryTool,
+			queryDuckDbTool,
+			runRptPredictionTool,
+			runRptPredictionFromSourcesTool,
+			dropTableTool,
+			createViewTool,
+			// biome-ignore lint/suspicious/noExplicitAny: LangChain tool types are incompatible with createAgent's expected tool union.
+		] as any,
+	});
 }

@@ -1,29 +1,29 @@
-import type { Context } from "hono";
+import type { Context } from 'hono';
 
 type ODataRecord = Record<string, unknown>;
 
-type ComparisonOperator = "eq" | "ne" | "lt" | "gt" | "le" | "ge";
+type ComparisonOperator = 'eq' | 'ne' | 'lt' | 'gt' | 'le' | 'ge';
 
 function isRecord(value: unknown): value is ODataRecord {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function isNavigationProperty(propertyName: string): boolean {
-	return propertyName.startsWith("to_");
+	return propertyName.startsWith('to_');
 }
 
 function getNestedValue(record: ODataRecord, propertyPath: string): unknown {
-	return propertyPath.split("/").reduce<unknown>((current, property) => {
+	return propertyPath.split('/').reduce<unknown>((current, property) => {
 		return isRecord(current) ? current[property] : undefined;
 	}, record);
 }
 
 function normalizeComparisonValue(propertyName: string, value: string): string {
 	const unquotedValue = value
-		.replace(/^'(.*)'$/, "$1")
-		.replace(/^datetime'(.*)'$/, "$1");
+		.replace(/^'(.*)'$/, '$1')
+		.replace(/^datetime'(.*)'$/, '$1');
 
-	if (!propertyName.includes("Date") || unquotedValue.startsWith("/Date(")) {
+	if (!propertyName.includes('Date') || unquotedValue.startsWith('/Date(')) {
 		return unquotedValue;
 	}
 
@@ -41,20 +41,20 @@ function compareValues(
 	operator: ComparisonOperator,
 	expected: string,
 ): boolean {
-	const value = typeof actual === "string" ? actual : String(actual);
+	const value = typeof actual === 'string' ? actual : String(actual);
 
 	switch (operator) {
-		case "eq":
+		case 'eq':
 			return value === expected;
-		case "ne":
+		case 'ne':
 			return value !== expected;
-		case "lt":
+		case 'lt':
 			return value < expected;
-		case "gt":
+		case 'gt':
 			return value > expected;
-		case "le":
+		case 'le':
 			return value <= expected;
-		case "ge":
+		case 'ge':
 			return value >= expected;
 	}
 }
@@ -77,12 +77,12 @@ function applyNavigationFilter<T extends ODataRecord>(
 	}
 
 	const [, propertyPath, operator, rawValue] = conditionMatch;
-	const segments = navigationPath.split("/").map((segment) => {
-		if (segment === "_PurchaseOrderScheduleLineTP") {
-			return "to_ScheduleLine";
+	const segments = navigationPath.split('/').map((segment) => {
+		if (segment === '_PurchaseOrderScheduleLineTP') {
+			return 'to_ScheduleLine';
 		}
 
-		return segment.startsWith("_") ? `to${segment}` : segment;
+		return segment.startsWith('_') ? `to${segment}` : segment;
 	});
 
 	return result.filter((item) => {
@@ -118,7 +118,7 @@ function applyNavigationFilter<T extends ODataRecord>(
 }
 
 function applyFilter<T extends ODataRecord>(result: T[], filter: string): T[] {
-	if (filter.includes("/any(")) {
+	if (filter.includes('/any(')) {
 		return applyNavigationFilter(result, filter);
 	}
 
@@ -170,7 +170,7 @@ function expandEntity(
 
 		const metadata = entity.__metadata;
 		const uri =
-			isRecord(metadata) && typeof metadata.uri === "string"
+			isRecord(metadata) && typeof metadata.uri === 'string'
 				? metadata.uri
 				: undefined;
 		result[key] = uri ? { __deferred: { uri: `${uri}/${key}` } } : value;
@@ -188,9 +188,9 @@ function selectEntity(
 			.map((property) => property.slice(key.length + 1));
 
 		if (
-			key === "__metadata" ||
+			key === '__metadata' ||
 			selectedProperties.includes(key) ||
-			(selectedProperties.includes("*") && !isNavigationProperty(key))
+			(selectedProperties.includes('*') && !isNavigationProperty(key))
 		) {
 			result[key] = value;
 		} else if (
@@ -224,7 +224,7 @@ export function toODataResponse(
 	);
 
 	return context.body(body, status, {
-		"Content-Type": "application/json",
+		'Content-Type': 'application/json',
 		...headers,
 	});
 }
@@ -238,12 +238,12 @@ export function filterODataResult<T extends ODataRecord>(
 	}
 
 	const normalizedQuery =
-		filterQuery.startsWith("(") && filterQuery.endsWith(")")
+		filterQuery.startsWith('(') && filterQuery.endsWith(')')
 			? filterQuery.slice(1, -1)
 			: filterQuery;
 
 	return normalizedQuery
-		.split("and")
+		.split('and')
 		.reduce(
 			(filteredResult, singleFilter) =>
 				applyFilter(filteredResult, singleFilter.trim()),
@@ -263,7 +263,7 @@ export function expandODataResult(
 	result: ODataRecord[] | ODataRecord,
 	expandQuery?: string,
 ): ODataRecord[] | ODataRecord {
-	const expandedProperties = expandQuery ? expandQuery.split(",") : [];
+	const expandedProperties = expandQuery ? expandQuery.split(',') : [];
 
 	return Array.isArray(result)
 		? result.map((entity) => expandEntity(entity, expandedProperties))
@@ -286,14 +286,14 @@ export function selectODataResult(
 		return result;
 	}
 
-	const selectedProperties = selectQuery.split(",");
+	const selectedProperties = selectQuery.split(',');
 	return Array.isArray(result)
 		? result.map((entity) => selectEntity(entity, selectedProperties))
 		: selectEntity(result, selectedProperties);
 }
 
 export function topODataResult<T>(result: T[], topQuery?: string): T[] {
-	const top = Number.parseInt(topQuery ?? "", 10);
+	const top = Number.parseInt(topQuery ?? '', 10);
 	return Number.isNaN(top) ? result : result.slice(0, top);
 }
 
@@ -305,12 +305,12 @@ export function sortODataResult<T extends ODataRecord>(
 		return result;
 	}
 
-	const [property, direction] = orderbyQuery.split(" ");
+	const [property, direction] = orderbyQuery.split(' ');
 	if (!property) {
 		return result;
 	}
 
-	const multiplier = direction === "desc" ? -1 : 1;
+	const multiplier = direction === 'desc' ? -1 : 1;
 	return [...result].sort((left, right) => {
 		const leftValue = left[property];
 		const rightValue = right[property];

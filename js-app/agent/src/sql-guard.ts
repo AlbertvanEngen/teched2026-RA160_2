@@ -1,4 +1,4 @@
-import { runQuery } from "./db.ts";
+import { runQuery } from './db.ts';
 
 // Tables produced by RPT — trend SQL is fine on these.
 const predictionTables = new Set<string>();
@@ -26,20 +26,20 @@ export async function assertNoForecastingSql(
 	if (!FORECASTING_PATTERN.test(sql)) return null;
 
 	const catalog = await runQuery(
-		"SELECT table_name FROM information_schema.tables",
+		'SELECT table_name FROM information_schema.tables',
 	);
 	const sourceTables = catalog
 		.map((r) => String(r.table_name))
 		.filter(
 			(name) =>
 				!predictionTables.has(name.toLowerCase()) &&
-				new RegExp(`\\b${name}\\b`, "i").test(sql),
+				new RegExp(`\\b${name}\\b`, 'i').test(sql),
 		);
 	if (sourceTables.length === 0) return null;
 
 	return (
 		`Error: trend SQL (window functions, OVER/QUALIFY, LAG/LEAD, moving averages, REGR_*/CORR/STDDEV) is not ` +
-		`available on source tables: ${sourceTables.join(", ")}. Extrapolating by hand would just be a guess — ` +
+		`available on source tables: ${sourceTables.join(', ')}. Extrapolating by hand would just be a guess — ` +
 		`run run_rpt_prediction_from_sources to get real predictions, then aggregate its output table. ` +
 		`Ordinary reporting on source tables (SELECT, WHERE, JOIN, GROUP BY, SUM/AVG/COUNT/MIN/MAX) still works.`
 	);

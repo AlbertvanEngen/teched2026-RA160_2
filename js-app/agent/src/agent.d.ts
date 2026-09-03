@@ -1,3 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export declare function createFinancialAgent(): any;
+export declare function createFinancialAgent(): ReturnType<
+	typeof import('./agent.ts').createFinancialAgent
+>;
 export declare const SYSTEM_PROMPT: string;

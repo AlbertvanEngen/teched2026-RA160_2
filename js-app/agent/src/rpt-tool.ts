@@ -1,15 +1,62 @@
-import { styleText } from "node:util";
-import { tool } from "@langchain/core/tools";
-import { RptClient } from "@sap-ai-sdk/rpt";
-import { z } from "zod";
-import { runQuery, withConnection } from "./db.ts";
-import { isValidIdentifier, registerPredictionTable } from "./sql-guard.ts";
+import { styleText } from 'node:util';
+import { tool } from '@langchain/core/tools';
+import { RptClient } from '@sap-ai-sdk/rpt';
+import { z } from 'zod';
+import { runQuery, withConnection } from './db.ts';
+import { isValidIdentifier, registerPredictionTable } from './sql-guard.ts';
 
-const rpt = (msg: string) => console.log(styleText("cyan", "[RPT] ") + msg);
+const rpt = (msg: string) => console.log(styleText('cyan', '[RPT] ') + msg);
 
 const RPT_PLACEHOLDER = -999999;
 
-type TaskType = "classification" | "regression";
+type TaskType = 'classification' | 'regression';
+
+function formatRptError(e: unknown): string {
+	const root =
+		typeof e === 'object' && e !== null && 'cause' in e ? e.cause : e;
+	const response =
+		typeof root === 'object' && root !== null && 'response' in root
+			? (root as { response?: { data?: unknown; status?: number } }).response
+			: undefined;
+	const status =
+		response?.status ??
+		(typeof root === 'object' &&
+		root !== null &&
+		'status' in root &&
+		typeof root.status === 'number'
+			? root.status
+			: 'unknown');
+	const body = response?.data;
+	const message =
+		root instanceof Error
+			? root.message
+			: e instanceof Error
+				? e.message
+				: String(e);
+	return `Error ${status}: ${JSON.stringify(body ?? message)}`;
+}
+
+function logRptError(e: unknown): void {
+	const root =
+		typeof e === 'object' && e !== null && 'cause' in e ? e.cause : e;
+	const response =
+		typeof root === 'object' && root !== null && 'response' in root
+			? (root as { response?: { data?: unknown; status?: number } }).response
+			: undefined;
+	const status =
+		response?.status ??
+		(typeof root === 'object' &&
+		root !== null &&
+		'status' in root &&
+		typeof root.status === 'number'
+			? root.status
+			: 'unknown');
+	const body = response?.data;
+	console.error(`${styleText('red', '[RPT] ')} Error status: ${status}`);
+	console.error(
+		`${styleText('red', '[RPT] ')} Error body: ${JSON.stringify(body)}`,
+	);
+}
 
 function sanitizeRows(
 	rows: Record<string, unknown>[],
@@ -17,12 +64,12 @@ function sanitizeRows(
 	return rows.map((row) => {
 		const sanitized: Record<string, string | number> = {};
 		for (const [key, val] of Object.entries(row)) {
-			if (typeof val === "bigint") {
+			if (typeof val === 'bigint') {
 				sanitized[key] = Number(val);
-			} else if (typeof val === "number") {
+			} else if (typeof val === 'number') {
 				sanitized[key] = val;
 			} else if (val === null || val === undefined) {
-				sanitized[key] = "";
+				sanitized[key] = '';
 			} else {
 				sanitized[key] = String(val);
 			}
@@ -35,11 +82,27 @@ function extractPredictions(
 	response: unknown,
 	targetColumn: string,
 ): (string | number)[] {
-	const predictions = (response as any)?.predictions ?? [];
-	return predictions.map((row: any) => {
-		const value = row?.[targetColumn];
-		if (Array.isArray(value)) return value[0]?.prediction ?? "";
-		return value ?? "";
+	const predictions =
+		typeof response === 'object' &&
+		response !== null &&
+		'predictions' in response &&
+		Array.isArray(response.predictions)
+			? response.predictions
+			: [];
+
+	return predictions.map((row) => {
+		if (typeof row !== 'object' || row === null) return '';
+		const value = (row as Record<string, unknown>)[targetColumn];
+		if (Array.isArray(value)) {
+			const first = value[0];
+			return typeof first === 'object' &&
+				first !== null &&
+				'prediction' in first
+				? String((first as { prediction?: unknown }).prediction ?? '')
+				: '';
+		}
+		if (typeof value === 'string' || typeof value === 'number') return value;
+		return value == null ? '' : String(value);
 	});
 }
 
@@ -56,30 +119,29 @@ async function writePredictionTable(
 		(c) => c !== targetColumn,
 	);
 	const predictedCol = `predicted_${targetColumn}`;
-	const predictedType = taskType === "regression" ? "DOUBLE" : "VARCHAR";
+	const predictedType = taskType === 'regression' ? 'DOUBLE' : 'VARCHAR';
 	const colDefs = [
 		...dimensionCols.map(
-			(c) =>
-				`"${c}" ${typeof rows[0][c] === "number" ? "DOUBLE" : "VARCHAR"}`,
+			(c) => `"${c}" ${typeof rows[0][c] === 'number' ? 'DOUBLE' : 'VARCHAR'}`,
 		),
 		`"${predictedCol}" ${predictedType}`,
 	];
 
 	await runQuery(
-		`CREATE OR REPLACE TABLE ${outputTable} (${colDefs.join(", ")})`,
+		`CREATE OR REPLACE TABLE ${outputTable} (${colDefs.join(', ')})`,
 	);
 	await withConnection(async (conn) => {
 		const appender = await conn.createAppender(outputTable);
 		rows.forEach((row, i) => {
 			for (const col of dimensionCols) {
 				const value = row[col];
-				if (typeof value === "number") appender.appendDouble(value);
+				if (typeof value === 'number') appender.appendDouble(value);
 				else appender.appendVarchar(String(value));
 			}
 			const predicted = predictions[i];
-			if (taskType === "regression")
+			if (taskType === 'regression')
 				appender.appendDouble(Number(predicted) || 0);
-			else appender.appendVarchar(String(predicted ?? ""));
+			else appender.appendVarchar(String(predicted ?? ''));
 			appender.endRow();
 		});
 		appender.flushSync();
@@ -90,7 +152,7 @@ async function writePredictionTable(
 	rpt(` Wrote ${rows.length} predictions into '${outputTable}'`);
 	return (
 		`Wrote ${rows.length} predicted rows into table '${outputTable}'. ` +
-		`Columns: ${dimensionCols.join(", ")}, ${predictedCol}. ` +
+		`Columns: ${dimensionCols.join(', ')}, ${predictedCol}. ` +
 		`Aggregate this table with query_duckdb (e.g. GROUP BY fiscalPeriod) to build the answer.`
 	);
 }
@@ -100,9 +162,9 @@ async function callRpt(
 	targetColumn: string,
 	taskType: TaskType,
 ) {
-	const rptClient = new RptClient({ modelName: "sap-rpt-1.5" });
+	const rptClient = new RptClient({ modelName: 'sap-rpt-1.5' });
 	return rptClient.predictWithoutSchema({
-		rows: rows as any,
+		rows,
 		prediction_config: {
 			target_columns: [
 				{
@@ -150,36 +212,28 @@ export const runRptPredictionTool = tool(
 				targetColumn,
 				taskType,
 			);
-		} catch (e: any) {
-			const axiosErr = e.cause ?? e;
-			const body = axiosErr?.response?.data;
-			console.error(
-				styleText("red", "[RPT] ") +
-					` Error status: ${axiosErr?.response?.status ?? axiosErr?.status}`,
-			);
-			console.error(
-				styleText("red", "[RPT] ") + ` Error body: ${JSON.stringify(body)}`,
-			);
-			return `Error ${axiosErr?.response?.status ?? "unknown"}: ${JSON.stringify(body ?? e.message)}`;
+		} catch (e: unknown) {
+			logRptError(e);
+			return formatRptError(e);
 		}
 	},
 	{
-		name: "run_rpt_prediction",
+		name: 'run_rpt_prediction',
 		description:
-			"Run an SAP RPT prediction on a single DuckDB table. " +
-			"The last 20% of rows (by insertion order) become prediction rows; the rest are context. " +
-			"Predictions are written into outputTable, which you then aggregate with query_duckdb. " +
-			"Use this only for forecasting questions, and only when a single source is available — with both actuals " +
-			"and planning entries loaded, run_rpt_prediction_from_sources gives a semantically correct split.",
+			'Run an SAP RPT prediction on a single DuckDB table. ' +
+			'The last 20% of rows (by insertion order) become prediction rows; the rest are context. ' +
+			'Predictions are written into outputTable, which you then aggregate with query_duckdb. ' +
+			'Use this only for forecasting questions, and only when a single source is available — with both actuals ' +
+			'and planning entries loaded, run_rpt_prediction_from_sources gives a semantically correct split.',
 		schema: z.object({
-			tableName: z.string().describe("DuckDB table or view to read from"),
+			tableName: z.string().describe('DuckDB table or view to read from'),
 			outputTable: z
 				.string()
 				.describe(
-					"Name of the DuckDB table to write the predictions into (replaced if it exists)",
+					'Name of the DuckDB table to write the predictions into (replaced if it exists)',
 				),
-			targetColumn: z.string().describe("Column name to predict"),
-			taskType: z.enum(["classification", "regression"]),
+			targetColumn: z.string().describe('Column name to predict'),
+			taskType: z.enum(['classification', 'regression']),
 		}),
 	},
 );
@@ -213,26 +267,26 @@ export const runRptPredictionFromSourcesTool = tool(
 			const shared = [...contextCols].filter((c) => predCols.has(c));
 
 			if (!shared.includes(targetColumn)) {
-				return `Error: Target column '${targetColumn}' not found in both tables. Shared columns: ${shared.join(", ")}`;
+				return `Error: Target column '${targetColumn}' not found in both tables. Shared columns: ${shared.join(', ')}`;
 			}
 
 			rpt(
 				` Dual-source ${taskType}: ${contextRows.length} context (${contextTable}) + ${predictionRows.length} prediction (${predictionTable})`,
 			);
-			rpt(` Shared columns: ${shared.join(", ")}`);
+			rpt(` Shared columns: ${shared.join(', ')}`);
 
 			const sanitizeShared = (
 				row: Record<string, unknown>,
 				isContext: boolean,
 			): Record<string, string | number> => {
 				const out: Record<string, string | number> = {
-					source: isContext ? "actual" : "plan",
+					source: isContext ? 'actual' : 'plan',
 				};
 				for (const col of shared) {
 					const val = row[col];
-					if (typeof val === "bigint") out[col] = Number(val);
-					else if (typeof val === "number") out[col] = val;
-					else if (val === null || val === undefined) out[col] = "";
+					if (typeof val === 'bigint') out[col] = Number(val);
+					else if (typeof val === 'number') out[col] = val;
+					else if (val === null || val === undefined) out[col] = '';
 					else out[col] = String(val);
 				}
 				return out;
@@ -258,49 +312,41 @@ export const runRptPredictionFromSourcesTool = tool(
 				targetColumn,
 				taskType,
 			);
-		} catch (e: any) {
-			const axiosErr = e.cause ?? e;
-			const body = axiosErr?.response?.data;
-			console.error(
-				styleText("red", "[RPT] ") +
-					` Error status: ${axiosErr?.response?.status ?? axiosErr?.status}`,
-			);
-			console.error(
-				styleText("red", "[RPT] ") + ` Error body: ${JSON.stringify(body)}`,
-			);
-			return `Error ${axiosErr?.response?.status ?? "unknown"}: ${JSON.stringify(body ?? e.message)}`;
+		} catch (e: unknown) {
+			logRptError(e);
+			return formatRptError(e);
 		}
 	},
 	{
-		name: "run_rpt_prediction_from_sources",
+		name: 'run_rpt_prediction_from_sources',
 		description:
-			"Run an SAP RPT prediction using two DuckDB tables with a semantically correct split: " +
-			"contextTable (e.g. journal entries / actuals) provides the known-truth context rows; " +
-			"predictionTable (e.g. planning entries / budgets) provides the rows to predict. " +
+			'Run an SAP RPT prediction using two DuckDB tables with a semantically correct split: ' +
+			'contextTable (e.g. journal entries / actuals) provides the known-truth context rows; ' +
+			'predictionTable (e.g. planning entries / budgets) provides the rows to predict. ' +
 			'Only columns shared between both tables are used. A "source" column (actual/plan) is added automatically. ' +
-			"Predictions are written into outputTable, which you then aggregate with query_duckdb to the granularity " +
-			"the user asked for. Use this for forecasting questions — questions answerable from the loaded data " +
-			"should be answered with SQL instead.",
+			'Predictions are written into outputTable, which you then aggregate with query_duckdb to the granularity ' +
+			'the user asked for. Use this for forecasting questions — questions answerable from the loaded data ' +
+			'should be answered with SQL instead.',
 		schema: z.object({
 			contextTable: z
 				.string()
 				.describe(
-					"Table with known target values (context) — typically journal entries or actuals",
+					'Table with known target values (context) — typically journal entries or actuals',
 				),
 			predictionTable: z
 				.string()
 				.describe(
-					"Table whose target column will be predicted — typically planning/budget entries",
+					'Table whose target column will be predicted — typically planning/budget entries',
 				),
 			outputTable: z
 				.string()
 				.describe(
-					"Name of the DuckDB table to write the predictions into (replaced if it exists)",
+					'Name of the DuckDB table to write the predictions into (replaced if it exists)',
 				),
 			targetColumn: z
 				.string()
-				.describe("Column to predict — must exist in both tables"),
-			taskType: z.enum(["classification", "regression"]),
+				.describe('Column to predict — must exist in both tables'),
+			taskType: z.enum(['classification', 'regression']),
 		}),
 	},
 );

@@ -1,4 +1,4 @@
-import { type DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
+import { type DuckDBConnection, DuckDBInstance } from '@duckdb/node-api';
 
 let instance: Awaited<ReturnType<typeof DuckDBInstance.create>> | null = null;
 
@@ -16,7 +16,7 @@ function serialize<T>(fn: () => Promise<T>): Promise<T> {
 
 async function getInstance() {
 	if (!instance) {
-		instance = await DuckDBInstance.create(":memory:");
+		instance = await DuckDBInstance.create(':memory:');
 	}
 	return instance;
 }
