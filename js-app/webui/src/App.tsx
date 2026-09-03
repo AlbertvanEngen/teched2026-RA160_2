@@ -1,12 +1,16 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import type { Message, ToolEntry, TurnGroup } from './types.ts';
 
 marked.setOptions({ gfm: true, breaks: true });
 
-function parseMarkdown(md: string): string {
+function parseMarkdown(md: string): DocumentFragment {
   const result = marked.parse(md);
-  return typeof result === 'string' ? result : '';
+  return DOMPurify.sanitize(typeof result === 'string' ? result : '', {
+    RETURN_DOM_FRAGMENT: true,
+    USE_PROFILES: { html: true },
+  });
 }
 
 const SAMPLE_QUERIES = [
@@ -161,6 +165,16 @@ function ActivityIndicator({ toolName }: { toolName: string | null }) {
   );
 }
 
+function SanitizedMarkdown({ content }: { content: string }) {
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    contentRef.current?.replaceChildren(parseMarkdown(content));
+  }, [content]);
+
+  return <div ref={contentRef} className="msg-bubble msg-bubble--assistant" />;
+}
+
 function MessageBubble({ msg }: { msg: Message }) {
   const [thinkingOpen, setThinkingOpen] = useState(false);
 
@@ -187,12 +201,7 @@ function MessageBubble({ msg }: { msg: Message }) {
         {msg.thinking && thinkingOpen && (
           <div className="thinking-block">{msg.thinking}</div>
         )}
-        <div
-          className="msg-bubble msg-bubble--assistant"
-          // marked output — no user-controlled HTML paths
-          // eslint-disable-next-line react/no-danger
-          dangerouslySetInnerHTML={{ __html: parseMarkdown(msg.content) }}
-        />
+        <SanitizedMarkdown content={msg.content} />
       </div>
     </div>
   );

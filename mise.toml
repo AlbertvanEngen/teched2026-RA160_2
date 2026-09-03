@@ -5,3 +5,7 @@ pnpm = "12"
 [tasks.mock-server]
 description = "Start the mock OData server"
 run = "pnpm --filter purchase-order-mock-server dev"
+
+[tasks.webui]
+description = "Start the financial agent web UI dev server"
+run = "pnpm --filter financial-agent-webui dev"

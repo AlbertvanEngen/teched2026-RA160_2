@@ -11,6 +11,7 @@ A TypeScript demonstration of SAP OData services, generated SAP Cloud SDK client
   - stores and analyzes data in an in-memory DuckDB database;
   - creates reusable SQL views; and
   - runs SAP AI Runtime Prediction (RPT) predictions.
+- A React and Hono web UI for chatting with the financial agent and inspecting tool activity.
 
 ## Prerequisites
 
@@ -60,7 +61,7 @@ The client uses `http://localhost:3141` by default. Set `MOCK_SERVER_URL` when t
 
 ### 3. Run the financial agent
 
-Configure the SAP AI SDK destination and credentials in the environment used by the agent. Keep secrets in a local `.env` file and do not commit it.
+Configure the SAP AI SDK destination and credentials in the environment used by the agent. Keep secrets in a local `.env` file at the repository root and do not commit it. The package scripts load this file with `--env-file-if-exists`, so the same configuration is shared by the CLI, and web UI tasks.
 
 With the mock server running:
 
@@ -84,6 +85,22 @@ pnpm --filter financial-mock-agent query:dual-source-rpt
 ```
 
 The agent reads `MOCK_SERVER_URL`, defaulting to `http://localhost:3141`.
+
+### 4. Start the web UI
+
+With SAP AI SDK credentials configured and the mock server available, start the web UI dev server:
+
+```sh
+mise run webui
+```
+
+Alternatively, run the package script directly:
+
+```sh
+pnpm --filter financial-agent-webui dev
+```
+
+The web UI listens on `http://localhost:3142` by default. Set `PORT` to use another port. It serves the React app through Vite and routes `/api/` and `/sap/` requests through the Hono server.
 
 ## Mock OData services
 
@@ -141,6 +158,11 @@ pnpm --filter purchase-order-mock-server build
 │       └── src/
 │           ├── cli.ts                Direct OData client command line interface
 │           └── generated/             SAP Cloud SDK OData clients
+│   └── webui/
+│       └── src/
+│           ├── app.ts                Hono app for agent and OData routes
+│           ├── App.tsx               React chat UI and activity rail
+│           └── server.ts             Vite/Hono development and production server
 ├── mock-server/
 │   ├── src/
 │   │   ├── app.ts                    Hono application and service routing
@@ -162,3 +184,4 @@ pnpm --filter purchase-order-mock-server build
 | `purchase-order-mock-server` | Local Hono-based mock OData server |
 | `financial-mock-sdk-client` | Generated SDK client for direct service queries |
 | `financial-mock-agent` | AI financial analysis agent |
+| `financial-agent-webui` | Browser UI for the financial agent |
