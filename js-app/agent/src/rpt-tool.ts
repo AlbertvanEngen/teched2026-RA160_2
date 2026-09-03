@@ -162,7 +162,7 @@ async function callRpt(
 	targetColumn: string,
 	taskType: TaskType,
 ) {
-	const rptClient = new RptClient({ modelName: 'sap-rpt-1.5' });
+	const rptClient = new RptClient({ modelName: 'sap-rpt-1.6' });
 	return rptClient.predictWithoutSchema({
 		rows,
 		prediction_config: {
@@ -177,37 +177,86 @@ async function callRpt(
 	});
 }
 
-// Single-table prediction: last 20% of rows (by insertion order) become prediction rows.
-// Use run_rpt_prediction_from_sources for a semantically correct split.
+function assertSafeWhereClause(where: string, label: string): string | null {
+	const trimmed = where.trim();
+	if (!trimmed) return `Error: ${label} must not be empty.`;
+	if (/[;]/.test(trimmed)) {
+		return `Error: ${label} must be a single SQL predicate (no semicolons).`;
+	}
+	return null;
+}
+
+// Single-table prediction: agent picks context vs prediction rows with SQL WHERE predicates.
+// Use run_rpt_prediction_from_sources when actuals and planning live in separate tables.
 export const runRptPredictionTool = tool(
-	async ({ tableName, outputTable, targetColumn, taskType }) => {
+	async ({
+		tableName,
+		predictionWhere,
+		contextWhere,
+		outputTable,
+		targetColumn,
+		taskType,
+	}) => {
 		try {
+			if (!isValidIdentifier(tableName)) {
+				return `Error: '${tableName}' is not a valid table name.`;
+			}
 			if (!isValidIdentifier(outputTable)) {
 				return `Error: '${outputTable}' is not a valid table name.`;
 			}
-			const rows = await runQuery(`SELECT * FROM ${tableName} ORDER BY ROWID`);
-			if (rows.length === 0) {
-				return `Error: Table '${tableName}' is empty. Load data first using a query tool.`;
+			const predictionWhereError = assertSafeWhereClause(
+				predictionWhere,
+				'predictionWhere',
+			);
+			if (predictionWhereError) return predictionWhereError;
+			if (contextWhere) {
+				const contextWhereError = assertSafeWhereClause(
+					contextWhere,
+					'contextWhere',
+				);
+				if (contextWhereError) return contextWhereError;
+			}
+
+			const contextSql = contextWhere
+				? `SELECT * FROM ${tableName} WHERE ${contextWhere}`
+				: `SELECT * FROM ${tableName} WHERE NOT (${predictionWhere})`;
+			const predictionSql = `SELECT * FROM ${tableName} WHERE ${predictionWhere}`;
+
+			const contextRows = await runQuery(contextSql);
+			const predictionRows = await runQuery(predictionSql);
+
+			if (contextRows.length === 0) {
+				return (
+					`Error: No context rows matched${contextWhere ? ` contextWhere (${contextWhere})` : ''}. ` +
+					`Broaden the context filter or load more historical data.`
+				);
+			}
+			if (predictionRows.length === 0) {
+				return `Error: No prediction rows matched predictionWhere (${predictionWhere}).`;
 			}
 
 			rpt(
-				` Single-table ${taskType} on '${tableName}' (${rows.length} rows), target: ${targetColumn}`,
+				` Single-table ${taskType} on '${tableName}', target: ${targetColumn}`,
+			);
+			rpt(
+				` ${contextRows.length} context rows, ${predictionRows.length} prediction rows`,
 			);
 
-			const sanitized = sanitizeRows(rows);
-			const predictionCount = Math.max(1, Math.floor(rows.length * 0.2));
-			const contextCount = rows.length - predictionCount;
-			const predictionRows = sanitized.map((row, i) => ({
+			const context = sanitizeRows(contextRows);
+			const predictions = sanitizeRows(predictionRows).map((row) => ({
 				...row,
-				[targetColumn]: i < contextCount ? row[targetColumn] : RPT_PLACEHOLDER,
+				[targetColumn]: RPT_PLACEHOLDER,
 			}));
 
-			rpt(` ${contextCount} context rows, ${predictionCount} prediction rows`);
-			const response = await callRpt(predictionRows, targetColumn, taskType);
+			const response = await callRpt(
+				[...context, ...predictions],
+				targetColumn,
+				taskType,
+			);
 			rpt(` Prediction complete`);
 			return writePredictionTable(
 				outputTable,
-				sanitized.slice(contextCount),
+				sanitizeRows(predictionRows),
 				extractPredictions(response, targetColumn),
 				targetColumn,
 				taskType,
@@ -220,13 +269,26 @@ export const runRptPredictionTool = tool(
 	{
 		name: 'run_rpt_prediction',
 		description:
-			'Run an SAP RPT prediction on a single DuckDB table. ' +
-			'The last 20% of rows (by insertion order) become prediction rows; the rest are context. ' +
+			'Run an SAP RPT prediction on a single DuckDB table or view. ' +
+			'Use predictionWhere to select the rows whose target column should be predicted ' +
+			'(e.g. future fiscal periods, rows with NULL target values). ' +
+			'Optionally set contextWhere for rows with known target values; otherwise all rows ' +
+			'not matching predictionWhere become context. ' +
 			'Predictions are written into outputTable, which you then aggregate with query_duckdb. ' +
-			'Use this only for forecasting questions, and only when a single source is available — with both actuals ' +
-			'and planning entries loaded, run_rpt_prediction_from_sources gives a semantically correct split.',
+			'When actuals and planning entries are in separate tables, prefer run_rpt_prediction_from_sources.',
 		schema: z.object({
 			tableName: z.string().describe('DuckDB table or view to read from'),
+			predictionWhere: z
+				.string()
+				.describe(
+					"SQL predicate (no WHERE keyword) selecting rows to predict, e.g. \"ledgerFiscalYear = '2026' AND fiscalPeriod IN ('010', '011', '012')\"",
+				),
+			contextWhere: z
+				.string()
+				.optional()
+				.describe(
+					'Optional SQL predicate for context rows with known target values. Defaults to NOT (predictionWhere).',
+				),
 			outputTable: z
 				.string()
 				.describe(

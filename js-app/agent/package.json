@@ -18,7 +18,8 @@
 		"query:dual-source-rpt": "tsx --env-file-if-exists=../../.env src/cli.ts \"Load journal entries for cost center A1000 as actuals context, load budget planning entries as prediction target, then use run_rpt_prediction_from_sources to predict amountInGlobalCurrency.\"",
 		"lint:fix": "biome check --write",
 		"lint": "biome check",
-		"lint:ci": "biome ci"
+		"lint:ci": "biome ci",
+		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@duckdb/node-api": "1.5.5-r.4",

@@ -22,6 +22,9 @@ Tools:
 - run_rpt_prediction_from_sources / run_rpt_prediction are SAP RPT, a tabular foundation model.
   They take context rows with known values plus rows to predict, and write the predicted values into
   an output table you name. Query that table afterwards to aggregate the predictions.
+  For a single table, run_rpt_prediction uses predictionWhere (and optional contextWhere) to pick
+  which rows to forecast — e.g. future fiscal periods or rows missing the target value. When actuals
+  and planning are in separate tables, use run_rpt_prediction_from_sources instead.
 
 Tables share: companyCode, costCenter, profitCenter, glAccount, ledger, ledgerFiscalYear,
 fiscalPeriod (001–012), fiscalYearPeriod.

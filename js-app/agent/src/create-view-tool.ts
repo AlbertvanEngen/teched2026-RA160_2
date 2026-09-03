@@ -12,7 +12,7 @@ export const createViewTool = tool(
 				`[DuckDB] CREATE OR REPLACE VIEW ${viewName} AS ${sql.slice(0, 80)}...`,
 			);
 			await runQuery(`CREATE OR REPLACE VIEW ${viewName} AS ${sql}`);
-			return `View '${viewName}' created. Query it with query_duckdb or pass it to run_rpt_prediction.`;
+			return `View '${viewName}' created. Query it with query_duckdb or pass it to run_rpt_prediction (with predictionWhere).`;
 		} catch (e: unknown) {
 			const message = e instanceof Error ? e.message : String(e);
 			console.error(`[DuckDB] Error creating view: ${message}`);

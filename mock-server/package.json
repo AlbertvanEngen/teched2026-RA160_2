@@ -16,7 +16,8 @@
 		"test": "node --test test/app.test.ts",
 		"lint:fix": "biome check --write",
 		"lint": "biome check",
-		"lint:ci": "biome ci"
+		"lint:ci": "biome ci",
+		"typecheck": "tsc --noEmit"
 	},
 	"engines": {
 		"node": "^24"
@@ -28,6 +29,7 @@
 		"uuid": "^14.0.2"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "catalog:"
+		"@biomejs/biome": "catalog:",
+		"typescript": "catalog:"
 	}
 }

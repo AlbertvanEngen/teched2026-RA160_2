@@ -422,6 +422,20 @@ export default function App() {
 			} catch (err) {
 				setError(String(err));
 			} finally {
+				setTurns((prev) =>
+					prev.map((turn) =>
+						turn.turnId === turnId
+							? {
+									...turn,
+									tools: turn.tools.map((entry) =>
+										entry.result === undefined
+											? { ...entry, result: 'Tool execution completed.' }
+											: entry,
+									),
+								}
+							: turn,
+					),
+				);
 				setRunning(false);
 				setActiveToolName(null);
 				setActiveTurnId(null);
