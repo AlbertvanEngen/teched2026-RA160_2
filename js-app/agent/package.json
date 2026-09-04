@@ -1,39 +1,36 @@
 {
-	"name": "financial-mock-agent",
-	"version": "1.0.0",
-	"private": true,
-	"type": "module",
-	"exports": {
-		".": {
-			"types": "./src/agent.d.ts",
-			"default": "./src/agent.ts"
-		}
-	},
-	"scripts": {
-		"start": "tsx --env-file-if-exists=../../.env src/cli.ts",
-		"generate": "generate-odata-client --input '../../specs/API_*ENTRYITEM*_SRV.edmx' --outputDir src/generated --generateESM --overwrite",
-		"query:quarterly-budget": "tsx --env-file-if-exists=../../.env src/cli.ts \"Show me the quarterly budget for cost center A1000 for the last 12 months.\"",
-		"query:monthly-costs": "tsx --env-file-if-exists=../../.env src/cli.ts \"Show me the monthly cost for cost center A1000 for the last 12 months.\"",
-		"query:forecast": "tsx --env-file-if-exists=../../.env src/cli.ts \"Forecast: plan the budget for cost center A1000 for the next 12 months based on historical data.\"",
-		"query:dual-source-rpt": "tsx --env-file-if-exists=../../.env src/cli.ts \"Load journal entries for cost center A1000 as actuals context, load budget planning entries as prediction target, then use run_rpt_prediction_from_sources to predict amountInGlobalCurrency.\"",
-		"lint:fix": "biome check --write",
-		"lint": "biome check",
-		"lint:ci": "biome ci",
-		"typecheck": "tsc --noEmit"
-	},
-	"dependencies": {
-		"@duckdb/node-api": "1.5.5-r.4",
-		"@sap-ai-sdk/langchain": "^2.15.0",
-		"@sap-ai-sdk/rpt": "^2.15.0",
-		"@sap-cloud-sdk/odata-v2": "catalog:",
-		"bignumber.js": "^11.1.5",
-		"langchain": "^1.5.10",
-		"tsx": "catalog:",
-		"zod": "^4.4.3"
-	},
-	"devDependencies": {
-		"@biomejs/biome": "catalog:",
-		"@sap-cloud-sdk/generator": "catalog:",
-		"typescript": "catalog:"
-	}
+  "name": "financial-mock-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/agent.d.ts",
+      "default": "./src/agent.ts"
+    }
+  },
+  "scripts": {
+    "start": "tsx --env-file-if-exists=../../.env src/cli.ts",
+    "generate": "generate-odata-client --input '../../specs/API_*ENTRYITEM*_SRV.edmx' --outputDir src/generated --generateESM --overwrite",
+    "query:quarterly-budget": "tsx --env-file-if-exists=../../.env src/cli.ts \"Show me the quarterly budget for cost center A1000 for the last 12 months.\"",
+    "query:monthly-costs": "tsx --env-file-if-exists=../../.env src/cli.ts \"Show me the monthly cost for cost center A1000 for the last 12 months.\"",
+    "query:forecast": "tsx --env-file-if-exists=../../.env src/cli.ts \"Forecast: plan the budget for cost center A1000 for the next 12 months based on historical data.\"",
+    "query:dual-source-rpt": "tsx --env-file-if-exists=../../.env src/cli.ts \"Load journal entries for cost center A1000 as actuals context, load budget planning entries as prediction target, then use run_rpt_prediction_from_sources to predict amountInGlobalCurrency.\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@duckdb/node-api": "1.5.5-r.4",
+    "@langchain/langgraph-checkpoint": "^1.1.5",
+    "@sap-ai-sdk/langchain": "^2.15.0",
+    "@sap-ai-sdk/rpt": "^2.15.0",
+    "@sap-cloud-sdk/odata-v2": "catalog:",
+    "bignumber.js": "^11.1.5",
+    "langchain": "^1.5.10",
+    "tsx": "catalog:",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@sap-cloud-sdk/generator": "catalog:",
+    "typescript": "catalog:"
+  }
 }
