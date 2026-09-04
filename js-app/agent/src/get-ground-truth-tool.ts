@@ -275,9 +275,19 @@ export const getGroundTruthTool = tool(
            CASE
              WHEN g.${quoteIdentifier(groundTruthCol)} IS NULL THEN NULL
              WHEN g.${quoteIdentifier(groundTruthCol)} = 0 THEN NULL
-             ELSE (ABS(g.${quoteIdentifier(groundTruthCol)}) - p.${quoteIdentifier(predictedCol)})
+             WHEN p.${quoteIdentifier(predictedCol)} <= ABS(g.${quoteIdentifier(groundTruthCol)}) THEN
+               (ABS(g.${quoteIdentifier(groundTruthCol)}) - p.${quoteIdentifier(predictedCol)})
                / ABS(g.${quoteIdentifier(groundTruthCol)}) * 100
-           END AS pct_below_actual
+             ELSE NULL
+           END AS pct_below_actual,
+           CASE
+             WHEN g.${quoteIdentifier(groundTruthCol)} IS NULL THEN NULL
+             WHEN g.${quoteIdentifier(groundTruthCol)} = 0 THEN NULL
+             WHEN p.${quoteIdentifier(predictedCol)} > ABS(g.${quoteIdentifier(groundTruthCol)}) THEN
+               (p.${quoteIdentifier(predictedCol)} - ABS(g.${quoteIdentifier(groundTruthCol)}))
+               / ABS(g.${quoteIdentifier(groundTruthCol)}) * 100
+             ELSE NULL
+           END AS pct_above_actual
          FROM ${predAggTable} p
          LEFT JOIN ${truthAggTable} g ON ${joinCondition}`,
       );
@@ -298,9 +308,18 @@ export const getGroundTruthTool = tool(
            END AS pct_of_actual,
            CASE
              WHEN SUM(actual_magnitude) = 0 THEN NULL
-             ELSE (SUM(actual_magnitude) - SUM(${quoteIdentifier(predictedCol)}))
+             WHEN SUM(${quoteIdentifier(predictedCol)}) <= SUM(actual_magnitude) THEN
+               (SUM(actual_magnitude) - SUM(${quoteIdentifier(predictedCol)}))
                / SUM(actual_magnitude) * 100
-           END AS pct_below_actual
+             ELSE NULL
+           END AS pct_below_actual,
+           CASE
+             WHEN SUM(actual_magnitude) = 0 THEN NULL
+             WHEN SUM(${quoteIdentifier(predictedCol)}) > SUM(actual_magnitude) THEN
+               (SUM(${quoteIdentifier(predictedCol)}) - SUM(actual_magnitude))
+               / SUM(actual_magnitude) * 100
+             ELSE NULL
+           END AS pct_above_actual
          FROM ${outputTable}`,
       );
 
@@ -314,15 +333,25 @@ export const getGroundTruthTool = tool(
           ? 'n/a'
           : Number(val).toFixed(2);
 
+      const below = m.pct_below_actual;
+      const above = m.pct_above_actual;
+      const variancePhrase =
+        below != null && Number(below) > 0
+          ? `${fmt(below)}% below actual`
+          : above != null && Number(above) > 0
+            ? `${fmt(above)}% above actual`
+            : 'on par with actual';
+
       return (
         `Wrote comparison into '${outputTable}'. ` +
         `Columns: ${groupBy.join(', ')}, ${predictedCol}, ${groundTruthCol}, actual_magnitude, ` +
-        `error, absolute_error, pct_error, pct_of_actual, pct_below_actual. ` +
-        `pct_of_actual = forecast as % of |ground truth|; pct_below_actual = % under actual spend magnitude (positive = shortfall). ` +
+        `error, absolute_error, pct_error, pct_of_actual, pct_below_actual, pct_above_actual. ` +
+        `pct_of_actual = forecast / |ground truth| × 100; pct_below_actual = % under spend (positive or null); ` +
+        `pct_above_actual = % over spend (positive or null). ` +
         `Totals — predicted: ${fmt(m.total_predicted)}, actual magnitude: ${fmt(m.total_actual_magnitude)}, ` +
-        `forecast is ${fmt(m.pct_of_actual)}% of actual (${fmt(m.pct_below_actual)}% below). ` +
+        `forecast is ${fmt(m.pct_of_actual)}% of actual (${variancePhrase}). ` +
         `MAPE: ${fmt(m.mape)}%, MAE: ${fmt(m.mae)}, RMSE: ${fmt(m.rmse)}. ` +
-        `Present comparisons primarily as percentages (pct_of_actual, pct_below_actual); journal-entry ground truth is signed (expenses negative).`
+        `Present comparisons primarily as percentages; journal-entry ground truth is signed (expenses negative).`
       );
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
@@ -338,8 +367,8 @@ export const getGroundTruthTool = tool(
       '|journal sum| equals planning ACTUAL for the same dimensions. ' +
       'Fetches actual values from OData (journal entries or planning ACTUAL rows), aggregates them ' +
       'to the same grain as the prediction table, joins on groupBy dimensions, and writes a comparison ' +
-      'table with predicted vs ground-truth values plus percentage metrics (pct_of_actual, pct_below_actual, MAPE). ' +
-      'pct_of_actual = forecast / |ground truth| × 100; pct_below_actual = % under actual spend magnitude. ' +
+      'table with predicted vs ground-truth values plus percentage metrics (pct_of_actual, pct_below_actual, pct_above_actual, MAPE). ' +
+      'pct_of_actual = forecast / |ground truth| × 100; pct_below_actual = % under spend; pct_above_actual = % over spend. ' +
       'Use after run_rpt_prediction or run_rpt_prediction_from_sources. ' +
       'truthSource journal_entry = posted actuals; planning_actual = financial planning ACTUAL category.',
     schema: z.object({

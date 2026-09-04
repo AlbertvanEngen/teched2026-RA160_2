@@ -121,7 +121,12 @@ body,
   padding: 0.5rem 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   cursor: pointer;
-  transition: background 0.1s;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    opacity 0.18s ease,
+    transform 0.18s ease;
+  animation: rail-item-in 0.18s ease-out both;
 }
 .tool-entry:hover {
   background: rgba(255, 255, 255, 0.04);
@@ -151,8 +156,19 @@ body,
 .tool-entry__status.done {
   background: var(--green);
 }
+.tool-entry__status.queued {
+  background: rgba(255, 255, 255, 0.25);
+}
 .tool-entry__status.error {
   background: var(--red);
+}
+.tool-entry__duration {
+  color: rgba(255, 255, 255, 0.4);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .tool-entry__args {
   font-family: var(--mono);
@@ -369,6 +385,16 @@ body,
     opacity: 0.35;
   }
 }
+@keyframes rail-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.3rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
 /* Input panel */
 .input-panel {
@@ -515,6 +541,7 @@ body,
 /* Turn groups in tool rail */
 .turn-group {
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  animation: rail-item-in 0.18s ease-out both;
 }
 .turn-group__header {
   width: 100%;
@@ -526,7 +553,7 @@ body,
   gap: 0.4rem;
   padding: 0.5rem 1rem;
   text-align: left;
-  transition: background 0.1s;
+  transition: background-color 0.18s ease;
 }
 .turn-group__header:hover {
   background: rgba(255, 255, 255, 0.04);
@@ -684,7 +711,13 @@ body,
 }
 @media (prefers-reduced-motion: reduce) {
   .thinking-dots span,
-  .tool-entry__status.pending {
+  .tool-entry__status.pending,
+  .tool-entry,
+  .turn-group {
     animation: none;
+  }
+  .tool-entry,
+  .turn-group__header {
+    transition: none;
   }
 }

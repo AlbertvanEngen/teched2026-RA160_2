@@ -29,6 +29,7 @@ export type ToolEntry = {
   args: Record<string, unknown>;
   result?: string;
   startedAt: number;
+  durationMs?: number;
 };
 
 export type TurnGroup = {

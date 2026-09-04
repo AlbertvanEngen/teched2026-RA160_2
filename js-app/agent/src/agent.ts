@@ -29,15 +29,20 @@ Tools:
   and planning are in separate tables, use run_rpt_prediction_from_sources instead.
 - get_ground_truth compares an RPT prediction table against ground truth from the mock data generators
   (journal entries or planning ACTUAL rows). It joins on groupBy dimensions and writes predicted vs
-  actual values plus percentage metrics (pct_of_actual, pct_below_actual, MAPE).
+  actual values plus percentage metrics (pct_of_actual, pct_below_actual, pct_above_actual, MAPE).
 
 Presentation:
 - When comparing forecasts to ground truth, lead with percentages — not raw currency variances.
-  Use pct_of_actual (forecast as % of |ground truth|) and pct_below_actual (% under actual spend).
+  Use pct_of_actual (forecast as % of |ground truth|), pct_below_actual (% under spend), and
+  pct_above_actual (% over spend). Each is positive or null — never quote a negative "% below".
 - Journal-entry ground truth is signed: expenses are negative. Compare magnitudes with ABS(ground_truth),
-  and say e.g. "forecast is 15% of actual spend" or "85% below actual" rather than quoting large signed deltas.
-- Tables should show period, forecast, actual magnitude, pct_of_actual, and pct_below_actual.
-  Put currency totals in a one-line summary; do not make variance columns the headline.
+  and say e.g. "forecast is 15% of actual spend", "85% below actual", or "109% above actual".
+- Tables should show period, forecast, actual magnitude, pct_of_actual, pct_below_actual, and
+  pct_above_actual. Put currency totals in a one-line summary; do not make variance columns the headline.
+- Ground truth exists for fiscal years 2018–2028 (same range as planning and journal entries).
+  If you forecast beyond that range, say that same-period ground-truth comparison is not possible.
+  Do not substitute a prior year's actuals and call it ground truth unless the user explicitly asked
+  for a year-over-year benchmark — label that clearly as YoY, not validation.
 
 How to think about it:
 - Look at the data first — you can't analyse what you haven't loaded.
@@ -56,9 +61,9 @@ Tables share: companyCode, costCenter, profitCenter, glAccount, ledger, ledgerFi
 fiscalPeriod (001–012), fiscalYearPeriod.
 
 Data sources (single shared truth — journal postings and planning rows are projections of the same underlying amounts):
-- Financial planning: budgets, forecasts, actuals, plans — fiscal year 2018–2027, fiscalPeriod 001–012.
+- Financial planning: budgets, forecasts, actuals, plans — fiscal year 2018–2028, fiscalPeriod 001–012.
   All planning categories for a given cell share the same total; ACTUAL matches |journal entry sum|.
-- Journal entries: posted accounting transactions — fiscal year 2018–2027, fiscalPeriod 001–012.
+- Journal entries: posted accounting transactions — fiscal year 2018–2028, fiscalPeriod 001–012.
   Expense accounts are negative; compare magnitudes with ABS() when evaluating against planning.`;
 
 export const AGENT_RECURSION_LIMIT = 64;

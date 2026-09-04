@@ -35,6 +35,34 @@ function toolLabel(name: string): string {
   return TOOL_LABELS[name] ?? name.replace(/_/g, ' ');
 }
 
+function formatDuration(durationMs: number): string {
+  if (durationMs < 1000) return `${Math.max(1, Math.round(durationMs))} ms`;
+  return `${(durationMs / 1000).toFixed(durationMs < 10_000 ? 1 : 0)} s`;
+}
+
+function useElapsedDuration(
+  startedAt: number,
+  done: boolean,
+  durationMs?: number,
+): number {
+  const [elapsedMs, setElapsedMs] = useState(() =>
+    Math.max(0, Date.now() - startedAt),
+  );
+
+  useEffect(() => {
+    if (done) return;
+
+    const update = () => {
+      setElapsedMs(Math.max(0, Date.now() - startedAt));
+    };
+    update();
+    const intervalId = setInterval(update, 100);
+    return () => clearInterval(intervalId);
+  }, [done, startedAt]);
+
+  return durationMs ?? elapsedMs;
+}
+
 const THINKING_PHRASES = [
   'Reticulating splines…',
   'Pondering deeply…',
@@ -61,12 +89,14 @@ function useRotatingPhrase(active: boolean, intervalMs = 2200) {
   return THINKING_PHRASES[idx];
 }
 
-function ToolEntryCard({ t }: { t: ToolEntry }) {
+function ToolEntryCard({ t, isActive }: { t: ToolEntry; isActive: boolean }) {
   const [open, setOpen] = useState(false);
   const isDone = t.result !== undefined;
+  const status = isDone ? 'done' : isActive ? 'pending' : 'queued';
+  const durationMs = useElapsedDuration(t.startedAt, isDone, t.durationMs);
   const result = t.result ?? '';
   return (
-    <div className={`tool-entry${isDone ? '' : ' is-active'}`}>
+    <div className={`tool-entry${isActive ? ' is-active' : ''}`}>
       <button
         type="button"
         className="tool-entry__row"
@@ -74,11 +104,17 @@ function ToolEntryCard({ t }: { t: ToolEntry }) {
         aria-expanded={open}
       >
         <span
-          className={`tool-entry__status ${isDone ? 'done' : 'pending'}`}
+          className={`tool-entry__status ${status}`}
           role="status"
-          aria-label={isDone ? 'complete' : 'running'}
+          aria-label={isDone ? 'complete' : isActive ? 'running' : 'waiting'}
         />
         <span className="tool-entry__name-text">{t.name}</span>
+        <span
+          className="tool-entry__duration"
+          title={`Processing time: ${formatDuration(durationMs)}`}
+        >
+          {formatDuration(durationMs)}
+        </span>
         <span className="tool-entry__chevron">{open ? '▾' : '▸'}</span>
       </button>
       {!open && (
@@ -113,9 +149,11 @@ function ToolEntryCard({ t }: { t: ToolEntry }) {
 function ToolRail({
   turns,
   activeTurnId,
+  activeToolIds,
 }: {
   turns: TurnGroup[];
   activeTurnId: string | null;
+  activeToolIds: ReadonlySet<string>;
 }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const prevActiveTurnId = useRef<string | null>(null);
@@ -151,7 +189,7 @@ function ToolRail({
         )}
         {reversed.map((turn) => {
           const isOpen = !collapsed.has(turn.turnId);
-          const pending = turn.tools.some((t) => t.result === undefined);
+          const pending = turn.tools.some((tool) => activeToolIds.has(tool.id));
           return (
             <div key={turn.turnId} className="turn-group">
               <button
@@ -173,7 +211,11 @@ function ToolRail({
               {isOpen && (
                 <div className="turn-group__body">
                   {[...turn.tools].reverse().map((t) => (
-                    <ToolEntryCard key={t.id} t={t} />
+                    <ToolEntryCard
+                      key={t.id}
+                      t={t}
+                      isActive={activeToolIds.has(t.id)}
+                    />
                   ))}
                 </div>
               )}
@@ -258,8 +300,9 @@ export default function App() {
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [running, setRunning] = useState(false);
-  // null = not running, '' = running but no tool yet, 'tool_name' = specific tool active
+  // null = not running, '' = running but no tool yet, otherwise latest tool label
   const [activeToolName, setActiveToolName] = useState<string | null>(null);
+  const [activeToolIds, setActiveToolIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const idRef = useRef(0);
@@ -360,6 +403,7 @@ export default function App() {
                 const newAssistantId = nextId();
                 assistantId = newAssistantId;
                 setActiveToolName(null);
+                setActiveToolIds(new Set());
                 setMessages((prev) => [
                   ...prev,
                   {
@@ -385,6 +429,7 @@ export default function App() {
                 const newAssistantId = nextId();
                 assistantId = newAssistantId;
                 setActiveToolName(null);
+                setActiveToolIds(new Set());
                 setMessages((prev) => [
                   ...prev,
                   {
@@ -418,6 +463,11 @@ export default function App() {
                 ),
               );
               setActiveToolName(entry.name);
+              setActiveToolIds((current) => {
+                const next = new Set(current);
+                next.add(entry.id);
+                return next;
+              });
               if (assistantId) {
                 setMessages((prev) =>
                   prev.map((m) =>
@@ -430,18 +480,34 @@ export default function App() {
             } else if (eventLine === 'tool_result') {
               const tid = payload.id as string;
               const result = payload.result as string;
+              const completedAt = Date.now();
               setTurns((prev) =>
                 prev.map((t) =>
                   t.turnId === turnId
                     ? {
                         ...t,
                         tools: t.tools.map((e) =>
-                          e.id === tid ? { ...e, result } : e,
+                          e.id === tid
+                            ? {
+                                ...e,
+                                result,
+                                durationMs: Math.max(
+                                  0,
+                                  completedAt - e.startedAt,
+                                ),
+                              }
+                            : e,
                         ),
                       }
                     : t,
                 ),
               );
+              setActiveToolIds((current) => {
+                if (!current.has(tid)) return current;
+                const next = new Set(current);
+                next.delete(tid);
+                return next;
+              });
             } else if (eventLine === 'error') {
               setError(payload.message as string);
             }
@@ -450,6 +516,7 @@ export default function App() {
       } catch (err) {
         setError(String(err));
       } finally {
+        const completedAt = Date.now();
         setTurns((prev) =>
           prev.map((turn) =>
             turn.turnId === turnId
@@ -457,7 +524,14 @@ export default function App() {
                   ...turn,
                   tools: turn.tools.map((entry) =>
                     entry.result === undefined
-                      ? { ...entry, result: 'Tool execution completed.' }
+                      ? {
+                          ...entry,
+                          result: 'Tool execution completed.',
+                          durationMs: Math.max(
+                            0,
+                            completedAt - entry.startedAt,
+                          ),
+                        }
                       : entry,
                   ),
                 }
@@ -466,6 +540,7 @@ export default function App() {
         );
         setRunning(false);
         setActiveToolName(null);
+        setActiveToolIds(new Set());
         setActiveTurnId(null);
       }
     },
@@ -511,7 +586,11 @@ export default function App() {
       )}
 
       <div className="layout">
-        <ToolRail turns={turns} activeTurnId={activeTurnId} />
+        <ToolRail
+          turns={turns}
+          activeTurnId={activeTurnId}
+          activeToolIds={activeToolIds}
+        />
 
         <div className="chat-pane">
           <div

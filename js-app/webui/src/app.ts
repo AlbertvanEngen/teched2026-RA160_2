@@ -41,6 +41,8 @@ app.post('/api/agent/run', async (c) => {
           configurable: { thread_id: sessionId },
         },
       );
+      const emittedToolCallIds = new Set<string>();
+      const emittedToolResultIds = new Set<string>();
 
       for await (const chunk of agentStream) {
         const messages = (chunk as { messages: BaseMessage[] }).messages;
@@ -49,6 +51,8 @@ app.post('/api/agent/run', async (c) => {
         if (isAIMessage(last)) {
           const toolCalls = last.tool_calls ?? [];
           for (const tc of toolCalls) {
+            if (!tc.id || emittedToolCallIds.has(tc.id)) continue;
+            emittedToolCallIds.add(tc.id);
             await send('tool_call', {
               name: tc.name,
               args: tc.args,
@@ -72,20 +76,27 @@ app.post('/api/agent/run', async (c) => {
               await send('delta', { text: last.content });
             }
           }
-        } else if (isToolMessage(last)) {
+        }
+
+        for (const message of messages) {
+          if (!isToolMessage(message)) continue;
+          const toolCallId = message.tool_call_id;
+          if (emittedToolResultIds.has(toolCallId)) continue;
+          emittedToolResultIds.add(toolCallId);
+
           const text =
-            typeof last.content === 'string'
-              ? last.content
-              : Array.isArray(last.content)
-                ? last.content
+            typeof message.content === 'string'
+              ? message.content
+              : Array.isArray(message.content)
+                ? message.content
                     .map(
                       (item: unknown) =>
                         (item as { text?: string }).text ??
                         JSON.stringify(item),
                     )
                     .join(' ')
-                : JSON.stringify(last.content);
-          await send('tool_result', { id: last.tool_call_id, result: text });
+                : JSON.stringify(message.content);
+          await send('tool_result', { id: toolCallId, result: text });
         }
       }
 

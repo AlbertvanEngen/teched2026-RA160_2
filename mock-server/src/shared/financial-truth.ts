@@ -115,6 +115,7 @@ const FISCAL_YEARS = [
   '2025',
   '2026',
   '2027',
+  '2028',
 ];
 
 const FISCAL_PERIODS = [
@@ -160,7 +161,7 @@ function semanticAmountMultiplier(
     companyCode === '1710' &&
     costCenter === 'B2000' &&
     fiscalYear >= '2021' &&
-    fiscalYear <= '2027'
+    fiscalYear <= '2028'
   ) {
     if (accountCode === '410000' && [5, 6, 7].includes(period)) return 1.28;
     if (accountCode === '420000' && [5, 6, 7].includes(period)) return 1.18;

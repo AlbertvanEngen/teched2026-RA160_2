@@ -164,6 +164,7 @@ test('generates concentrated entity histories across a decade', () => {
       '2025',
       '2026',
       '2027',
+      '2028',
     ]);
   }
 });
@@ -202,7 +203,7 @@ test('covers every fiscal period for budget reporting', () => {
       .map((entry) => entry.FiscalYearPeriod),
   );
 
-  assert.equal(budgetPeriods.size, 120);
+  assert.equal(budgetPeriods.size, 132);
 });
 
 test('generates recurring semantic business patterns for RPT context', () => {
@@ -218,7 +219,7 @@ test('generates recurring semantic business patterns for RPT context', () => {
             entry.CostCenter === 'B2000' &&
             entry.GLAccount === '410000' &&
             entry.LedgerFiscalYear >= '2021' &&
-            entry.LedgerFiscalYear <= '2027' &&
+            entry.LedgerFiscalYear <= '2028' &&
             entry.FiscalPeriod === fiscalPeriod,
         )
         .reduce(
