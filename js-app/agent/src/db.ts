@@ -52,3 +52,18 @@ export async function withConnection<T>(
     }
   });
 }
+
+export async function dropObjects(names: string[]): Promise<void> {
+  if (names.length === 0) return;
+  await serialize(async () => {
+    const conn = await openConnection();
+    try {
+      for (const name of names) {
+        await conn.run(`DROP VIEW IF EXISTS ${name}`);
+        await conn.run(`DROP TABLE IF EXISTS ${name}`);
+      }
+    } finally {
+      conn.closeSync();
+    }
+  });
+}

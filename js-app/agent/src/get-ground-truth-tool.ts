@@ -6,6 +6,7 @@ import type { FinPlanningEntryItem } from './generated/API_FINPLANNINGENTRYITEM_
 import { apiFinplanningentryitemSrv } from './generated/API_FINPLANNINGENTRYITEM_SRV/index.ts';
 import { apiJournalentryitembasicSrv } from './generated/API_JOURNALENTRYITEMBASIC_SRV/index.ts';
 import type { JournalEntryItemBasic } from './generated/API_JOURNALENTRYITEMBASIC_SRV/JournalEntryItemBasic.ts';
+import { registerSessionObject } from './session-store.ts';
 import { isValidIdentifier } from './sql-guard.ts';
 
 const gt = (msg: string) => console.log(styleText('green', '[GT] ') + msg);
@@ -326,6 +327,7 @@ export const getGroundTruthTool = tool(
       await runQuery(`DROP TABLE IF EXISTS ${stagingTable}`);
       await runQuery(`DROP TABLE IF EXISTS ${predAggTable}`);
       await runQuery(`DROP TABLE IF EXISTS ${truthAggTable}`);
+      registerSessionObject(outputTable);
 
       const m = metrics[0] ?? {};
       const fmt = (val: unknown) =>

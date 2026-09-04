@@ -10,3 +10,5 @@ export declare const SESSION_TTL_MS: number;
 export declare function createSession(): string;
 export declare function touchSession(sessionId: string): boolean;
 export declare function pruneExpiredSessions(): void;
+export declare function registerSessionObject(name: string): void;
+export declare const sessionContext: import('node:async_hooks').AsyncLocalStorage<string>;

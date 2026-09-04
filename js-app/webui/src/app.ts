@@ -3,6 +3,7 @@ import { isAIMessage, isToolMessage } from '@langchain/core/messages';
 import {
   createSession,
   getFinancialAgent,
+  sessionContext,
   touchSession,
 } from 'financial-mock-agent';
 import { Hono } from 'hono';
@@ -26,85 +27,87 @@ app.post('/api/agent/run', async (c) => {
     return c.json({ error: 'invalid or expired session' }, 401);
   }
 
-  return streamSSE(c, async (s) => {
-    const send = async (event: string, data: unknown) => {
-      await s.writeSSE({ event, data: JSON.stringify(data) });
-    };
+  return streamSSE(c, (s) =>
+    sessionContext.run(sessionId, async () => {
+      const send = async (event: string, data: unknown) => {
+        await s.writeSSE({ event, data: JSON.stringify(data) });
+      };
 
-    try {
-      const agentStream = await agent.stream(
-        {
-          messages: [{ role: 'user', content: prompt }],
-        },
-        {
-          streamMode: 'values',
-          configurable: { thread_id: sessionId },
-        },
-      );
-      const emittedToolCallIds = new Set<string>();
-      const emittedToolResultIds = new Set<string>();
+      try {
+        const agentStream = await agent.stream(
+          {
+            messages: [{ role: 'user', content: prompt }],
+          },
+          {
+            streamMode: 'values',
+            configurable: { thread_id: sessionId },
+          },
+        );
+        const emittedToolCallIds = new Set<string>();
+        const emittedToolResultIds = new Set<string>();
 
-      for await (const chunk of agentStream) {
-        const messages = (chunk as { messages: BaseMessage[] }).messages;
-        const last = messages[messages.length - 1];
+        for await (const chunk of agentStream) {
+          const messages = (chunk as { messages: BaseMessage[] }).messages;
+          const last = messages[messages.length - 1];
 
-        if (isAIMessage(last)) {
-          const toolCalls = last.tool_calls ?? [];
-          for (const tc of toolCalls) {
-            if (!tc.id || emittedToolCallIds.has(tc.id)) continue;
-            emittedToolCallIds.add(tc.id);
-            await send('tool_call', {
-              name: tc.name,
-              args: tc.args,
-              id: tc.id,
-            });
-          }
-          if (!toolCalls.length && last.content) {
-            if (Array.isArray(last.content)) {
-              for (const block of last.content as Array<{
-                type: string;
-                text?: string;
-                thinking?: string;
-              }>) {
-                if (block.type === 'thinking' && block.thinking) {
-                  await send('thinking', { text: block.thinking });
-                } else if (block.type === 'text' && block.text) {
-                  await send('delta', { text: block.text });
+          if (isAIMessage(last)) {
+            const toolCalls = last.tool_calls ?? [];
+            for (const tc of toolCalls) {
+              if (!tc.id || emittedToolCallIds.has(tc.id)) continue;
+              emittedToolCallIds.add(tc.id);
+              await send('tool_call', {
+                name: tc.name,
+                args: tc.args,
+                id: tc.id,
+              });
+            }
+            if (!toolCalls.length && last.content) {
+              if (Array.isArray(last.content)) {
+                for (const block of last.content as Array<{
+                  type: string;
+                  text?: string;
+                  thinking?: string;
+                }>) {
+                  if (block.type === 'thinking' && block.thinking) {
+                    await send('thinking', { text: block.thinking });
+                  } else if (block.type === 'text' && block.text) {
+                    await send('delta', { text: block.text });
+                  }
                 }
+              } else {
+                await send('delta', { text: last.content });
               }
-            } else {
-              await send('delta', { text: last.content });
             }
           }
-        }
 
-        for (const message of messages) {
-          if (!isToolMessage(message)) continue;
-          const toolCallId = message.tool_call_id;
-          if (emittedToolResultIds.has(toolCallId)) continue;
-          emittedToolResultIds.add(toolCallId);
+          for (const message of messages) {
+            if (!isToolMessage(message)) continue;
+            const toolCallId = message.tool_call_id;
+            if (emittedToolResultIds.has(toolCallId)) continue;
+            emittedToolResultIds.add(toolCallId);
 
-          const text =
-            typeof message.content === 'string'
-              ? message.content
-              : Array.isArray(message.content)
+            const text =
+              typeof message.content === 'string'
                 ? message.content
-                    .map(
-                      (item: unknown) =>
-                        (item as { text?: string }).text ??
-                        JSON.stringify(item),
-                    )
-                    .join(' ')
-                : JSON.stringify(message.content);
-          await send('tool_result', { id: toolCallId, result: text });
+                : Array.isArray(message.content)
+                  ? message.content
+                      .map(
+                        (item: unknown) =>
+                          (item as { text?: string }).text ??
+                          JSON.stringify(item),
+                      )
+                      .join(' ')
+                  : JSON.stringify(message.content);
+            await send('tool_result', { id: toolCallId, result: text });
+          }
         }
-      }
 
-      await send('done', {});
-    } catch (err) {
-      await send('error', { message: String(err) });
-    }
-  });
+        await send('done', {});
+      } catch (err) {
+        await send('error', { message: String(err) });
+      }
+    }),
+  );
 });
 
 // Mount mock S4 OData routes inline (set MOCK_STANDALONE=1 to skip)

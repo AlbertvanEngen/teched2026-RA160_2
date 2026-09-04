@@ -1,6 +1,7 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { runQuery } from './db.ts';
+import { registerSessionObject } from './session-store.ts';
 import { assertNoForecastingSql } from './sql-guard.ts';
 
 export const createViewTool = tool(
@@ -12,6 +13,7 @@ export const createViewTool = tool(
         `[SQL] CREATE OR REPLACE VIEW ${viewName} AS ${sql.slice(0, 80)}...`,
       );
       await runQuery(`CREATE OR REPLACE VIEW ${viewName} AS ${sql}`);
+      registerSessionObject(viewName);
       return `View '${viewName}' created. Query it with run_sql or pass it to run_rpt_prediction (with predictionWhere).`;
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);

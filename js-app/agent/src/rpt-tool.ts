@@ -3,6 +3,7 @@ import { tool } from '@langchain/core/tools';
 import { RptClient } from '@sap-ai-sdk/rpt';
 import { z } from 'zod';
 import { runQuery, withConnection } from './db.ts';
+import { registerSessionObject } from './session-store.ts';
 import { isValidIdentifier, registerPredictionTable } from './sql-guard.ts';
 
 const rpt = (msg: string) => console.log(styleText('cyan', '[RPT] ') + msg);
@@ -129,6 +130,7 @@ async function writePredictionTable(
   await runQuery(
     `CREATE OR REPLACE TABLE ${outputTable} (${colDefs.join(', ')})`,
   );
+  registerSessionObject(outputTable);
   await withConnection(async (conn) => {
     const appender = await conn.createAppender(outputTable);
     rows.forEach((row, i) => {

@@ -6,6 +6,7 @@ import type { FinPlanningEntryItem } from './generated/API_FINPLANNINGENTRYITEM_
 import { apiFinplanningentryitemSrv } from './generated/API_FINPLANNINGENTRYITEM_SRV/index.ts';
 import { apiJournalentryitembasicSrv } from './generated/API_JOURNALENTRYITEMBASIC_SRV/index.ts';
 import type { JournalEntryItemBasic } from './generated/API_JOURNALENTRYITEMBASIC_SRV/JournalEntryItemBasic.ts';
+import { registerSessionObject } from './session-store.ts';
 
 const odata = (msg: string) => console.log(styleText('blue', '[OData] ') + msg);
 const db = (msg: string) =>
@@ -137,6 +138,7 @@ export const queryFinancialPlanningTool = tool(
   }) => {
     try {
       await runQuery(FIN_PLANNING_DDL(tableName));
+      registerSessionObject(tableName);
 
       const svc = apiFinplanningentryitemSrv();
       const api = svc.finPlanningEntryItemApi;
@@ -245,6 +247,7 @@ export const queryJournalEntryTool = tool(
   }) => {
     try {
       await runQuery(JOURNAL_ENTRY_DDL(tableName));
+      registerSessionObject(tableName);
 
       const svc = apiJournalentryitembasicSrv();
       const api = svc.journalEntryItemBasicApi;

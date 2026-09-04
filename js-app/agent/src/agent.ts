@@ -133,6 +133,8 @@ export function createFinancialAgent() {
 export {
   createSession,
   pruneExpiredSessions,
+  registerSessionObject,
   SESSION_TTL_MS,
+  sessionContext,
   touchSession,
 } from './session-store.ts';
