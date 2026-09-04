@@ -1,5 +1,6 @@
 import { MemorySaver } from '@langchain/langgraph-checkpoint';
 import { OrchestrationClient } from '@sap-ai-sdk/langchain';
+import { orchestrationPromptCachingMiddleware } from '@sap-ai-sdk/langchain/orchestration/prompt-caching-middleware';
 import { createAgent } from 'langchain';
 import { createViewTool } from './create-view-tool.ts';
 import { dropTableTool } from './drop-table-tool.ts';
@@ -113,6 +114,7 @@ function buildFinancialAgent() {
       createViewTool,
       // biome-ignore lint/suspicious/noExplicitAny: LangChain tool types are incompatible with createAgent's expected tool union.
     ] as any,
+    middleware: [orchestrationPromptCachingMiddleware()],
   }).withConfig({ recursionLimit: AGENT_RECURSION_LIMIT });
 }
 
