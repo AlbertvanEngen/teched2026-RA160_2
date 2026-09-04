@@ -1,1 +1,1 @@
-export { getFinancialPlanningEntries } from '../shared/financial-truth.ts';
+export { getFinancialPlanningEntries } from '../shared/db.ts';

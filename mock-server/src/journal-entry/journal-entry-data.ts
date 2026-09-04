@@ -1,1 +1,1 @@
-export { getJournalEntryItems } from '../shared/financial-truth.ts';
+export { getJournalEntryItems } from '../shared/db.ts';

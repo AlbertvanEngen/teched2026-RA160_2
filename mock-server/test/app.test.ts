@@ -137,11 +137,11 @@ test('filters journal entry items by company code', async () => {
   );
 });
 
-test('generates concentrated entity histories across a decade', () => {
-  for (const entries of [
+test('generates concentrated entity histories across a decade', async () => {
+  for (const entries of await Promise.all([
     getFinancialPlanningEntries(),
     getJournalEntryItems(),
-  ]) {
+  ])) {
     const entityHistories = new Map<string, number>();
     const fiscalYears = new Set<string>();
 
@@ -169,10 +169,10 @@ test('generates concentrated entity histories across a decade', () => {
   }
 });
 
-test('generates stable net expense history for Corporate Finance', () => {
+test('generates stable net expense history for Corporate Finance', async () => {
   const history = new Map<string, number>();
 
-  for (const entry of getJournalEntryItems()) {
+  for (const entry of await getJournalEntryItems()) {
     if (
       entry.CostCenter === 'A1000' &&
       entry.LedgerFiscalYear >= '2024' &&
@@ -193,9 +193,9 @@ test('generates stable net expense history for Corporate Finance', () => {
   );
 });
 
-test('covers every fiscal period for budget reporting', () => {
+test('covers every fiscal period for budget reporting', async () => {
   const budgetPeriods = new Set(
-    getFinancialPlanningEntries()
+    (await getFinancialPlanningEntries())
       .filter(
         (entry) =>
           entry.CostCenter === 'A1000' && entry.PlanningCategory === 'BUDGET',
@@ -206,11 +206,11 @@ test('covers every fiscal period for budget reporting', () => {
   assert.equal(budgetPeriods.size, 132);
 });
 
-test('generates recurring semantic business patterns for RPT context', () => {
-  for (const entries of [
+test('generates recurring semantic business patterns for RPT context', async () => {
+  for (const entries of await Promise.all([
     getFinancialPlanningEntries(),
     getJournalEntryItems(),
-  ]) {
+  ])) {
     const total = (fiscalPeriod: string) =>
       entries
         .filter(
@@ -231,9 +231,14 @@ test('generates recurring semantic business patterns for RPT context', () => {
   }
 });
 
-test('aligns journal postings with planning actuals from shared truth', () => {
+test('aligns journal postings with planning actuals from shared truth', async () => {
+  const [journalItems, planningItems] = await Promise.all([
+    getJournalEntryItems(),
+    getFinancialPlanningEntries(),
+  ]);
+
   const journalTotals = new Map<string, number>();
-  for (const entry of getJournalEntryItems()) {
+  for (const entry of journalItems) {
     const key = [
       entry.CompanyCode,
       entry.CostCenter,
@@ -249,7 +254,7 @@ test('aligns journal postings with planning actuals from shared truth', () => {
   }
 
   const planningActualTotals = new Map<string, number>();
-  for (const entry of getFinancialPlanningEntries()) {
+  for (const entry of planningItems) {
     if (entry.PlanningCategory !== 'ACTUAL') continue;
     const key = [
       entry.CompanyCode,
@@ -278,10 +283,10 @@ test('aligns journal postings with planning actuals from shared truth', () => {
   }
 });
 
-test('aligns all planning categories to the same shared amount per cell', () => {
+test('aligns all planning categories to the same shared amount per cell', async () => {
   const totalsByCategory = new Map<string, Map<string, number>>();
 
-  for (const entry of getFinancialPlanningEntries()) {
+  for (const entry of await getFinancialPlanningEntries()) {
     const cellKey = [
       entry.CompanyCode,
       entry.CostCenter,

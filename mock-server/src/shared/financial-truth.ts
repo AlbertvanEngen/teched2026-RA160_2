@@ -1,6 +1,6 @@
-const FIN_PLANNING_BASE_URL =
+export const FIN_PLANNING_BASE_URL =
   'https://{host}:{port}/sap/opu/odata/sap/API_FINPLANNINGENTRYITEM_SRV';
-const JOURNAL_BASE_URL =
+export const JOURNAL_BASE_URL =
   'https://{host}:{port}/sap/opu/odata/sap/API_JOURNALENTRYITEMBASIC_SRV';
 
 function seededRng(seed: number) {
@@ -428,29 +428,76 @@ function projectJournalEntries(cells: TruthCell[]): JournalEntry[] {
   return entries;
 }
 
-let truthCells: TruthCell[] | undefined;
-let planningEntries: PlanningEntry[] | undefined;
-let journalEntries: JournalEntry[] | undefined;
+export type { JournalEntry, PlanningEntry };
 
-function ensureGenerated() {
-  if (!truthCells) {
-    truthCells = generateTruthCells();
-    planningEntries = projectPlanningEntries(truthCells);
-    journalEntries = projectJournalEntries(truthCells);
+import type { DatabaseSync } from 'node:sqlite';
+
+export function seedDatabase(db: DatabaseSync): void {
+  const cells = generateTruthCells();
+  const planning = projectPlanningEntries(cells);
+  const journal = projectJournalEntries(cells);
+
+  db.exec('BEGIN');
+
+  const insertPe = db.prepare(
+    `INSERT INTO planning_entries VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+  );
+  for (const e of planning) {
+    insertPe.run(
+      e.ID,
+      e.Ledger,
+      e.LedgerName,
+      e.PlanningCategory,
+      e.LedgerFiscalYear,
+      e.FiscalPeriod,
+      e.FiscalYearPeriod,
+      e.GLAccount,
+      e.GLAccountName,
+      e.CompanyCode,
+      e.CompanyCodeName,
+      e.CostCenter,
+      e.CostCenterName,
+      e.ProfitCenter,
+      e.ProfitCenterName,
+      e.TransactionCurrency,
+      e.AmountInTransactionCurrency,
+      e.CompanyCodeCurrency,
+      e.AmountInCompanyCodeCurrency,
+      e.GlobalCurrency,
+      e.AmountInGlobalCurrency,
+    );
   }
-}
 
-export function getTruthCells() {
-  ensureGenerated();
-  return truthCells ?? [];
-}
+  const insertJe = db.prepare(
+    `INSERT INTO journal_entries VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+  );
+  for (const e of journal) {
+    insertJe.run(
+      e.ID,
+      e.Ledger,
+      e.LedgerName,
+      e.SourceLedger,
+      e.LedgerFiscalYear,
+      e.FiscalPeriod,
+      e.FiscalYearPeriod,
+      e.CompanyCode,
+      e.CompanyCodeName,
+      e.GLAccount,
+      e.GLAccountName,
+      e.BusinessTransactionCategory,
+      e.BusinessTransactionType,
+      e.CostCenter,
+      e.CostCenterName,
+      e.ProfitCenter,
+      e.ProfitCenterName,
+      e.TransactionCurrency,
+      e.AmountInTransactionCurrency,
+      e.CompanyCodeCurrency,
+      e.AmountInCompanyCodeCurrency,
+      e.GlobalCurrency,
+      e.AmountInGlobalCurrency,
+    );
+  }
 
-export function getFinancialPlanningEntries() {
-  ensureGenerated();
-  return planningEntries ?? [];
-}
-
-export function getJournalEntryItems() {
-  ensureGenerated();
-  return journalEntries ?? [];
+  db.exec('COMMIT');
 }
