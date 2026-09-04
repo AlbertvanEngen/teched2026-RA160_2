@@ -374,10 +374,10 @@ export const getGroundTruthTool = tool(
     schema: z.object({
       predictionTable: z
         .string()
-        .describe('DuckDB table produced by an RPT prediction tool'),
+        .describe('Session table produced by an RPT prediction tool'),
       outputTable: z
         .string()
-        .describe('Name of the DuckDB table to write the comparison into'),
+        .describe('Name of the session table to write the comparison into'),
       truthSource: z
         .enum(['journal_entry', 'planning_actual'])
         .describe(

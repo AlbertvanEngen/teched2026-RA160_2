@@ -9,7 +9,7 @@ import type { JournalEntryItemBasic } from './generated/API_JOURNALENTRYITEMBASI
 
 const odata = (msg: string) => console.log(styleText('blue', '[OData] ') + msg);
 const db = (msg: string) =>
-  console.log(styleText('magenta', '[DuckDB] ') + msg);
+  console.log(styleText('magenta', '[Session] ') + msg);
 
 const destination = {
   url: process.env.MOCK_SERVER_URL ?? 'http://localhost:3141',
@@ -74,7 +74,7 @@ const finPlanningFilterSchema = z.object({
   tableName: z
     .string()
     .describe(
-      'Name of the DuckDB table to append results into. Choose a descriptive name. ' +
+      'Name of the session table to append results into. Choose a descriptive name. ' +
         'If the table does not exist it will be created. Data is appended, not replaced.',
     ),
   companyCode: z.string().optional().describe('Filter by company code'),
@@ -101,7 +101,7 @@ const journalEntryFilterSchema = z.object({
   tableName: z
     .string()
     .describe(
-      'Name of the DuckDB table to append results into. Choose a descriptive name. ' +
+      'Name of the session table to append results into. Choose a descriptive name. ' +
         'If the table does not exist it will be created. Data is appended, not replaced.',
     ),
   companyCode: z.string().optional().describe('Filter by company code'),
@@ -220,7 +220,7 @@ export const queryFinancialPlanningTool = tool(
   {
     name: 'query_financial_planning',
     description:
-      'Fetch financial planning entries from the OData API and APPEND them into a named DuckDB table. ' +
+      'Fetch financial planning entries from the OData API and APPEND them into a named session table. ' +
       'The table is created on first use; subsequent calls append — data accumulates. ' +
       'Use drop_table to remove a table when no longer needed. ' +
       'Always use the filter parameters to push predicates server-side. ' +
@@ -333,7 +333,7 @@ export const queryJournalEntryTool = tool(
   {
     name: 'query_journal_entry',
     description:
-      'Fetch journal entry items from the OData API and APPEND them into a named DuckDB table. ' +
+      'Fetch journal entry items from the OData API and APPEND them into a named session table. ' +
       'The table is created on first use; subsequent calls append — data accumulates. ' +
       'Use drop_table to remove a table when no longer needed. ' +
       'Always use the filter parameters to push predicates server-side. ' +

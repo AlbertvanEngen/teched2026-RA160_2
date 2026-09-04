@@ -2,7 +2,7 @@ import { type DuckDBConnection, DuckDBInstance } from '@duckdb/node-api';
 
 let instance: Awaited<ReturnType<typeof DuckDBInstance.create>> | null = null;
 
-// Serialize all DuckDB operations to prevent concurrent DDL races
+// In-memory session workspace (DuckDB). Serialize operations to prevent concurrent DDL races.
 let queue: Promise<unknown> = Promise.resolve();
 
 function serialize<T>(fn: () => Promise<T>): Promise<T> {

@@ -24,11 +24,11 @@ const SAMPLE_QUERIES = [
 const TOOL_LABELS: Record<string, string> = {
   query_financial_planning: 'Querying financial planning data',
   query_journal_entry: 'Querying journal entries',
-  query_duckdb: 'Running SQL analysis',
+  run_sql: 'Running SQL',
   run_rpt_prediction: 'Running RPT prediction',
   run_rpt_prediction_from_sources: 'Running RPT prediction',
   drop_table: 'Cleaning up tables',
-  create_view: 'Creating analytical view',
+  create_view: 'Creating session view',
 };
 
 function toolLabel(name: string): string {

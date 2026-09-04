@@ -3,7 +3,6 @@ import { OrchestrationClient } from '@sap-ai-sdk/langchain';
 import { createAgent } from 'langchain';
 import { createViewTool } from './create-view-tool.ts';
 import { dropTableTool } from './drop-table-tool.ts';
-import { queryDuckDbTool } from './duckdb-tool.ts';
 import { getGroundTruthTool } from './get-ground-truth-tool.ts';
 import {
   queryFinancialPlanningTool,
@@ -13,13 +12,15 @@ import {
   runRptPredictionFromSourcesTool,
   runRptPredictionTool,
 } from './rpt-tool.ts';
+import { runSqlTool } from './sql-tool.ts';
 
-export const SYSTEM_PROMPT = `You are a financial data analyst agent with access to two SAP OData services and an in-memory analytical database (DuckDB).
+export const SYSTEM_PROMPT = `You are a financial data analyst agent with access to two SAP OData services and a local in-memory SQL workspace for reporting and aggregation.
 
 Tools:
-- query_financial_planning / query_journal_entry fetch from OData and APPEND into a named DuckDB table.
+- query_financial_planning / query_journal_entry fetch from OData and APPEND into a named session table.
   Pick a descriptive name; tables are created on first use and accumulate across calls.
-- query_duckdb runs SQL: filtering, joins, GROUP BY, SUM/AVG/COUNT — whatever the question needs.
+- run_sql is your primary reporting tool: filter, join, GROUP BY, and aggregate session tables with
+  SUM/AVG/COUNT/MIN/MAX — use it liberally to answer questions from loaded data.
 - create_view saves a SQL transformation as a virtual table; drop_table cleans up tables and views.
 - run_rpt_prediction_from_sources / run_rpt_prediction are SAP RPT, a tabular foundation model.
   They take context rows with known values plus rows to predict, and write the predicted values into
@@ -39,10 +40,10 @@ Presentation:
   and say e.g. "forecast is 15% of actual spend", "85% below actual", or "109% above actual".
 - Tables should show period, forecast, actual magnitude, pct_of_actual, pct_below_actual, and
   pct_above_actual. Put currency totals in a one-line summary; do not make variance columns the headline.
-- Ground truth exists for fiscal years 2018–2028 (same range as planning and journal entries).
-  If you forecast beyond that range, say that same-period ground-truth comparison is not possible.
-  Do not substitute a prior year's actuals and call it ground truth unless the user explicitly asked
-  for a year-over-year benchmark — label that clearly as YoY, not validation.
+- Ground truth exists for fiscal years 2018-2028 (same range as planning and journal entries).
+  Only say ground truth is unavailable if the tool actually returns no rows. Do not substitute
+  a prior year's actuals and call it ground truth unless the user explicitly asked for a
+  year-over-year benchmark — label that clearly as YoY, not validation.
 
 How to think about it:
 - Look at the data first — you can't analyse what you haven't loaded.
@@ -62,9 +63,15 @@ fiscalPeriod (001–012), fiscalYearPeriod.
 
 Data sources (single shared truth — journal postings and planning rows are projections of the same underlying amounts):
 - Financial planning: budgets, forecasts, actuals, plans — fiscal year 2018–2028, fiscalPeriod 001–012.
-  All planning categories for a given cell share the same total; ACTUAL matches |journal entry sum|.
+  Each cell (company × costCenter × glAccount × fiscalYear × fiscalPeriod) has four planning category
+  rows: BUDGET, FORECAST, ACTUAL, PLAN. They share the same canonical amount — ACTUAL matches
+  |journal entry sum| for the same dimensions. Each category row is split into 1–2 line items.
+  Loading without a planningCategory filter returns all four categories and quadruples the total.
 - Journal entries: posted accounting transactions — fiscal year 2018–2028, fiscalPeriod 001–012.
-  Expense accounts are negative; compare magnitudes with ABS() when evaluating against planning.`;
+  Expense accounts (510000, 610000, 620000, 630000) carry negative amounts; income accounts are
+  positive. Each cell is split into 5–7 line items, all of which sum to the same canonical amount
+  as the corresponding planning ACTUAL rows. Compare magnitudes with ABS() when evaluating against
+  planning amounts.`;
 
 export const AGENT_RECURSION_LIMIT = 64;
 
@@ -98,7 +105,7 @@ function buildFinancialAgent() {
     tools: [
       queryFinancialPlanningTool,
       queryJournalEntryTool,
-      queryDuckDbTool,
+      runSqlTool,
       runRptPredictionTool,
       runRptPredictionFromSourcesTool,
       getGroundTruthTool,

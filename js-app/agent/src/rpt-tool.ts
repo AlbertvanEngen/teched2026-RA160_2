@@ -106,7 +106,7 @@ function extractPredictions(
 }
 
 // Predictions are only useful if the agent can aggregate them, so they land in a
-// DuckDB table next to the dimensions of the rows they were predicted for.
+// session table next to the dimensions of the rows they were predicted for.
 async function writePredictionTable(
   outputTable: string,
   rows: RptRow[],
@@ -152,7 +152,7 @@ async function writePredictionTable(
   return (
     `Wrote ${rows.length} predicted rows into table '${outputTable}'. ` +
     `Columns: ${dimensionCols.join(', ')}, ${predictedCol}. ` +
-    `Aggregate this table with query_duckdb (e.g. GROUP BY fiscalPeriod) to build the answer.`
+    `Aggregate this table with run_sql (e.g. GROUP BY fiscalPeriod) to build the answer.`
   );
 }
 
@@ -268,15 +268,15 @@ export const runRptPredictionTool = tool(
   {
     name: 'run_rpt_prediction',
     description:
-      'Run an SAP RPT prediction on a single DuckDB table or view. ' +
+      'Run an SAP RPT prediction on a single session table or view. ' +
       'Use predictionWhere to select the rows whose target column should be predicted ' +
       '(e.g. future fiscal periods, rows with NULL target values). ' +
       'Optionally set contextWhere for rows with known target values; otherwise all rows ' +
       'not matching predictionWhere become context. ' +
-      'Predictions are written into outputTable, which you then aggregate with query_duckdb. ' +
+      'Predictions are written into outputTable, which you then aggregate with run_sql. ' +
       'When actuals and planning entries are in separate tables, prefer run_rpt_prediction_from_sources.',
     schema: z.object({
-      tableName: z.string().describe('DuckDB table or view to read from'),
+      tableName: z.string().describe('Session table or view to read from'),
       predictionWhere: z
         .string()
         .describe(
@@ -291,7 +291,7 @@ export const runRptPredictionTool = tool(
       outputTable: z
         .string()
         .describe(
-          'Name of the DuckDB table to write the predictions into (replaced if it exists)',
+          'Name of the session table to write the predictions into (replaced if it exists)',
         ),
       targetColumn: z.string().describe('Column name to predict'),
       taskType: z.enum(['classification', 'regression']),
@@ -381,11 +381,11 @@ export const runRptPredictionFromSourcesTool = tool(
   {
     name: 'run_rpt_prediction_from_sources',
     description:
-      'Run an SAP RPT prediction using two DuckDB tables with a semantically correct split: ' +
+      'Run an SAP RPT prediction using two session tables with a semantically correct split: ' +
       'contextTable (e.g. journal entries / actuals) provides the known-truth context rows; ' +
       'predictionTable (e.g. planning entries / budgets) provides the rows to predict. ' +
       'Only columns shared between both tables are used. A "source" column (actual/plan) is added automatically. ' +
-      'Predictions are written into outputTable, which you then aggregate with query_duckdb to the granularity ' +
+      'Predictions are written into outputTable, which you then aggregate with run_sql to the granularity ' +
       'the user asked for. Use this for forecasting questions — questions answerable from the loaded data ' +
       'should be answered with SQL instead.',
     schema: z.object({
@@ -402,7 +402,7 @@ export const runRptPredictionFromSourcesTool = tool(
       outputTable: z
         .string()
         .describe(
-          'Name of the DuckDB table to write the predictions into (replaced if it exists)',
+          'Name of the session table to write the predictions into (replaced if it exists)',
         ),
       targetColumn: z
         .string()
