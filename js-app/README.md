@@ -26,7 +26,7 @@ The SAP AI SDK reads `AICORE_SERVICE_KEY` from the environment.
 Start the mock OData server and web application in separate terminals:
 
 ```bash
-mise run mock-server
+mise run mock-server # optional, in-process by default
 mise run webui
 ```
 
@@ -79,7 +79,6 @@ A browser turn follows this path:
 | `agent/src/agent.ts` | Model configuration, system prompt, and tool registration. |
 | `agent/src/odata-tools.ts` | OData retrieval and DuckDB loading. |
 | `agent/src/sql-tool.ts` | Reporting and aggregation. |
-| `agent/src/sql-guard.ts` | Read-only SQL boundary and identifier validation. |
 | `agent/src/rpt-tool.ts` | SAP RPT integrations. |
 | `agent/src/get-ground-truth-tool.ts` | Prediction evaluation against mock actuals. |
 | `agent/src/db.ts` | Serialized access to one in-memory DuckDB instance. |
@@ -106,24 +105,6 @@ It serves financial planning and journal-entry data.
 
 The web server mounts the mock application under `/sap/` unless `MOCK_STANDALONE=1`.
 This does not change the agent's default destination, so the normal workflow still starts the mock server separately on port `3141`.
-
-## Invariants
-
-Preserve these rules when changing prompts or tools:
-
-- Query source data before analyzing it.
-- Use SQL for deterministic filtering, joins, and aggregation.
-- Use a tabular model for the primary forecast when values are absent from its prediction input.
-- Allow SQL forecasting only as an explicitly labeled baseline evaluated separately from the tabular-model result.
-- Aggregate every forecast to the grain requested by the user.
-- Compare predictions and actuals at identical dimensions and grain.
-- Compare signed journal expenses with positive planning values by magnitude.
-- Filter planning categories explicitly; loading all categories multiplies totals.
-- Return explicit tool errors instead of fabricated fallback values.
-
-The SQL guard is a read-only boundary: `run_sql` and `create_view` accept SELECT/WITH only and reject DDL/DML, statement chaining, and unknown leading keywords.
-Window functions, LAG/LEAD, moving averages and regression aggregates (REGR_*/CORR/STDDEV) are allowed so participants can build a labeled SQL forecast baseline and compare it against the tabular model.
-Queries share a per-call wall-clock limit enforced in `db.ts`.
 
 ## Generated code
 
