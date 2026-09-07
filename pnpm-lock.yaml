@@ -149,8 +149,8 @@ importers:
         specifier: ^2.15.0
         version: 2.15.0(@langchain/core@1.2.9(ws@8.18.0))(debug@4.4.3(supports-color@8.1.1))(langchain@1.5.10(@langchain/core@1.2.9(ws@8.18.0))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(ws@8.18.0))(supports-color@8.1.1)
       '@sap-ai-sdk/rpt':
-        specifier: ^2.15.0
-        version: 2.15.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+        specifier: canary
+        version: 2.15.1-20260907012418.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       '@sap-cloud-sdk/odata-v2':
         specifier: 'catalog:'
         version: 4.9.1(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
@@ -259,10 +259,16 @@ importers:
       '@sap-cloud-sdk/util':
         specifier: 'catalog:'
         version: 4.9.1(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      d3-random:
+        specifier: ^3.0.1
+        version: 3.0.1
       hono:
         specifier: ^4.13.5
         version: 4.13.5
     devDependencies:
+      '@types/d3-random':
+        specifier: ^3.0.4
+        version: 3.0.4
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -836,8 +842,14 @@ packages:
   '@sap-ai-sdk/ai-api@2.15.0':
     resolution: {integrity: sha512-tW2XwemZ5mWuYQW9P2mFxaH7xNBWwr1+AU8jnfleCE7IQ494+OKmjhWOASrfNWRRnRrcepaAbjk2earpjcIcBA==}
 
+  '@sap-ai-sdk/ai-api@2.15.1-20260907012418.0':
+    resolution: {integrity: sha512-Dhk/jWe9fHByTuo4/opVJ3W3OW1NxIZhokYCSxLrMNA+vw/tBXSeB5NBaJFIWj9JdPDp2gQHYp1RLAPGg8ZTvA==}
+
   '@sap-ai-sdk/core@2.15.0':
     resolution: {integrity: sha512-GbPq4GC6LNVoGDMDnNsAdK0PDQSl3QsJQ5Dy7Zx+1f14i6DDcHpoJWBeyDzlfEBtQ0CUgF7sRKRUt2ufnzCpdg==}
+
+  '@sap-ai-sdk/core@2.15.1-20260907012418.0':
+    resolution: {integrity: sha512-bWR0ICqYCuLXaAbpFfq40nDlsjjTvwRXLzhtbzPI4JT39yD8Myf1P7H4zvRtYT8tG/q+40msGl8p9OHWNQhpgQ==}
 
   '@sap-ai-sdk/foundation-models@2.15.0':
     resolution: {integrity: sha512-UTuFBJUQfaK1xVx041v0iWkCC/LD4DJxlvxTOCNTu1AuC1p+TTLAR2WcvxqW6vIduREMXIxOjbaDJwfr1d+kgg==}
@@ -857,8 +869,8 @@ packages:
   '@sap-ai-sdk/prompt-registry@2.15.0':
     resolution: {integrity: sha512-qC3ACUsV+Cw+DfjMj/GSw5DY0XymwCQDzclvr4LArZ2OH0DhMrbzJMPqBSIYCyVF8zq57PNMnJoJrx1vE8CLHQ==}
 
-  '@sap-ai-sdk/rpt@2.15.0':
-    resolution: {integrity: sha512-LMT+t0j9FHhcaBss/gSVjjlyWiZwMQjdVf3S8QUcEAl8B2u9kQQHUfCk/BYoi+dcVKo3SlI6HTWm9HPiM1/4rg==}
+  '@sap-ai-sdk/rpt@2.15.1-20260907012418.0':
+    resolution: {integrity: sha512-/ZdzHmBexmO6V1jGcECts/rXcj+qK34+mToN88qTHqdCO2teUPcfMzQrrydEJNmY9xTles/cf9pUjbAXYORTXw==}
 
   '@sap-cloud-sdk/connectivity@4.9.1':
     resolution: {integrity: sha512-0deJBmdUd1LD1O3CX/wqYjTEKmnrnLsxnrSE8CyGtzbyomjjL1ePEXB3g6QUpQKmClVyOgJG/IbpyJFGGXXL5A==}
@@ -919,6 +931,9 @@ packages:
 
   '@types/babel__traverse@7.28.0':
     resolution: {integrity: sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q==}
+
+  '@types/d3-random@3.0.4':
+    resolution: {integrity: sha512-UHYId5WTCx4L4YNel7NU00XUXXgvgpgZOvp10PuvsQENjMDXhh2RyFc0KBjO7B45ne4Ha1yVH7ii0vnzKkuzWA==}
 
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
@@ -1184,6 +1199,10 @@ packages:
 
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
+
+  d3-random@3.0.1:
+    resolution: {integrity: sha512-FXMe9GfxTxqd5D6jFsQ+DJ8BJS4E/fT5mqqdjovykEB2oFbTMDVdg1MGFxfQW+FBOGoB++k8swBrgwSHT1cUXQ==}
+    engines: {node: '>=12'}
 
   debug@4.4.3:
     resolution: {integrity: sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==}
@@ -2238,7 +2257,26 @@ snapshots:
       - debug
       - supports-color
 
+  '@sap-ai-sdk/ai-api@2.15.1-20260907012418.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)':
+    dependencies:
+      '@sap-ai-sdk/core': 2.15.1-20260907012418.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@sap-cloud-sdk/connectivity': 4.9.1(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@sap-cloud-sdk/util': 4.9.1(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+    transitivePeerDependencies:
+      - debug
+      - supports-color
+
   '@sap-ai-sdk/core@2.15.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)':
+    dependencies:
+      '@sap-cloud-sdk/connectivity': 4.9.1(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@sap-cloud-sdk/http-client': 4.9.1(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@sap-cloud-sdk/openapi': 4.9.1(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@sap-cloud-sdk/util': 4.9.1(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+    transitivePeerDependencies:
+      - debug
+      - supports-color
+
+  '@sap-ai-sdk/core@2.15.1-20260907012418.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)':
     dependencies:
       '@sap-cloud-sdk/connectivity': 4.9.1(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       '@sap-cloud-sdk/http-client': 4.9.1(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
@@ -2293,10 +2331,10 @@ snapshots:
       - debug
       - supports-color
 
-  '@sap-ai-sdk/rpt@2.15.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)':
+  '@sap-ai-sdk/rpt@2.15.1-20260907012418.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)':
     dependencies:
-      '@sap-ai-sdk/ai-api': 2.15.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      '@sap-ai-sdk/core': 2.15.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@sap-ai-sdk/ai-api': 2.15.1-20260907012418.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@sap-ai-sdk/core': 2.15.1-20260907012418.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       '@sap-cloud-sdk/connectivity': 4.9.1(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       '@sap-cloud-sdk/http-client': 4.9.1(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       '@sap-cloud-sdk/util': 4.9.1(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
@@ -2473,6 +2511,8 @@ snapshots:
   '@types/babel__traverse@7.28.0':
     dependencies:
       '@babel/types': 7.29.8
+
+  '@types/d3-random@3.0.4': {}
 
   '@types/estree@1.0.9': {}
 
@@ -2674,6 +2714,8 @@ snapshots:
   core-util-is@1.0.2: {}
 
   csstype@3.2.3: {}
+
+  d3-random@3.0.1: {}
 
   debug@4.4.3(supports-color@8.1.1):
     dependencies:

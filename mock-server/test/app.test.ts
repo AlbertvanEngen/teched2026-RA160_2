@@ -330,3 +330,82 @@ test('returns 404 for unknown journal entry item ID', async () => {
 
   assert.equal(response.status, 404);
 });
+
+test('keeps recurring monthly patterns stable across fiscal years for RPT evaluation', async () => {
+  const totals = new Map<string, number>();
+  let hasYearlyVariation = false;
+
+  for (const entry of await getFinancialPlanningEntries()) {
+    if (
+      entry.CostCenter !== 'A1000' ||
+      entry.PlanningCategory !== 'ACTUAL' ||
+      !['2022', '2023'].includes(entry.LedgerFiscalYear)
+    ) {
+      continue;
+    }
+
+    const key = `${entry.LedgerFiscalYear}:${entry.FiscalPeriod}`;
+    totals.set(
+      key,
+      (totals.get(key) ?? 0) + Number(entry.AmountInCompanyCodeCurrency),
+    );
+  }
+
+  for (let period = 1; period <= 12; period++) {
+    const fiscalPeriod = String(period).padStart(3, '0');
+    const priorYear = totals.get(`2022:${fiscalPeriod}`);
+    const followingYear = totals.get(`2023:${fiscalPeriod}`);
+
+    const annualScaleError = Math.abs(followingYear / priorYear - 1.01);
+    assert.ok(
+      annualScaleError < 0.15,
+      `expected ${fiscalPeriod} to retain its seasonal level after annual scaling`,
+    );
+    hasYearlyVariation ||= annualScaleError > 0.001;
+  }
+
+  assert.ok(hasYearlyVariation, 'expected bounded yearly variation in source data');
+});
+
+
+test('keeps journal and planning line-item grains aligned for RPT evaluation', async () => {
+  const journalCounts = new Map<string, number>();
+  const planningCounts = new Map<string, number>();
+  const cellKey = (entry: {
+    CompanyCode: string;
+    CostCenter: string;
+    ProfitCenter: string;
+    GLAccount: string;
+    LedgerFiscalYear: string;
+    FiscalPeriod: string;
+  }) =>
+    [
+      entry.CompanyCode,
+      entry.CostCenter,
+      entry.ProfitCenter,
+      entry.GLAccount,
+      entry.LedgerFiscalYear,
+      entry.FiscalPeriod,
+    ].join(':');
+
+  for (const entry of await getJournalEntryItems()) {
+    const key = cellKey(entry);
+    journalCounts.set(key, (journalCounts.get(key) ?? 0) + 1);
+  }
+
+  for (const entry of await getFinancialPlanningEntries()) {
+    if (entry.PlanningCategory !== 'ACTUAL') continue;
+
+    const key = cellKey(entry);
+    planningCounts.set(key, (planningCounts.get(key) ?? 0) + 1);
+  }
+
+  assert.equal(journalCounts.size, planningCounts.size);
+  for (const [key, planningCount] of planningCounts) {
+    assert.equal(
+      journalCounts.get(key),
+      planningCount,
+      `journal and planning line-item counts diverged for ${key}`,
+    );
+  }
+});

@@ -178,6 +178,34 @@ async function writePredictionTable(
   );
 }
 
+/** Averages per-row column scores from canary RPT explanations into a brief note. */
+function formatExplanations(response: unknown): string {
+  if (
+    !response ||
+    typeof response !== 'object' ||
+    !('explanations' in response) ||
+    !response.explanations ||
+    typeof response.explanations !== 'object' ||
+    !('top_column_scores' in response.explanations) ||
+    !Array.isArray(response.explanations.top_column_scores) ||
+    !response.explanations.top_column_scores.length
+  ) {
+    return '';
+  }
+  const scores = response.explanations.top_column_scores as Record<string, number>[];
+  const totals = new Map<string, number>();
+  for (const row of scores) {
+    for (const [col, v] of Object.entries(row)) {
+      totals.set(col, (totals.get(col) ?? 0) + v);
+    }
+  }
+  const top = [...totals.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([col, v]) => `${col}: ${(v / scores.length).toFixed(3)}`);
+  return ` Top feature influences: ${top.join(', ')}.`;
+}
+
 // Sends the combined context + prediction set to RPT as Parquet. Parquet carries
 // declared column types end to end, so nothing depends on JS runtime type inference
 // or on the service's `parse_data_types` behaviour.
@@ -205,6 +233,7 @@ async function callRpt(
             task_type: taskType,
           },
         ],
+        explanations: { top_column_scores: 5 },
       },
     }),
   );
@@ -291,7 +320,9 @@ export const runRptPredictionTool = tool(
         taskType,
       );
       rpt(` Prediction complete`);
-      return writePredictionTable(
+      const explanation1 = formatExplanations(response);
+      if (explanation1) rpt(explanation1);
+      const result1 = await writePredictionTable(
         outputTable,
         predictionSql,
         Number(contextCount),
@@ -299,6 +330,7 @@ export const runRptPredictionTool = tool(
         targetColumn,
         taskType,
       );
+      return result1.startsWith('Error:') ? result1 : result1 + explanation1;
     } catch (e: unknown) {
       logRptError(e);
       return formatRptError(e);
@@ -405,7 +437,9 @@ export const runRptPredictionFromSourcesTool = tool(
         taskType,
       );
       rpt(` Prediction complete`);
-      return writePredictionTable(
+      const explanation2 = formatExplanations(response);
+      if (explanation2) rpt(explanation2);
+      const result2 = await writePredictionTable(
         outputTable,
         predictionSql,
         Number(contextCount),
@@ -413,6 +447,7 @@ export const runRptPredictionFromSourcesTool = tool(
         targetColumn,
         taskType,
       );
+      return result2.startsWith('Error:') ? result2 : result2 + explanation2;
     } catch (e: unknown) {
       logRptError(e);
       return formatRptError(e);

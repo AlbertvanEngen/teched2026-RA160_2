@@ -13,7 +13,7 @@
     "dev": "node --watch src/server.ts",
     "build": "tsc",
     "generate-data": "node src/generation/generate-mock-data.ts",
-    "test": "node --test test/app.test.ts",
+    "test": "node --test 'test/*.test.ts'",
     "typecheck": "tsc --noEmit"
   },
   "engines": {
@@ -22,9 +22,11 @@
   "dependencies": {
     "@hono/node-server": "^2.1.1",
     "@sap-cloud-sdk/util": "catalog:",
+    "d3-random": "^3.0.1",
     "hono": "^4.13.5"
   },
   "devDependencies": {
+    "@types/d3-random": "^3.0.4",
     "typescript": "catalog:"
   }
 }
