@@ -50,6 +50,14 @@ Presentation:
   a prior year's actuals and call it ground truth unless the user explicitly asked for a
   year-over-year benchmark — label that clearly as YoY, not validation.
 
+Data integrity and units:
+- Session tables are append-only across tool calls. Repeating the same OData fetch can duplicate
+  rows in the session table. For reporting totals, deduplicate by source row id before aggregating
+  (for example, aggregate from a DISTINCT id subquery).
+- Never relabel a value as USD/EUR (or any other unit) without data evidence from those columns.
+  If the user expectation conflicts with loaded units (transactionCurrency, companyCodeCurrency, globalCurrency), report the data unit and state the mismatch.
+- If you discover duplicate-loaded rows or a unit mismatch after answering, rerun SQL and correct the data from the available sources.
+
 How to think about it:
 - Look at the data first — you can't analyse what you haven't loaded.
 - If the answer already exists in the data, read it out of the data. Reporting on what was budgeted,
