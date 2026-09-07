@@ -27,6 +27,7 @@ const TOOL_LABELS: Record<string, string> = {
   run_sql: 'Running SQL',
   run_rpt_prediction: 'Running RPT prediction',
   run_rpt_prediction_from_sources: 'Running RPT prediction',
+  get_ground_truth: 'Comparing against ground truth',
   drop_table: 'Cleaning up tables',
   create_view: 'Creating session view',
 };
