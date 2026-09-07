@@ -112,8 +112,7 @@ function buildFinancialAgent() {
       getGroundTruthTool,
       dropTableTool,
       createViewTool,
-      // biome-ignore lint/suspicious/noExplicitAny: LangChain tool types are incompatible with createAgent's expected tool union.
-    ] as any,
+    ],
     middleware: [orchestrationPromptCachingMiddleware()],
   }).withConfig({ recursionLimit: AGENT_RECURSION_LIMIT });
 }

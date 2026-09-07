@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { styleText } from 'node:util';
-import { isAIMessage, isToolMessage } from '@langchain/core/messages';
+import { AIMessage, ToolMessage } from '@langchain/core/messages';
 import { createFinancialAgent } from './agent.ts';
 
 const userPrompt =
@@ -14,7 +14,8 @@ console.log(styleText('dim', `Session: ${sessionId}\n`));
 
 const agent = createFinancialAgent();
 
-const stream = await agent.stream(
+// Explicit type arguments keep the output as state values; inference otherwise widens it to the SSE byte stream.
+const stream = await agent.stream<'values', false, undefined>(
   {
     messages: [{ role: 'user', content: userPrompt }],
   },
@@ -26,11 +27,10 @@ const stream = await agent.stream(
 
 let finalContent = '';
 
-for await (const chunk of stream) {
-  const messages = (chunk as { messages: unknown[] }).messages;
+for await (const { messages } of stream) {
   const last = messages[messages.length - 1];
 
-  if (isAIMessage(last)) {
+  if (AIMessage.isInstance(last)) {
     const toolCalls = last.tool_calls ?? [];
     for (const tc of toolCalls) {
       console.log(
@@ -45,7 +45,7 @@ for await (const chunk of stream) {
           ? last.content
           : JSON.stringify(last.content);
     }
-  } else if (isToolMessage(last)) {
+  } else if (ToolMessage.isInstance(last)) {
     const text =
       typeof last.content === 'string'
         ? last.content

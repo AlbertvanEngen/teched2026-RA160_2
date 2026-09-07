@@ -2,10 +2,8 @@ import { styleText } from 'node:util';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { runQuery, withConnection } from './db.ts';
-import type { FinPlanningEntryItem } from './generated/API_FINPLANNINGENTRYITEM_SRV/FinPlanningEntryItem.ts';
 import { apiFinplanningentryitemSrv } from './generated/API_FINPLANNINGENTRYITEM_SRV/index.ts';
 import { apiJournalentryitembasicSrv } from './generated/API_JOURNALENTRYITEMBASIC_SRV/index.ts';
-import type { JournalEntryItemBasic } from './generated/API_JOURNALENTRYITEMBASIC_SRV/JournalEntryItemBasic.ts';
 import { registerSessionObject } from './session-store.ts';
 
 const odata = (msg: string) => console.log(styleText('blue', '[OData] ') + msg);
@@ -180,7 +178,7 @@ export const queryFinancialPlanningTool = tool(
       if (entries.length > 0) {
         await withConnection(async (conn) => {
           const appender = await conn.createAppender(tableName);
-          for (const e of entries as FinPlanningEntryItem[]) {
+          for (const e of entries) {
             appender.appendVarchar(e.id ?? '');
             appender.appendVarchar(e.ledger ?? '');
             appender.appendVarchar(e.ledgerName ?? '');
@@ -292,7 +290,7 @@ export const queryJournalEntryTool = tool(
       if (entries.length > 0) {
         await withConnection(async (conn) => {
           const appender = await conn.createAppender(tableName);
-          for (const e of entries as JournalEntryItemBasic[]) {
+          for (const e of entries) {
             appender.appendVarchar(e.id ?? '');
             appender.appendVarchar(e.ledger ?? '');
             appender.appendVarchar(e.ledgerName ?? '');

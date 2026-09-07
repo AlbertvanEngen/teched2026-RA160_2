@@ -110,6 +110,9 @@ catalogs:
     '@biomejs/biome':
       specifier: ^2.5.11
       version: 2.5.11
+    '@langchain/core':
+      specifier: ^1.2.9
+      version: 1.2.9
     '@sap-cloud-sdk/generator':
       specifier: ^4.9.1
       version: 4.9.1
@@ -164,6 +167,9 @@ importers:
         specifier: ^4.4.3
         version: 4.5.2
     devDependencies:
+      '@langchain/core':
+        specifier: 'catalog:'
+        version: 1.2.9(ws@8.18.0)
       '@sap-cloud-sdk/generator':
         specifier: 'catalog:'
         version: 4.9.1(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
@@ -192,6 +198,9 @@ importers:
       '@hono/node-server':
         specifier: ^2.1.1
         version: 2.1.1(hono@4.13.5)
+      '@langchain/core':
+        specifier: 'catalog:'
+        version: 1.2.9(ws@8.18.0)
       dompurify:
         specifier: ^3.4.14
         version: 3.4.14
@@ -250,9 +259,6 @@ importers:
       hono:
         specifier: ^4.13.5
         version: 4.13.5
-      uuid:
-        specifier: ^14.0.2
-        version: 14.0.2
     devDependencies:
       typescript:
         specifier: 'catalog:'
@@ -1691,10 +1697,6 @@ packages:
 
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
-
-  uuid@14.0.2:
-    resolution: {integrity: sha512-xZe/16rV4aa+HGSOCiY2YeLT1OybRLrrkL/Rqaq7p7GMVXjFh+6wN4oMYgjFmnSnhY8t6Xpdl2l9qmnHYuMHwQ==}
-    hasBin: true
 
   verror@1.10.1:
     resolution: {integrity: sha512-veufcmxri4e3XSrT0xwfUR7kguIkaxBeosDg00yDWhk49wdwkSUrvvsm7nc75e1PUyvIeZj6nS8VQRYz2/S4Xg==}
@@ -3185,8 +3187,6 @@ snapshots:
       picocolors: 1.1.1
 
   util-deprecate@1.0.2: {}
-
-  uuid@14.0.2: {}
 
   verror@1.10.1:
     dependencies:

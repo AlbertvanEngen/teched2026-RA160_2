@@ -29,7 +29,11 @@
     "tsx": "catalog:",
     "zod": "^4.4.3"
   },
+  "peerDependencies": {
+    "@langchain/core": "catalog:"
+  },
   "devDependencies": {
+    "@langchain/core": "catalog:",
     "@sap-cloud-sdk/generator": "catalog:",
     "typescript": "catalog:"
   }

@@ -6,6 +6,7 @@ packages:
 
 catalog:
   '@biomejs/biome': ^2.5.11
+  '@langchain/core': ^1.2.9
   '@sap-cloud-sdk/generator': ^4.9.1
   '@sap-cloud-sdk/odata-v2': ^4.9.1
   '@sap-cloud-sdk/util': ^4.9.1
