@@ -79,7 +79,7 @@ A browser turn follows this path:
 | `agent/src/agent.ts` | Model configuration, system prompt, and tool registration. |
 | `agent/src/odata-tools.ts` | OData retrieval and DuckDB loading. |
 | `agent/src/sql-tool.ts` | Reporting and aggregation. |
-| `agent/src/sql-guard.ts` | Existing forecasting restriction; planned read-only safety boundary. |
+| `agent/src/sql-guard.ts` | Read-only SQL boundary and identifier validation. |
 | `agent/src/rpt-tool.ts` | SAP RPT integrations. |
 | `agent/src/get-ground-truth-tool.ts` | Prediction evaluation against mock actuals. |
 | `agent/src/db.ts` | Serialized access to one in-memory DuckDB instance. |
@@ -121,9 +121,9 @@ Preserve these rules when changing prompts or tools:
 - Filter planning categories explicitly; loading all categories multiplies totals.
 - Return explicit tool errors instead of fabricated fallback values.
 
-The existing SQL guard blocks trend and regression constructs over source tables.
-The workshop design calls for removing that forecasting-specific restriction so participants can compare a transparent SQL baseline with the configured tabular model.
-Replace it with a read-only SQL boundary and execution limits rather than removing safety checks wholesale.
+The SQL guard is a read-only boundary: `run_sql` and `create_view` accept SELECT/WITH only and reject DDL/DML, statement chaining, and unknown leading keywords.
+Window functions, LAG/LEAD, moving averages and regression aggregates (REGR_*/CORR/STDDEV) are allowed so participants can build a labeled SQL forecast baseline and compare it against the tabular model.
+Queries share a per-call wall-clock limit enforced in `db.ts`.
 
 ## Generated code
 
@@ -229,7 +229,6 @@ Confirm that every command and referenced symbol exists, the prompt reaches the 
 ## Cleanup before workshop publication
 
 - Consolidate the two RPT-specific tools behind `run_tabular_prediction`.
-- Replace the forecasting-specific SQL guard with a read-only boundary that permits labeled baseline forecasts.
 - Decide how starter and solution states are represented.
 - Prevent session collisions in DuckDB table names.
 - Remove legacy purchase-order naming from participant-facing output.

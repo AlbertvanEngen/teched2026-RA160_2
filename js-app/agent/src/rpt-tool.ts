@@ -2,16 +2,19 @@ import { styleText } from 'node:util';
 import { tool } from '@langchain/core/tools';
 import { RptClient } from '@sap-ai-sdk/rpt';
 import { z } from 'zod';
-import { runQuery, withConnection } from './db.ts';
+import { runQuery, isValidIdentifier } from './db.ts';
+import { ROW_ID_COLUMN, featureColumns, withParquetBlob } from './parquet.ts';
 import { registerSessionObject } from './session-store.ts';
-import { isValidIdentifier, registerPredictionTable } from './sql-guard.ts';
 
 const rpt = (msg: string) => console.log(styleText('cyan', '[RPT] ') + msg);
 
-type RptRowValue = string | number | null;
-type RptRow = Record<string, RptRowValue>;
-
 type TaskType = 'classification' | 'regression';
+
+/** Column names of a table, view, or arbitrary SELECT, in declaration order. */
+async function selectColumns(selectSql: string): Promise<string[]> {
+  const rows = await runQuery(`DESCRIBE SELECT * FROM (${selectSql})`);
+  return rows.map((r) => String(r.column_name));
+}
 
 function formatRptError(e: unknown): string {
   const root =
@@ -60,28 +63,11 @@ function logRptError(e: unknown): void {
   );
 }
 
-function sanitizeRows(rows: Record<string, unknown>[]): RptRow[] {
-  return rows.map((row) => {
-    const sanitized: RptRow = {};
-    for (const [key, val] of Object.entries(row)) {
-      if (typeof val === 'bigint') {
-        sanitized[key] = Number(val);
-      } else if (typeof val === 'number') {
-        sanitized[key] = val;
-      } else if (val === null || val === undefined) {
-        sanitized[key] = null;
-      } else {
-        sanitized[key] = String(val);
-      }
-    }
-    return sanitized;
-  });
-}
-
 function extractPredictions(
   response: unknown,
   targetColumn: string,
-): (string | number)[] {
+  rowIdOffset: number,
+): Map<number, string | number> {
   const predictions =
     typeof response === 'object' &&
     response !== null &&
@@ -90,92 +76,138 @@ function extractPredictions(
       ? response.predictions
       : [];
 
-  return predictions.map((row) => {
-    if (typeof row !== 'object' || row === null) return '';
-    const value = (row as Record<string, unknown>)[targetColumn];
+  const byRowId = new Map<number, string | number>();
+  predictions.forEach((row, i) => {
+    if (typeof row !== 'object' || row === null) return;
+    const record = row as Record<string, unknown>;
+    const value = record[targetColumn];
+
+    let predicted: string | number;
     if (Array.isArray(value)) {
       const first = value[0];
-      return typeof first === 'object' &&
-        first !== null &&
-        'prediction' in first
-        ? String((first as { prediction?: unknown }).prediction ?? '')
-        : '';
+      predicted =
+        typeof first === 'object' && first !== null && 'prediction' in first
+          ? String((first as { prediction?: unknown }).prediction ?? '')
+          : '';
+    } else if (typeof value === 'string' || typeof value === 'number') {
+      predicted = value;
+    } else {
+      predicted = value == null ? '' : String(value);
     }
-    if (typeof value === 'string' || typeof value === 'number') return value;
-    return value == null ? '' : String(value);
+
+    // Align on the index column the service echoes back. If it is absent, fall back
+    // to position within the prediction block, which the Parquet numbered starting
+    // just after the context rows.
+    const rawId = record[ROW_ID_COLUMN];
+    const rowId = Number(rawId);
+    byRowId.set(
+      Number.isFinite(rowId) ? rowId : rowIdOffset + i + 1,
+      predicted,
+    );
   });
+  return byRowId;
 }
 
 // Predictions are only useful if the agent can aggregate them, so they land in a
 // session table next to the dimensions of the rows they were predicted for.
+// The table is built in DuckDB from the same SELECT that produced the Parquet, so
+// dimension columns keep their source types (and '003'-style padding) for joins
+// against ground truth — only the predicted value is carried over from the service.
+//
+// `rowIdOffset` is the context row count: the Parquet numbers context rows first, so
+// prediction row i is `offset + i + 1`. Re-deriving the numbering here from the same
+// predictionSql keeps both sides on one id space.
 async function writePredictionTable(
   outputTable: string,
-  rows: RptRow[],
-  predictions: (string | number)[],
+  predictionSql: string,
+  rowIdOffset: number,
+  predictions: Map<number, string | number>,
   targetColumn: string,
   taskType: TaskType,
 ) {
-  const dimensionCols = Object.keys(rows[0] ?? {}).filter(
-    (c) => c !== targetColumn,
-  );
   const predictedCol = `predicted_${targetColumn}`;
-  const predictedType = taskType === 'regression' ? 'DOUBLE' : 'VARCHAR';
-  const colDefs = [
-    ...dimensionCols.map(
-      (c) => `"${c}" ${typeof rows[0][c] === 'number' ? 'DOUBLE' : 'VARCHAR'}`,
-    ),
-    `"${predictedCol}" ${predictedType}`,
-  ];
+  const isRegression = taskType === 'regression';
+
+  const values = [...predictions.entries()]
+    .map(([rowId, predicted]) => {
+      const literal = isRegression
+        ? Number(predicted) || 0
+        : `'${String(predicted).replaceAll("'", "''")}'`;
+      return `(${rowId}, ${literal})`;
+    })
+    .join(', ');
+
+  if (!values) {
+    return `Error: RPT returned no predictions for '${outputTable}'.`;
+  }
 
   await runQuery(
-    `CREATE OR REPLACE TABLE ${outputTable} (${colDefs.join(', ')})`,
+    `CREATE OR REPLACE TABLE ${outputTable} AS
+     WITH source AS (
+       SELECT *, row_number() OVER () + ${rowIdOffset} AS ${ROW_ID_COLUMN}
+       FROM (${predictionSql})
+     ),
+     predicted(${ROW_ID_COLUMN}, "${predictedCol}") AS (VALUES ${values})
+     SELECT source.* EXCLUDE (${ROW_ID_COLUMN}, "${targetColumn}"),
+            predicted."${predictedCol}"
+     FROM source
+     JOIN predicted USING (${ROW_ID_COLUMN})`,
   );
   registerSessionObject(outputTable);
-  await withConnection(async (conn) => {
-    const appender = await conn.createAppender(outputTable);
-    rows.forEach((row, i) => {
-      for (const col of dimensionCols) {
-        const value = row[col];
-        if (typeof value === 'number') appender.appendDouble(value);
-        else appender.appendVarchar(String(value));
-      }
-      const predicted = predictions[i];
-      if (taskType === 'regression')
-        appender.appendDouble(Number(predicted) || 0);
-      else appender.appendVarchar(String(predicted ?? ''));
-      appender.endRow();
-    });
-    appender.flushSync();
-    appender.closeSync();
-  });
-  registerPredictionTable(outputTable);
 
-  rpt(` Wrote ${rows.length} predictions into '${outputTable}'`);
+  const [{ count = 0 } = {}] = await runQuery(
+    `SELECT COUNT(*) AS count FROM ${outputTable}`,
+  );
+  const rowCount = Number(count);
+
+  // A zero-row join means the ids RPT echoed back did not line up with the source
+  // rows — a silent empty table would look like a successful forecast downstream.
+  if (rowCount === 0) {
+    return (
+      `Error: none of RPT's ${predictions.size} predictions matched the prediction rows ` +
+      `(row id range ${rowIdOffset + 1}-${rowIdOffset + predictions.size}). ` +
+      `Nothing was written to '${outputTable}'.`
+    );
+  }
+
+  rpt(` Wrote ${rowCount} predictions into '${outputTable}'`);
   return (
-    `Wrote ${rows.length} predicted rows into table '${outputTable}'. ` +
-    `Columns: ${dimensionCols.join(', ')}, ${predictedCol}. ` +
+    `Wrote ${rowCount} predicted rows into table '${outputTable}'. ` +
+    `Predicted column: ${predictedCol}. ` +
     `Aggregate this table with run_sql (e.g. GROUP BY fiscalPeriod) to build the answer.`
   );
 }
 
+// Sends the combined context + prediction set to RPT as Parquet. Parquet carries
+// declared column types end to end, so nothing depends on JS runtime type inference
+// or on the service's `parse_data_types` behaviour.
 async function callRpt(
-  rows: RptRow[],
+  selectSql: string,
+  columns: string[],
   targetColumn: string,
   taskType: TaskType,
 ) {
+  const features = featureColumns(columns, targetColumn);
+  const dropped = columns.filter((c) => !features.includes(c));
+  if (dropped.length) rpt(` Excluded from features: ${dropped.join(', ')}`);
+
   const rptClient = new RptClient({ modelName: 'sap-rpt-1.6' });
-  return rptClient.predictWithoutSchema({
-    rows,
-    prediction_config: {
-      target_columns: [
-        {
-          name: targetColumn,
-          prediction_placeholder: null,
-          task_type: taskType,
-        },
-      ],
-    },
-  });
+  return withParquetBlob(selectSql, features, (file) =>
+    rptClient.predictParquet({
+      file,
+      index_column: ROW_ID_COLUMN,
+      parse_data_types: false,
+      prediction_config: {
+        target_columns: [
+          {
+            name: targetColumn,
+            prediction_placeholder: null,
+            task_type: taskType,
+          },
+        ],
+      },
+    }),
+  );
 }
 
 function assertSafeWhereClause(where: string, label: string): string | null {
@@ -223,42 +255,47 @@ export const runRptPredictionTool = tool(
         : `SELECT * FROM ${tableName} WHERE NOT (${predictionWhere})`;
       const predictionSql = `SELECT * FROM ${tableName} WHERE ${predictionWhere}`;
 
-      const contextRows = await runQuery(contextSql);
-      const predictionRows = await runQuery(predictionSql);
+      const [[{ count: contextCount = 0 } = {}], [{ count: predCount = 0 } = {}]] =
+        await Promise.all([
+          runQuery(`SELECT COUNT(*) AS count FROM (${contextSql})`),
+          runQuery(`SELECT COUNT(*) AS count FROM (${predictionSql})`),
+        ]);
 
-      if (contextRows.length === 0) {
+      if (Number(contextCount) === 0) {
         return (
           `Error: No context rows matched${contextWhere ? ` contextWhere (${contextWhere})` : ''}. ` +
           `Broaden the context filter or load more historical data.`
         );
       }
-      if (predictionRows.length === 0) {
+      if (Number(predCount) === 0) {
         return `Error: No prediction rows matched predictionWhere (${predictionWhere}).`;
       }
 
       rpt(
         ` Single-table ${taskType} on '${tableName}', target: ${targetColumn}`,
       );
-      rpt(
-        ` ${contextRows.length} context rows, ${predictionRows.length} prediction rows`,
-      );
+      rpt(` ${contextCount} context rows, ${predCount} prediction rows`);
 
-      const context = sanitizeRows(contextRows);
-      const predictions = sanitizeRows(predictionRows).map((row) => ({
-        ...row,
-        [targetColumn]: null,
-      }));
+      const columns = await selectColumns(contextSql);
+      // Context rows keep their known target; prediction rows null it out. Ordering
+      // puts context first so row ids line up with the prediction block at the end.
+      const combinedSql =
+        `SELECT * FROM (${contextSql}) ` +
+        `UNION ALL BY NAME ` +
+        `SELECT * EXCLUDE ("${targetColumn}"), NULL AS "${targetColumn}" FROM (${predictionSql})`;
 
       const response = await callRpt(
-        [...context, ...predictions],
+        combinedSql,
+        columns,
         targetColumn,
         taskType,
       );
       rpt(` Prediction complete`);
       return writePredictionTable(
         outputTable,
-        sanitizeRows(predictionRows),
-        extractPredictions(response, targetColumn),
+        predictionSql,
+        Number(contextCount),
+        extractPredictions(response, targetColumn, Number(contextCount)),
         targetColumn,
         taskType,
       );
@@ -316,62 +353,63 @@ export const runRptPredictionFromSourcesTool = tool(
       if (!isValidIdentifier(outputTable)) {
         return `Error: '${outputTable}' is not a valid table name.`;
       }
-      const contextRows = await runQuery(`SELECT * FROM ${contextTable}`);
-      const predictionRows = await runQuery(`SELECT * FROM ${predictionTable}`);
+      if (!isValidIdentifier(contextTable)) {
+        return `Error: '${contextTable}' is not a valid table name.`;
+      }
+      if (!isValidIdentifier(predictionTable)) {
+        return `Error: '${predictionTable}' is not a valid table name.`;
+      }
 
-      if (contextRows.length === 0)
-        return `Error: Context table '${contextTable}' is empty.`;
-      if (predictionRows.length === 0)
-        return `Error: Prediction table '${predictionTable}' is empty.`;
-
-      // Find shared columns between the two tables
-      const contextCols = new Set(Object.keys(contextRows[0]));
-      const predCols = new Set(Object.keys(predictionRows[0]));
-      const shared = [...contextCols].filter((c) => predCols.has(c));
+      const [contextCols, predCols] = await Promise.all([
+        selectColumns(`SELECT * FROM ${contextTable}`),
+        selectColumns(`SELECT * FROM ${predictionTable}`),
+      ]);
+      const predSet = new Set(predCols);
+      const shared = contextCols.filter((c) => predSet.has(c));
 
       if (!shared.includes(targetColumn)) {
         return `Error: Target column '${targetColumn}' not found in both tables. Shared columns: ${shared.join(', ')}`;
       }
 
+      const quoted = shared.map((c) => `"${c.replaceAll('"', '""')}"`).join(', ');
+      // A "source" column lets RPT tell actuals apart from plan rows; the target is
+      // nulled on the plan side so the service fills it in.
+      const contextSql = `SELECT 'actual' AS source, ${quoted} FROM ${contextTable}`;
+      const predictionSql = `SELECT 'plan' AS source, ${quoted} FROM ${predictionTable}`;
+
+      const [[{ count: contextCount = 0 } = {}], [{ count: predCount = 0 } = {}]] =
+        await Promise.all([
+          runQuery(`SELECT COUNT(*) AS count FROM (${contextSql})`),
+          runQuery(`SELECT COUNT(*) AS count FROM (${predictionSql})`),
+        ]);
+
+      if (Number(contextCount) === 0)
+        return `Error: Context table '${contextTable}' is empty.`;
+      if (Number(predCount) === 0)
+        return `Error: Prediction table '${predictionTable}' is empty.`;
+
       rpt(
-        ` Dual-source ${taskType}: ${contextRows.length} context (${contextTable}) + ${predictionRows.length} prediction (${predictionTable})`,
+        ` Dual-source ${taskType}: ${contextCount} context (${contextTable}) + ${predCount} prediction (${predictionTable})`,
       );
       rpt(` Shared columns: ${shared.join(', ')}`);
 
-      const sanitizeShared = (
-        row: Record<string, unknown>,
-        isContext: boolean,
-      ): RptRow => {
-        const out: RptRow = {
-          source: isContext ? 'actual' : 'plan',
-        };
-        for (const col of shared) {
-          const val = row[col];
-          if (typeof val === 'bigint') out[col] = Number(val);
-          else if (typeof val === 'number') out[col] = val;
-          else if (val === null || val === undefined) out[col] = null;
-          else out[col] = String(val);
-        }
-        return out;
-      };
+      const combinedSql =
+        `SELECT * FROM (${contextSql}) ` +
+        `UNION ALL BY NAME ` +
+        `SELECT * EXCLUDE ("${targetColumn}"), NULL AS "${targetColumn}" FROM (${predictionSql})`;
 
-      const context = contextRows.map((r) => sanitizeShared(r, true));
-      const predictions = predictionRows.map((r) => ({
-        ...sanitizeShared(r, false),
-        [targetColumn]: null,
-      }));
-
-      const allRows = [...context, ...predictions];
-      rpt(
-        ` ${context.length} context rows, ${predictions.length} prediction rows`,
+      const response = await callRpt(
+        combinedSql,
+        ['source', ...shared],
+        targetColumn,
+        taskType,
       );
-
-      const response = await callRpt(allRows, targetColumn, taskType);
       rpt(` Prediction complete`);
       return writePredictionTable(
         outputTable,
-        predictions,
-        extractPredictions(response, targetColumn),
+        predictionSql,
+        Number(contextCount),
+        extractPredictions(response, targetColumn, Number(contextCount)),
         targetColumn,
         taskType,
       );

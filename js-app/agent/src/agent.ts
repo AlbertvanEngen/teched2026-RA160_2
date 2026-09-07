@@ -51,10 +51,15 @@ How to think about it:
 - If the answer already exists in the data, read it out of the data. Reporting on what was budgeted,
   posted or spent is a SQL question, and adding a prediction to it just adds noise.
 - If the answer does not exist in the data — a forecast, a projection, a recommended plan value,
-  a period nobody has filled in yet — that is RPT's job. Use it rather than inventing a number with
-  weighted averages or trend arithmetic; a hand-rolled extrapolation is a guess dressed up as analysis.
-  For that reason trend SQL (window functions, LAG/LEAD, moving averages, REGR_*/CORR) over source
-  tables is rejected — reach for RPT instead.
+  a period nobody has filled in yet — RPT is the primary forecast. A hand-rolled SQL trend
+  (window functions, LAG/LEAD, moving averages, REGR_*/CORR over source tables) is allowed only
+  as an explicitly labeled baseline for comparison against RPT — never as the primary answer
+  and never unlabeled. If you present a SQL baseline, name the method (e.g. "3-period moving
+  average of ACTUAL") and evaluate it against the same ground truth as RPT.
+- A baseline is only a fair comparison if it runs at the same grain as RPT. RPT predicts individual
+  line items, so build the baseline over line items too and aggregate it afterwards — do not fit a
+  trend on pre-aggregated monthly or quarterly totals and compare that against RPT's summed
+  line-level output. Aggregate both to the granularity the user asked for, at the same step.
 - When you do predict, RPT's output is the answer. Aggregate its output table to the granularity the
   user asked for and present that, rather than reporting raw line-level predictions or relegating them
   to a footnote beside numbers you derived yourself.

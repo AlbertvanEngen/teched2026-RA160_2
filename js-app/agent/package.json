@@ -24,6 +24,7 @@
     "@sap-ai-sdk/langchain": "^2.15.0",
     "@sap-ai-sdk/rpt": "^2.15.0",
     "@sap-cloud-sdk/odata-v2": "catalog:",
+    "@sap-cloud-sdk/util": "catalog:",
     "bignumber.js": "^11.1.5",
     "langchain": "^1.5.10",
     "tsx": "catalog:",

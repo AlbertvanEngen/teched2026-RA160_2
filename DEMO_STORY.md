@@ -567,8 +567,6 @@ This extension should expose the generated SQL and label the method in the final
 Do not describe the SQL as “random,” and do not assume SAP RPT wins the comparison.
 The value is the measured comparison between a transparent baseline and a specialized tabular model.
 
-The existing `assertNoForecastingSql()` function prevents this experiment.
-Remove that forecasting-specific restriction before offering the extension, but retain a read-only SQL boundary, identifier validation, execution limits, and visible errors.
 
 ### Model harmonization and prompt caching
 

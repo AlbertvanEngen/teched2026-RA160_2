@@ -1,5 +1,9 @@
 import { type DuckDBConnection, DuckDBInstance } from '@duckdb/node-api';
 
+export function isValidIdentifier(name: string) {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name);
+}
+
 let instance: Awaited<ReturnType<typeof DuckDBInstance.create>> | null = null;
 
 // In-memory session workspace (DuckDB). Serialize operations to prevent concurrent DDL races.
@@ -26,15 +30,25 @@ async function openConnection(): Promise<DuckDBConnection> {
   return db.connect();
 }
 
+const QUERY_TIMEOUT_MS = 15_000;
+
 export async function runQuery(
   sql: string,
 ): Promise<Record<string, unknown>[]> {
   return serialize(async () => {
     const conn = await openConnection();
+    let handle: ReturnType<typeof setTimeout> | undefined;
+    const timer = new Promise<never>((_, reject) => {
+      handle = setTimeout(
+        () => reject(new Error(`query exceeded ${QUERY_TIMEOUT_MS / 1000}s limit`)),
+        QUERY_TIMEOUT_MS,
+      );
+    });
     try {
-      const reader = await conn.runAndReadAll(sql);
+      const reader = await Promise.race([conn.runAndReadAll(sql), timer]);
       return reader.getRowObjects() as Record<string, unknown>[];
     } finally {
+      if (handle) clearTimeout(handle);
       conn.closeSync();
     }
   });
