@@ -30,7 +30,10 @@ const EXCLUDED_FEATURES = new Set([
 export const ROW_ID_COLUMN = '__row_id';
 
 /** Drops columns that would mislead the model, keeping the target column always. */
-export function featureColumns(columns: string[], targetColumn: string): string[] {
+export function featureColumns(
+  columns: string[],
+  targetColumn: string,
+): string[] {
   return columns.filter(
     (c) => c === targetColumn || !EXCLUDED_FEATURES.has(c.toLowerCase()),
   );

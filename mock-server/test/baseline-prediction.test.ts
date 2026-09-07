@@ -17,17 +17,19 @@ import { getFinancialPlanningEntries } from '../src/financial-planning/financial
 const COST_CENTER = 'A1000';
 const CONTEXT_YEARS = ['2023', '2024', '2025'] as const;
 const FORECAST_YEAR = '2026';
-const PERIODS = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(3, '0'));
+const PERIODS = Array.from({ length: 12 }, (_, i) =>
+  String(i + 1).padStart(3, '0'),
+);
 
 test('3-period aggregate MA MAPE is credible but imperfect for the workshop demo', async () => {
   const entries = await getFinancialPlanningEntries();
   const a1000 = entries.filter(
-    e => e.CostCenter === COST_CENTER && e.PlanningCategory === 'ACTUAL',
+    (e) => e.CostCenter === COST_CENTER && e.PlanningCategory === 'ACTUAL',
   );
 
   const periodTotal = (year: string, period: string) =>
     a1000
-      .filter(e => e.LedgerFiscalYear === year && e.FiscalPeriod === period)
+      .filter((e) => e.LedgerFiscalYear === year && e.FiscalPeriod === period)
       .reduce((s, e) => s + Math.abs(Number(e.AmountInCompanyCodeCurrency)), 0);
 
   const total24 = PERIODS.reduce((s, p) => s + periodTotal('2024', p), 0);
@@ -37,13 +39,20 @@ test('3-period aggregate MA MAPE is credible but imperfect for the workshop demo
   let mapeSum = 0;
   for (const period of PERIODS) {
     const avg3yr =
-      CONTEXT_YEARS.reduce((s, y) => s + periodTotal(y, period), 0) / CONTEXT_YEARS.length;
+      CONTEXT_YEARS.reduce((s, y) => s + periodTotal(y, period), 0) /
+      CONTEXT_YEARS.length;
     const predicted = avg3yr * globalGrowth;
     const actual = periodTotal(FORECAST_YEAR, period);
     mapeSum += Math.abs(predicted - actual) / actual;
   }
   const mapePct = (mapeSum / PERIODS.length) * 100;
 
-  assert.ok(mapePct > 2, `MA MAPE ${mapePct.toFixed(1)}% should exceed 2% (not trivially perfect)`);
-  assert.ok(mapePct < 25, `MA MAPE ${mapePct.toFixed(1)}% should stay below 25% (plausible baseline)`);
+  assert.ok(
+    mapePct > 2,
+    `MA MAPE ${mapePct.toFixed(1)}% should exceed 2% (not trivially perfect)`,
+  );
+  assert.ok(
+    mapePct < 25,
+    `MA MAPE ${mapePct.toFixed(1)}% should stay below 25% (plausible baseline)`,
+  );
 });

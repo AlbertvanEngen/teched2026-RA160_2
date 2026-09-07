@@ -40,7 +40,8 @@ export async function runQuery(
     let handle: ReturnType<typeof setTimeout> | undefined;
     const timer = new Promise<never>((_, reject) => {
       handle = setTimeout(
-        () => reject(new Error(`query exceeded ${QUERY_TIMEOUT_MS / 1000}s limit`)),
+        () =>
+          reject(new Error(`query exceeded ${QUERY_TIMEOUT_MS / 1000}s limit`)),
         QUERY_TIMEOUT_MS,
       );
     });

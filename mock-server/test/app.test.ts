@@ -364,9 +364,11 @@ test('keeps recurring monthly patterns stable across fiscal years for RPT evalua
     hasYearlyVariation ||= annualScaleError > 0.001;
   }
 
-  assert.ok(hasYearlyVariation, 'expected bounded yearly variation in source data');
+  assert.ok(
+    hasYearlyVariation,
+    'expected bounded yearly variation in source data',
+  );
 });
-
 
 test('keeps journal and planning line-item grains aligned for RPT evaluation', async () => {
   const journalCounts = new Map<string, number>();

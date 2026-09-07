@@ -2,13 +2,86 @@ import { styleText } from 'node:util';
 import { tool } from '@langchain/core/tools';
 import { RptClient } from '@sap-ai-sdk/rpt';
 import { z } from 'zod';
-import { runQuery, isValidIdentifier } from './db.ts';
-import { ROW_ID_COLUMN, featureColumns, withParquetBlob } from './parquet.ts';
+import { isValidIdentifier, runQuery } from './db.ts';
+import { featureColumns, ROW_ID_COLUMN, withParquetBlob } from './parquet.ts';
 import { registerSessionObject } from './session-store.ts';
 
 const rpt = (msg: string) => console.log(styleText('cyan', '[RPT] ') + msg);
 
 type TaskType = 'classification' | 'regression';
+
+type PredictionRow = {
+  predicted: string | number;
+  confidence: number | null;
+  confidenceIntervalLower: number | null;
+  confidenceIntervalUpper: number | null;
+};
+
+function stringifyUnknown(value: unknown): string {
+  if (value == null) return '';
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint'
+  ) {
+    return String(value);
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return '[unserializable]';
+  }
+}
+
+function toNullableNumber(value: unknown): number | null {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function parsePredictionCell(value: unknown): PredictionRow {
+  const base: PredictionRow = {
+    predicted: '',
+    confidence: null,
+    confidenceIntervalLower: null,
+    confidenceIntervalUpper: null,
+  };
+
+  if (Array.isArray(value)) {
+    const first = value[0];
+    if (typeof first === 'object' && first !== null && 'prediction' in first) {
+      const predictionResult = first as {
+        prediction?: unknown;
+        confidence?: unknown;
+        confidence_interval?: unknown;
+      };
+      const rawPrediction = predictionResult.prediction;
+      base.predicted =
+        typeof rawPrediction === 'number' || typeof rawPrediction === 'string'
+          ? rawPrediction
+          : stringifyUnknown(rawPrediction);
+      base.confidence = toNullableNumber(predictionResult.confidence);
+
+      const rawInterval = predictionResult.confidence_interval;
+      if (Array.isArray(rawInterval) && rawInterval.length >= 2) {
+        base.confidenceIntervalLower = toNullableNumber(rawInterval[0]);
+        base.confidenceIntervalUpper = toNullableNumber(rawInterval[1]);
+      }
+      return base;
+    }
+
+    base.predicted = stringifyUnknown(first);
+    return base;
+  }
+
+  if (typeof value === 'string' || typeof value === 'number') {
+    base.predicted = value;
+    return base;
+  }
+
+  base.predicted = stringifyUnknown(value);
+  return base;
+}
 
 /** Column names of a table, view, or arbitrary SELECT, in declaration order. */
 async function selectColumns(selectSql: string): Promise<string[]> {
@@ -67,7 +140,7 @@ function extractPredictions(
   response: unknown,
   targetColumn: string,
   rowIdOffset: number,
-): Map<number, string | number> {
+): Map<number, PredictionRow> {
   const predictions =
     typeof response === 'object' &&
     response !== null &&
@@ -76,34 +149,23 @@ function extractPredictions(
       ? response.predictions
       : [];
 
-  const byRowId = new Map<number, string | number>();
+  const byRowId = new Map<number, PredictionRow>();
   predictions.forEach((row, i) => {
     if (typeof row !== 'object' || row === null) return;
     const record = row as Record<string, unknown>;
-    const value = record[targetColumn];
-
-    let predicted: string | number;
-    if (Array.isArray(value)) {
-      const first = value[0];
-      predicted =
-        typeof first === 'object' && first !== null && 'prediction' in first
-          ? String((first as { prediction?: unknown }).prediction ?? '')
-          : '';
-    } else if (typeof value === 'string' || typeof value === 'number') {
-      predicted = value;
-    } else {
-      predicted = value == null ? '' : String(value);
-    }
+    const parsed = parsePredictionCell(record[targetColumn]);
 
     // Align on the index column the service echoes back. If it is absent, fall back
     // to position within the prediction block, which the Parquet numbered starting
     // just after the context rows.
     const rawId = record[ROW_ID_COLUMN];
     const rowId = Number(rawId);
-    byRowId.set(
-      Number.isFinite(rowId) ? rowId : rowIdOffset + i + 1,
-      predicted,
-    );
+    byRowId.set(Number.isFinite(rowId) ? rowId : rowIdOffset + i + 1, {
+      predicted: parsed.predicted,
+      confidence: parsed.confidence,
+      confidenceIntervalLower: parsed.confidenceIntervalLower,
+      confidenceIntervalUpper: parsed.confidenceIntervalUpper,
+    });
   });
   return byRowId;
 }
@@ -121,19 +183,33 @@ async function writePredictionTable(
   outputTable: string,
   predictionSql: string,
   rowIdOffset: number,
-  predictions: Map<number, string | number>,
+  predictions: Map<number, PredictionRow>,
   targetColumn: string,
   taskType: TaskType,
 ) {
   const predictedCol = `predicted_${targetColumn}`;
+  const confidenceCol = `confidence_${targetColumn}`;
+  const confidenceIntervalLowerCol = `confidence_interval_lower_${targetColumn}`;
+  const confidenceIntervalUpperCol = `confidence_interval_upper_${targetColumn}`;
   const isRegression = taskType === 'regression';
 
   const values = [...predictions.entries()]
-    .map(([rowId, predicted]) => {
+    .map(([rowId, prediction]) => {
+      const { predicted } = prediction;
       const literal = isRegression
         ? Number(predicted) || 0
         : `'${String(predicted).replaceAll("'", "''")}'`;
-      return `(${rowId}, ${literal})`;
+      const confidenceLiteral =
+        prediction.confidence == null ? 'NULL' : `${prediction.confidence}`;
+      const confidenceIntervalLowerLiteral =
+        prediction.confidenceIntervalLower == null
+          ? 'NULL'
+          : `${prediction.confidenceIntervalLower}`;
+      const confidenceIntervalUpperLiteral =
+        prediction.confidenceIntervalUpper == null
+          ? 'NULL'
+          : `${prediction.confidenceIntervalUpper}`;
+      return `(${rowId}, ${literal}, ${confidenceLiteral}, ${confidenceIntervalLowerLiteral}, ${confidenceIntervalUpperLiteral})`;
     })
     .join(', ');
 
@@ -147,9 +223,18 @@ async function writePredictionTable(
        SELECT *, row_number() OVER () + ${rowIdOffset} AS ${ROW_ID_COLUMN}
        FROM (${predictionSql})
      ),
-     predicted(${ROW_ID_COLUMN}, "${predictedCol}") AS (VALUES ${values})
+     predicted(
+       ${ROW_ID_COLUMN},
+       "${predictedCol}",
+       "${confidenceCol}",
+       "${confidenceIntervalLowerCol}",
+       "${confidenceIntervalUpperCol}"
+     ) AS (VALUES ${values})
      SELECT source.* EXCLUDE (${ROW_ID_COLUMN}, "${targetColumn}"),
-            predicted."${predictedCol}"
+            predicted."${predictedCol}",
+            predicted."${confidenceCol}",
+            predicted."${confidenceIntervalLowerCol}",
+            predicted."${confidenceIntervalUpperCol}"
      FROM source
      JOIN predicted USING (${ROW_ID_COLUMN})`,
   );
@@ -173,7 +258,8 @@ async function writePredictionTable(
   rpt(` Wrote ${rowCount} predictions into '${outputTable}'`);
   return (
     `Wrote ${rowCount} predicted rows into table '${outputTable}'. ` +
-    `Predicted column: ${predictedCol}. ` +
+    `Predicted columns: ${predictedCol}, ${confidenceCol}, ` +
+    `${confidenceIntervalLowerCol}, ${confidenceIntervalUpperCol}. ` +
     `Aggregate this table with run_sql (e.g. GROUP BY fiscalPeriod) to build the answer.`
   );
 }
@@ -192,7 +278,10 @@ function formatExplanations(response: unknown): string {
   ) {
     return '';
   }
-  const scores = response.explanations.top_column_scores as Record<string, number>[];
+  const scores = response.explanations.top_column_scores as Record<
+    string,
+    number
+  >[];
   const totals = new Map<string, number>();
   for (const row of scores) {
     for (const [col, v] of Object.entries(row)) {
@@ -284,11 +373,13 @@ export const runRptPredictionTool = tool(
         : `SELECT * FROM ${tableName} WHERE NOT (${predictionWhere})`;
       const predictionSql = `SELECT * FROM ${tableName} WHERE ${predictionWhere}`;
 
-      const [[{ count: contextCount = 0 } = {}], [{ count: predCount = 0 } = {}]] =
-        await Promise.all([
-          runQuery(`SELECT COUNT(*) AS count FROM (${contextSql})`),
-          runQuery(`SELECT COUNT(*) AS count FROM (${predictionSql})`),
-        ]);
+      const [
+        [{ count: contextCount = 0 } = {}],
+        [{ count: predCount = 0 } = {}],
+      ] = await Promise.all([
+        runQuery(`SELECT COUNT(*) AS count FROM (${contextSql})`),
+        runQuery(`SELECT COUNT(*) AS count FROM (${predictionSql})`),
+      ]);
 
       if (Number(contextCount) === 0) {
         return (
@@ -344,7 +435,8 @@ export const runRptPredictionTool = tool(
       '(e.g. future fiscal periods, rows with NULL target values). ' +
       'Optionally set contextWhere for rows with known target values; otherwise all rows ' +
       'not matching predictionWhere become context. ' +
-      'Predictions are written into outputTable, which you then aggregate with run_sql. ' +
+      'Predictions are written into outputTable as predicted_<targetColumn> plus confidence_<targetColumn> ' +
+      'and confidence_interval_lower/upper_<targetColumn> columns, which you can aggregate with run_sql. ' +
       'When actuals and planning entries are in separate tables, prefer run_rpt_prediction_from_sources.',
     schema: z.object({
       tableName: z.string().describe('Session table or view to read from'),
@@ -403,17 +495,21 @@ export const runRptPredictionFromSourcesTool = tool(
         return `Error: Target column '${targetColumn}' not found in both tables. Shared columns: ${shared.join(', ')}`;
       }
 
-      const quoted = shared.map((c) => `"${c.replaceAll('"', '""')}"`).join(', ');
+      const quoted = shared
+        .map((c) => `"${c.replaceAll('"', '""')}"`)
+        .join(', ');
       // A "source" column lets RPT tell actuals apart from plan rows; the target is
       // nulled on the plan side so the service fills it in.
       const contextSql = `SELECT 'actual' AS source, ${quoted} FROM ${contextTable}`;
       const predictionSql = `SELECT 'plan' AS source, ${quoted} FROM ${predictionTable}`;
 
-      const [[{ count: contextCount = 0 } = {}], [{ count: predCount = 0 } = {}]] =
-        await Promise.all([
-          runQuery(`SELECT COUNT(*) AS count FROM (${contextSql})`),
-          runQuery(`SELECT COUNT(*) AS count FROM (${predictionSql})`),
-        ]);
+      const [
+        [{ count: contextCount = 0 } = {}],
+        [{ count: predCount = 0 } = {}],
+      ] = await Promise.all([
+        runQuery(`SELECT COUNT(*) AS count FROM (${contextSql})`),
+        runQuery(`SELECT COUNT(*) AS count FROM (${predictionSql})`),
+      ]);
 
       if (Number(contextCount) === 0)
         return `Error: Context table '${contextTable}' is empty.`;
@@ -460,7 +556,8 @@ export const runRptPredictionFromSourcesTool = tool(
       'contextTable (e.g. journal entries / actuals) provides the known-truth context rows; ' +
       'predictionTable (e.g. planning entries / budgets) provides the rows to predict. ' +
       'Only columns shared between both tables are used. A "source" column (actual/plan) is added automatically. ' +
-      'Predictions are written into outputTable, which you then aggregate with run_sql to the granularity ' +
+      'Predictions are written into outputTable as predicted_<targetColumn> plus confidence_<targetColumn> ' +
+      'and confidence_interval_lower/upper_<targetColumn> columns, then aggregate with run_sql to the granularity ' +
       'the user asked for. Use this for forecasting questions — questions answerable from the loaded data ' +
       'should be answered with SQL instead.',
     schema: z.object({

@@ -30,19 +30,22 @@ const ACCOUNT_BASE_AMOUNTS: Record<string, number> = {
 // Different accounts peak at different months AND grow at different rates — exactly the
 // cross-column signal RPT can learn from (glAccount, costCenter) features that a
 // period-level aggregate moving average cannot.
-const ACCOUNT_SEASONAL: Record<string, { amp: number; phase: number; growth: number }> = {
-  '410000': { amp: 0.20, phase: 4, growth: 0.03 },   // Revenue: mid-year peak, 3%/yr
-  '420000': { amp: 0.12, phase: 4, growth: 0.01 },   // Other Income: follows revenue
-  '510000': { amp: 0.18, phase: 5, growth: 0.035 },  // COGS: follows revenue, slight lag
+const ACCOUNT_SEASONAL: Record<
+  string,
+  { amp: number; phase: number; growth: number }
+> = {
+  '410000': { amp: 0.2, phase: 4, growth: 0.03 }, // Revenue: mid-year peak, 3%/yr
+  '420000': { amp: 0.12, phase: 4, growth: 0.01 }, // Other Income: follows revenue
+  '510000': { amp: 0.18, phase: 5, growth: 0.035 }, // COGS: follows revenue, slight lag
   // A1000 entity accounts: amplitudes sharpened so the aggregate has a dominant seasonal
   // shape. Phase drift (0.2 period/yr) gives RPT a learnable trend that MA averages out.
-  '610000': { amp: 0.25, phase: 7, growth: 0.02 },   // Operating Expenses: autumn spike
-  '620000': { amp: 0.40, phase: 1, growth: 0.07 },   // Personnel: Q1 bonus, 40% swing
-  '630000': { amp: 0.15, phase: 0, growth: -0.04 },  // Depreciation: first-month peak
-  '710000': { amp: 0.15, phase: 9, growth: 0.01 },   // Financial Income: year-end
-  '720000': { amp: 0.12, phase: 0, growth: 0.015 },  // Financial Expenses: Q1 interest
+  '610000': { amp: 0.25, phase: 7, growth: 0.02 }, // Operating Expenses: autumn spike
+  '620000': { amp: 0.4, phase: 1, growth: 0.07 }, // Personnel: Q1 bonus, 40% swing
+  '630000': { amp: 0.15, phase: 0, growth: -0.04 }, // Depreciation: first-month peak
+  '710000': { amp: 0.15, phase: 9, growth: 0.01 }, // Financial Income: year-end
+  '720000': { amp: 0.12, phase: 0, growth: 0.015 }, // Financial Expenses: Q1 interest
 };
-const DEFAULT_SEASONAL = { amp: 0.10, phase: 0, growth: 0.01 };
+const DEFAULT_SEASONAL = { amp: 0.1, phase: 0, growth: 0.01 };
 
 const EXPENSE_ACCOUNTS = new Set(['510000', '610000', '620000', '630000']);
 const CATEGORIES = ['BUDGET', 'FORECAST', 'ACTUAL', 'PLAN'] as const;
@@ -225,9 +228,12 @@ function canonicalAmount(
   // Phase drifts 0.2 period per year so the seasonal peak migrates over time.
   // RPT learns this trend from context years; MA averages across old phases → systematic error.
   const driftedPhase = profile.phase + (Number(fiscalYear) - 2018) * 0.2;
-  const seasonality = 1 + profile.amp * Math.sin(((Number(fiscalPeriod) - 1 - driftedPhase) * Math.PI * 2) / 12);
+  const seasonality =
+    1 +
+    profile.amp *
+      Math.sin(((Number(fiscalPeriod) - 1 - driftedPhase) * Math.PI * 2) / 12);
   const annualTrend = (1 + profile.growth) ** (Number(fiscalYear) - 2018);
-  const variation = Math.max(0.80, Math.min(1.20, 1 + normalVariation()));
+  const variation = Math.max(0.8, Math.min(1.2, 1 + normalVariation()));
   return Number(
     (
       ACCOUNT_BASE_AMOUNTS[accountCode] *
