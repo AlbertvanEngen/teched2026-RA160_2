@@ -206,46 +206,6 @@ function formatExplanations(response: unknown): string {
   return ` Top feature influences: ${top.join(', ')}.`;
 }
 
-// Derived/composite period columns that should never partition a window.
-const PERIOD_DERIVED = new Set(['fiscalyearperiod', 'id']);
-
-/**
- * Wraps a SQL SELECT in a CTE that adds LAG/LEAD budget-adjacency features.
- * Partitions by all shared dimensions except the target and time-axis columns.
- * Returns the SQL unchanged when no `fiscalPeriod` ordering column is found.
- *
- * These columns are always populated for plan rows and NULL for actuals, giving
- * the model a direct adjacency signal that a period-level moving average lacks.
- */
-function withBudgetAdjacency(
-  sql: string,
-  columns: string[],
-  targetColumn: string,
-): string {
-  const periodCol = columns.find(c => c.toLowerCase() === 'fiscalperiod');
-  if (!periodCol) return sql;
-
-  const q = (c: string) => `"${c.replaceAll('"', '""')}"`;
-  const partitionCols = columns.filter(
-    c =>
-      c !== targetColumn &&
-      c.toLowerCase() !== 'fiscalperiod' &&
-      !PERIOD_DERIVED.has(c.toLowerCase()),
-  );
-  const partitionExpr = partitionCols.length
-    ? `PARTITION BY ${partitionCols.map(q).join(', ')}`
-    : '';
-  const windowSpec = `${partitionExpr} ORDER BY ${q(periodCol)}`;
-
-  return (
-    `WITH _adj AS (${sql})\n` +
-    `SELECT *,\n` +
-    `  LAG(${q(targetColumn)}) OVER (${windowSpec}) AS prev_month_budget,\n` +
-    `  LEAD(${q(targetColumn)}) OVER (${windowSpec}) AS next_month_budget\n` +
-    `FROM _adj`
-  );
-}
-
 // Sends the combined context + prediction set to RPT as Parquet. Parquet carries
 // declared column types end to end, so nothing depends on JS runtime type inference
 // or on the service's `parse_data_types` behaviour.
@@ -346,21 +306,16 @@ export const runRptPredictionTool = tool(
       rpt(` ${contextCount} context rows, ${predCount} prediction rows`);
 
       const columns = await selectColumns(contextSql);
-      // Add prev/next budget adjacency to the prediction side where FiscalPeriod is present.
-      const augPredSql1 = withBudgetAdjacency(predictionSql, columns, targetColumn);
-      const hasAdj1 = augPredSql1 !== predictionSql;
-      const adjNulls1 = hasAdj1 ? ', NULL AS prev_month_budget, NULL AS next_month_budget' : '';
-      const adjCols1 = hasAdj1 ? ['prev_month_budget', 'next_month_budget'] : [];
       // Context rows keep their known target; prediction rows null it out. Ordering
       // puts context first so row ids line up with the prediction block at the end.
       const combinedSql =
-        `SELECT *${adjNulls1} FROM (${contextSql}) ` +
+        `SELECT * FROM (${contextSql}) ` +
         `UNION ALL BY NAME ` +
-        `SELECT * EXCLUDE ("${targetColumn}"), NULL AS "${targetColumn}" FROM (${augPredSql1})`;
+        `SELECT * EXCLUDE ("${targetColumn}"), NULL AS "${targetColumn}" FROM (${predictionSql})`;
 
       const response = await callRpt(
         combinedSql,
-        [...columns, ...adjCols1],
+        columns,
         targetColumn,
         taskType,
       );
@@ -451,19 +406,13 @@ export const runRptPredictionFromSourcesTool = tool(
       const quoted = shared.map((c) => `"${c.replaceAll('"', '""')}"`).join(', ');
       // A "source" column lets RPT tell actuals apart from plan rows; the target is
       // nulled on the plan side so the service fills it in.
-      const basePredSql = `SELECT 'plan' AS source, ${quoted} FROM ${predictionTable}`;
-      // Add prev/next budget adjacency from the plan side — always known for budget rows.
-      // Context (actual) rows carry NULLs for these; plan rows carry real adjacent amounts.
-      const augPredSql = withBudgetAdjacency(basePredSql, shared, targetColumn);
-      const hasAdj = augPredSql !== basePredSql;
-      const adjNulls = hasAdj ? ', NULL AS prev_month_budget, NULL AS next_month_budget' : '';
-      const contextSql = `SELECT 'actual' AS source, ${quoted}${adjNulls} FROM ${contextTable}`;
-      const predictionSql = basePredSql; // used for writePredictionTable (dimensions only)
+      const contextSql = `SELECT 'actual' AS source, ${quoted} FROM ${contextTable}`;
+      const predictionSql = `SELECT 'plan' AS source, ${quoted} FROM ${predictionTable}`;
 
       const [[{ count: contextCount = 0 } = {}], [{ count: predCount = 0 } = {}]] =
         await Promise.all([
           runQuery(`SELECT COUNT(*) AS count FROM (${contextSql})`),
-          runQuery(`SELECT COUNT(*) AS count FROM (${augPredSql})`),
+          runQuery(`SELECT COUNT(*) AS count FROM (${predictionSql})`),
         ]);
 
       if (Number(contextCount) === 0)
@@ -474,17 +423,16 @@ export const runRptPredictionFromSourcesTool = tool(
       rpt(
         ` Dual-source ${taskType}: ${contextCount} context (${contextTable}) + ${predCount} prediction (${predictionTable})`,
       );
-      rpt(` Shared columns: ${shared.join(', ')}${hasAdj ? ' + prev/next month budget' : ''}`);
+      rpt(` Shared columns: ${shared.join(', ')}`);
 
       const combinedSql =
         `SELECT * FROM (${contextSql}) ` +
         `UNION ALL BY NAME ` +
-        `SELECT * EXCLUDE ("${targetColumn}"), NULL AS "${targetColumn}" FROM (${augPredSql})`;
+        `SELECT * EXCLUDE ("${targetColumn}"), NULL AS "${targetColumn}" FROM (${predictionSql})`;
 
-      const adjCols = hasAdj ? ['prev_month_budget', 'next_month_budget'] : [];
       const response = await callRpt(
         combinedSql,
-        ['source', ...shared, ...adjCols],
+        ['source', ...shared],
         targetColumn,
         taskType,
       );
