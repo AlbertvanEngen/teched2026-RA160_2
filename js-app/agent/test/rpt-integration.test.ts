@@ -47,8 +47,10 @@ test(
   { skip: process.env.AICORE_SERVICE_KEY ? undefined : 'AICORE_SERVICE_KEY not set' },
   async () => {
     const all = await getFinancialPlanningEntries();
-    const actual = all.filter(
-      e => e.CostCenter === COST_CENTER && e.PlanningCategory === 'ACTUAL',
+    const a1000 = all.filter(e => e.CostCenter === COST_CENTER);
+    const actual = a1000.filter(e => e.PlanningCategory === 'ACTUAL');
+    const budget2026 = a1000.filter(
+      e => e.PlanningCategory === 'BUDGET' && e.LedgerFiscalYear === FORECAST_YEAR,
     );
 
     const context = actual.filter(e => CONTEXT_YEARS.has(e.LedgerFiscalYear));
@@ -72,6 +74,23 @@ test(
     const actuals2026 = PERIODS.map(p => periodTotal(FORECAST_YEAR, p));
     const sqlMape = mape(sqlPred, actuals2026);
 
+    // ── Budget adjacency lookup: (glAccount, costCenter, period) → total ───────
+    // Mirrors what withBudgetAdjacency does in rpt-tool.ts: LAG/LEAD over
+    // fiscalPeriod within (glAccount, costCenter) partition on the budget rows.
+    type AdjKey = `${string}:${string}:${string}`;
+    const budgetMap = new Map<AdjKey, number>();
+    for (const e of budget2026) {
+      const key: AdjKey = `${e.GLAccount}:${e.CostCenter}:${e.FiscalPeriod}`;
+      budgetMap.set(key, (budgetMap.get(key) ?? 0) + Math.abs(Number(e.AmountInCompanyCodeCurrency)));
+    }
+    const adjBudgetPeriod = (gl: string, cc: string, period: string, offset: -1 | 1): number | null => {
+      const adjIdx = PERIODS.indexOf(period) + offset;
+      if (adjIdx < 0 || adjIdx >= PERIODS.length) return null;
+      const key: AdjKey = `${gl}:${cc}:${PERIODS[adjIdx]}`;
+      return budgetMap.get(key) ?? null;
+    };
+
+    // ── RPT: row/col payload ───────────────────────────────────────────────────
     // RowType<DataSchema> is Record<string,string|number>; null is not assignable.
     // Safe: prediction_placeholder:null tells RPT to fill exactly these cells.
     const PREDICT_PLACEHOLDER = null as unknown as number;
@@ -85,6 +104,9 @@ test(
       fiscalPeriod: e.FiscalPeriod,
       planningCategory: e.PlanningCategory,
       [TARGET]: Math.abs(Number(e.AmountInCompanyCodeCurrency)),
+      // Context rows have no adjacent budget signal — mirrors dual-source tool behaviour
+      prev_month_budget: null as unknown as number,
+      next_month_budget: null as unknown as number,
     }));
 
     const predRows = predInput.map((e, i) => ({
@@ -96,6 +118,8 @@ test(
       fiscalPeriod: e.FiscalPeriod,
       planningCategory: e.PlanningCategory,
       [TARGET]: PREDICT_PLACEHOLDER,
+      prev_month_budget: adjBudgetPeriod(e.GLAccount, e.CostCenter, e.FiscalPeriod, -1) as unknown as number,
+      next_month_budget: adjBudgetPeriod(e.GLAccount, e.CostCenter, e.FiscalPeriod, 1) as unknown as number,
     }));
 
     const predictionConfig = {
