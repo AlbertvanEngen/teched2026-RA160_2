@@ -1,5 +1,3 @@
-import type { BaseMessage } from '@langchain/core/messages';
-import { isAIMessage, isToolMessage } from '@langchain/core/messages';
 import {
   createSession,
   getFinancialAgent,
@@ -52,11 +50,7 @@ app.post('/api/agent/run', async (c) => {
 
   // --- JS agent (default) ---
   // Dynamic imports so LangChain packages are not loaded when using the Java proxy.
-  const [{ isAIMessage, isToolMessage }, { createFinancialAgent, SYSTEM_PROMPT }] =
-    await Promise.all([
-      import('@langchain/core/messages'),
-      import('financial-mock-agent'),
-    ]);
+  const { AIMessage, ToolMessage } = await import('@langchain/core/messages');
 
   return streamSSE(c, (s) =>
     sessionContext.run(sessionId, async () => {
@@ -78,10 +72,15 @@ app.post('/api/agent/run', async (c) => {
         const emittedToolResultIds = new Set<string>();
 
         for await (const chunk of agentStream) {
-          const messages = (chunk as { messages: import('@langchain/core/messages').BaseMessage[] }).messages;
-          const last = messages[messages.length - 1];
+          const messages = (
+            chunk as {
+              messages: import('@langchain/core/messages').BaseMessage[];
+            }
+          ).messages;
+          const last = messages.at(-1);
+          if (!last) continue;
 
-          if (isAIMessage(last)) {
+          if (AIMessage.isInstance(last)) {
             const toolCalls = last.tool_calls ?? [];
             for (const tc of toolCalls) {
               if (!tc.id || emittedToolCallIds.has(tc.id)) continue;
@@ -112,7 +111,7 @@ app.post('/api/agent/run', async (c) => {
           }
 
           for (const message of messages) {
-            if (!isToolMessage(message)) continue;
+            if (!ToolMessage.isInstance(message)) continue;
             const toolCallId = message.tool_call_id;
             if (emittedToolResultIds.has(toolCallId)) continue;
             emittedToolResultIds.add(toolCallId);

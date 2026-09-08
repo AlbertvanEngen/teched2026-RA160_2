@@ -23,6 +23,7 @@
   },
   "type": "module",
   "devDependencies": {
-    "@biomejs/biome": "catalog:"
+    "@biomejs/biome": "catalog:",
+    "@types/node": "^24.13.3"
   }
 }

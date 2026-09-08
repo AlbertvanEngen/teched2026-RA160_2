@@ -108,11 +108,10 @@ This does not change the agent's default destination, so the normal workflow sti
 
 ## Generated code
 
-Do not edit `src/generated/` folders by hand.
-Change the EDMX source in `../specs/`, then regenerate both consumers:
+Do not edit `agent/src/generated/` by hand.
+Change the EDMX source in `../specs/`, then regenerate:
 
 ```bash
-pnpm --filter financial-mock-sdk-client generate
 pnpm --filter financial-mock-agent generate
 ```
 

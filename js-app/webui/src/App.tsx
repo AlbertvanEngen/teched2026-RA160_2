@@ -3,7 +3,7 @@ import { marked } from 'marked';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Message, ToolEntry, TurnGroup } from './types.ts';
 
-marked.setOptions({ gfm: true, breaks: true });
+marked.use({ gfm: true, breaks: true });
 
 function parseMarkdown(md: string): DocumentFragment {
   const result = marked.parse(md);
@@ -493,7 +493,8 @@ export default function App() {
             } else if (eventLine === 'tool_result') {
               const tid = payload.id as string;
               const raw = payload.result;
-            const result = typeof raw === 'string' ? raw : JSON.stringify(raw);
+              const result =
+                typeof raw === 'string' ? raw : JSON.stringify(raw);
               const completedAt = Date.now();
               setTurns((prev) =>
                 prev.map((t) =>
@@ -674,9 +675,7 @@ export default function App() {
                   Choose a demo prompt to paste into the composer
                 </p>
                 <fieldset className="suggestions">
-                  <legend className="suggestions__legend">
-                    Demo prompts
-                  </legend>
+                  <legend className="suggestions__legend">Demo prompts</legend>
                   {DEMO_PROMPTS.map(({ label, prompt }) => (
                     <button
                       type="button"
