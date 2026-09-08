@@ -5,10 +5,11 @@ import static com.sap.ai.sdk.orchestration.OrchestrationAiModel.GPT_4O;
 import com.sap.ai.sdk.orchestration.OrchestrationModuleConfig;
 import com.sap.ai.sdk.orchestration.spring.OrchestrationChatModel;
 import com.sap.ai.sdk.orchestration.spring.OrchestrationChatOptions;
-import com.sap.teched.demo.tool.DuckDbTool;
+import com.sap.teched.demo.tool.LocalDbTool;
 import com.sap.teched.demo.tool.FinancialPlanningTool;
 import com.sap.teched.demo.tool.ForecastTool;
 import com.sap.teched.demo.tool.JournalEntryTool;
+import com.sap.teched.demo.tool.ForecastFromSourcesTool;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,17 +50,21 @@ public class AgentService {
         'financial_planning_data'. Call this FIRST before using query_duckdb.
       - query_journal_entry: fetch actual posted cost data from OData into DuckDB table
         'journal_entry_data'. Call this FIRST before using query_duckdb.
-      - query_duckdb: run a SQL SELECT against data already loaded into DuckDB. Use GROUP BY,
+      - query_local_db: run a SQL SELECT against data already loaded into the local database. Use GROUP BY,
         SUM, AVG, COUNT to aggregate. Always load data first.
-        The 'period' column in DuckDB stores values like '2024001' (year=2024, period=001 through 012).
+        The 'period' column in the local DB stores values like '2024001' (year=2024, period=001 through 012).
         Filter by year: period LIKE '2024%'. Filter by Q3: period >= '2024007' AND period <= '2024009'.
-      - forecastTabular: predict a FUTURE cost or budget value using SAP RPT Tabular AI.
-        Only use for forward-looking questions (next quarter, next year). Provide at least
-        two historical data points.
+      - forecastTabular: predict a FUTURE value using SAP RPT, supplying a small list of
+        historical points manually. Use only when you have few data points (< 20).
+      - forecast_from_sources: predict using two full local database tables as input.
+        contextTable (e.g. journal_entry_data) = known actuals; predictionTable
+        (e.g. financial_planning_data) = rows to predict. Reads all rows directly — no
+        LLM transcription. Prefer this over forecastTabular when data is already in the local DB.
+        Writes predictions into outputTable; use query_local_db to aggregate results.
 
       Workflow:
       1. ALWAYS load data first with query_financial_planning and/or query_journal_entry.
-      2. Use query_duckdb with SQL aggregations to analyse the loaded data.
+      2. Use query_local_db with SQL aggregations to analyse the loaded data.
       3. For forward-looking questions, load historical data, then call forecastTabular.
       4. Never invent numbers — base your answer entirely on tool results.
 
@@ -73,8 +78,9 @@ public class AgentService {
 
   private final FinancialPlanningTool financialPlanningTool;
   private final JournalEntryTool journalEntryTool;
-  private final DuckDbTool duckDbTool;
+  private final LocalDbTool duckDbTool;
   private final ForecastTool forecastTool;
+  private final ForecastFromSourcesTool rptFromSourcesTool;
 
   /**
    * Run the agent for the given prompt, streaming SSE events via the emitter.
@@ -93,7 +99,8 @@ public class AgentService {
       options.setToolCallbacks(
           List.of(
               ToolCallbacks.from(
-                  financialPlanningTool, journalEntryTool, duckDbTool, forecastTool)));
+                  financialPlanningTool, journalEntryTool, duckDbTool, forecastTool,
+                  rptFromSourcesTool)));
       options.setInternalToolExecutionEnabled(true);
 
       final Prompt p =

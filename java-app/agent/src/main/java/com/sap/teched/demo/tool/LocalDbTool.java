@@ -19,7 +19,7 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 /**
- * Agent tool: query_duckdb.
+ * Agent tool: query_local_db.
  *
  * <p>Executes a SQL SELECT against the in-memory DuckDB instance and returns the result rows as
  * a JSON array. Tables available: {@code financial_planning_data}, {@code journal_entry_data}
@@ -28,7 +28,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class DuckDbTool {
+public class LocalDbTool {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -41,9 +41,9 @@ public class DuckDbTool {
    * @return JSON array of result rows
    */
   @Tool(
-      name = "query_duckdb",
+      name = "query_local_db",
       description =
-          "Execute a SQL SELECT query against the in-memory DuckDB database. Use this AFTER "
+          "Execute a SQL SELECT query against the in-memory local database. Use this AFTER "
               + "loading data with query_financial_planning or query_journal_entry. "
               + "Available tables: financial_planning_data (columns: cost_center, period, "
               + "allocated, currency), journal_entry_data (columns: cost_center, period, "
@@ -52,13 +52,13 @@ public class DuckDbTool {
               + "To filter by year use: period LIKE '2024%'. "
               + "To filter by quarter: period >= '2024007' AND period <= '2024009'. "
               + "Supports GROUP BY, SUM, AVG, COUNT, ORDER BY, LIMIT.")
-  public String queryDuckDb(
-      @ToolParam(description = "SQL SELECT statement to execute against DuckDB")
+  public String queryLocalDb(
+      @ToolParam(description = "SQL SELECT statement to execute against the local database")
           final String sql) {
 
     final Map<String, Object> args = Map.of("sql", sql);
     final AgentTrace trace = AgentTrace.CURRENT.get();
-    final String callId = trace != null ? trace.emitToolCall("query_duckdb", args) : null;
+    final String callId = trace != null ? trace.emitToolCall("query_local_db", args) : null;
 
     final List<Map<String, Object>> rows = executeQuery(sql);
     String resultJson;
@@ -68,9 +68,9 @@ public class DuckDbTool {
       resultJson = "[]";
     }
 
-    final String summary = "DuckDB returned " + rows.size() + " row(s).";
+    final String summary = "Local DB returned " + rows.size() + " row(s).";
     if (trace != null && callId != null) {
-      trace.emitToolResult(callId, "query_duckdb", args, summary, rows);
+      trace.emitToolResult(callId, "query_local_db", args, summary, rows);
     }
 
     return resultJson;
@@ -91,9 +91,9 @@ public class DuckDbTool {
         rows.add(row);
       }
     } catch (final SQLException e) {
-      throw new RuntimeException("DuckDB query failed: " + e.getMessage(), e);
+      throw new RuntimeException("Local DB query failed: " + e.getMessage(), e);
     }
-    log.debug("DuckDB query returned {} rows", rows.size());
+    log.debug("Local DB query returned {} rows", rows.size());
     return rows;
   }
 }
