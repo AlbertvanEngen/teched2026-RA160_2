@@ -114,7 +114,8 @@ public class RptPredictionTool {
       final String taskType)
       throws SQLException {
 
-    final Connection conn = duckDb.get();
+    final Connection conn = duckDb.get(AgentTrace.CURRENT.get() != null
+        ? AgentTrace.CURRENT.get().getSessionId() : "default");
 
     final String effectiveContextWhere = (contextWhere != null && !contextWhere.isBlank())
         ? contextWhere

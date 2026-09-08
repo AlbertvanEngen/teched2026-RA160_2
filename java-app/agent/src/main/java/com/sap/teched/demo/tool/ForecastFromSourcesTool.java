@@ -112,7 +112,8 @@ public class ForecastFromSourcesTool {
       final String taskType)
       throws SQLException {
 
-    final Connection conn = duckDb.get();
+    final Connection conn = duckDb.get(AgentTrace.CURRENT.get() != null
+        ? AgentTrace.CURRENT.get().getSessionId() : "default");
 
     final List<String> contextCols = RptPredictionTool.getColumns(conn,
         "SELECT * FROM " + contextTable + " LIMIT 0");

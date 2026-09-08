@@ -50,7 +50,9 @@ public class CreateViewTool {
   }
 
   private String execute(final String viewName, final String sql) {
-    final Connection conn = duckDb.get();
+    final AgentTrace trace = AgentTrace.CURRENT.get();
+    final String sessionId = trace != null ? trace.getSessionId() : "default";
+    final Connection conn = duckDb.get(sessionId);
     try (final Statement st = conn.createStatement()) {
       st.execute("CREATE OR REPLACE VIEW " + viewName + " AS " + sql);
       log.debug("Created view: {}", viewName);

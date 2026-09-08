@@ -125,7 +125,9 @@ public class FinancialPlanningTool {
 
   private void appendToTable(final List<FinPlanningRowDto> records) {
     if (records.isEmpty()) return;
-    final Connection conn = duckDb.get();
+    final AgentTrace trace = AgentTrace.CURRENT.get();
+    final String sessionId = trace != null ? trace.getSessionId() : "default";
+    final Connection conn = duckDb.get(sessionId);
     try {
       ensureTable(conn);
       try (final PreparedStatement ps = conn.prepareStatement(INSERT)) {

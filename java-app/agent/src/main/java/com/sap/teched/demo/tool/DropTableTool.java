@@ -41,7 +41,9 @@ public class DropTableTool {
   }
 
   private String execute(final String tableName) {
-    final Connection conn = duckDb.get();
+    final AgentTrace trace = AgentTrace.CURRENT.get();
+    final String sessionId = trace != null ? trace.getSessionId() : "default";
+    final Connection conn = duckDb.get(sessionId);
     try (final Statement st = conn.createStatement()) {
       st.execute("DROP VIEW IF EXISTS " + tableName);
       st.execute("DROP TABLE IF EXISTS " + tableName);

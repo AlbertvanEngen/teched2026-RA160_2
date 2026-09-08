@@ -82,7 +82,9 @@ public class LocalDbTool {
   }
 
   private List<Map<String, Object>> executeQuery(final String sql) {
-    final Connection conn = duckDb.get();
+    final AgentTrace trace = AgentTrace.CURRENT.get();
+    final String sessionId = trace != null ? trace.getSessionId() : "default";
+    final Connection conn = duckDb.get(sessionId);
     final List<Map<String, Object>> rows = new ArrayList<>();
     try (final Statement st = conn.createStatement();
          final ResultSet rs = st.executeQuery(sql)) {

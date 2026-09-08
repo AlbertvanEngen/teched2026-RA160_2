@@ -36,7 +36,7 @@ app.post('/api/agent/run', async (c) => {
     const upstream = await fetch(`${JAVA_AGENT_URL}/api/agent/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ prompt, sessionId }),
     });
     if (!upstream.ok || !upstream.body) {
       return c.json({ error: `Java backend error: ${upstream.status}` }, 502);

@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -50,7 +51,18 @@ public class AgentController {
 
   private final AgentService agentService;
 
-  public record AgentRequest(String prompt) {}
+  public record AgentRequest(String prompt, String sessionId) {}
+
+  /**
+   * Create a new session and return its ID.
+   *
+   * <p>Matches the JS backend's {@code POST /api/session} endpoint so the React UI works unchanged
+   * when talking directly to the Java backend.
+   */
+  @PostMapping("/session")
+  public Map<String, String> createSession() {
+    return Map.of("sessionId", UUID.randomUUID().toString());
+  }
 
   /**
    * Run the financial analyst agent and stream results as Server-Sent Events.
@@ -75,10 +87,13 @@ public class AgentController {
     }
 
     final SseEmitter emitter = new SseEmitter(120_000L);
+    final String sessionId = (request.sessionId() != null && !request.sessionId().isBlank())
+        ? request.sessionId()
+        : UUID.randomUUID().toString();
 
     EXECUTOR.submit(() -> {
       try {
-        agentService.run(request.prompt(), emitter);
+        agentService.run(request.prompt(), sessionId, emitter);
         emitter.send(SseEmitter.event().name("done").data("{}"));
         emitter.complete();
       } catch (final Exception e) {

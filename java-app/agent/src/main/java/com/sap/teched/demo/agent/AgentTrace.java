@@ -41,9 +41,16 @@ public class AgentTrace {
 
   private final List<AgentStep> steps = new ArrayList<>();
   private final SseEmitter emitter;
+  private final String sessionId;
 
-  public AgentTrace(final SseEmitter emitter) {
+  public AgentTrace(final SseEmitter emitter, final String sessionId) {
     this.emitter = emitter;
+    this.sessionId = sessionId;
+  }
+
+  /** Returns the session ID for this agent run, used to isolate DuckDB state per session. */
+  public String getSessionId() {
+    return sessionId;
   }
 
   /**

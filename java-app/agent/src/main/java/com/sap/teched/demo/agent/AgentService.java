@@ -167,10 +167,11 @@ public class AgentService {
    * so singleton tools can access it without needing it injected at construction time.
    *
    * @param prompt the user's natural-language question
+   * @param sessionId stable session UUID for DuckDB isolation
    * @param emitter the SSE emitter to stream tool_call / tool_result / delta events to
    */
-  public void run(final String prompt, final SseEmitter emitter) {
-    final AgentTrace trace = new AgentTrace(emitter);
+  public void run(final String prompt, final String sessionId, final SseEmitter emitter) {
+    final AgentTrace trace = new AgentTrace(emitter, sessionId);
     AgentTrace.CURRENT.set(trace);
     try {
       final OrchestrationChatOptions options = new OrchestrationChatOptions(config);
@@ -186,9 +187,9 @@ public class AgentService {
           new Prompt(
               List.of(new SystemMessage(SYSTEM_PROMPT), new UserMessage(prompt)), options);
 
-      final String answer = chatClient.prompt(p).call().content();
-
-      trace.emitDelta(answer != null ? answer : "");
+      chatClient.prompt(p).stream().content()
+          .doOnNext(trace::emitDelta)
+          .blockLast();
     } finally {
       AgentTrace.CURRENT.remove();
     }

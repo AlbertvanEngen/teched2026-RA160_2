@@ -128,7 +128,8 @@ public class GetGroundTruthTool {
     }
 
     final String predictedCol = "predicted_" + targetColumn;
-    final Connection conn = duckDb.get();
+    final Connection conn = duckDb.get(AgentTrace.CURRENT.get() != null
+        ? AgentTrace.CURRENT.get().getSessionId() : "default");
 
     // Verify predicted column exists
     final List<String> predCols = RptPredictionTool.getColumns(conn,
