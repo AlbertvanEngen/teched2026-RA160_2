@@ -5,11 +5,15 @@ import static com.sap.ai.sdk.orchestration.OrchestrationAiModel.GPT_4O;
 import com.sap.ai.sdk.orchestration.OrchestrationModuleConfig;
 import com.sap.ai.sdk.orchestration.spring.OrchestrationChatModel;
 import com.sap.ai.sdk.orchestration.spring.OrchestrationChatOptions;
-import com.sap.teched.demo.tool.LocalDbTool;
-import com.sap.teched.demo.tool.FinancialPlanningTool;
-import com.sap.teched.demo.tool.ForecastTool;
-import com.sap.teched.demo.tool.JournalEntryTool;
+import com.sap.teched.demo.tool.CreateViewTool;
+import com.sap.teched.demo.tool.DropTableTool;
 import com.sap.teched.demo.tool.ForecastFromSourcesTool;
+import com.sap.teched.demo.tool.ForecastTool;
+import com.sap.teched.demo.tool.FinancialPlanningTool;
+import com.sap.teched.demo.tool.GetGroundTruthTool;
+import com.sap.teched.demo.tool.JournalEntryTool;
+import com.sap.teched.demo.tool.LocalDbTool;
+import com.sap.teched.demo.tool.RptPredictionTool;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,14 +52,24 @@ public class AgentService {
       - query_local_db is your primary reporting tool: filter, join, GROUP BY, and aggregate \
         loaded tables with SUM/AVG/COUNT/MIN/MAX — use it liberally to answer questions from \
         loaded data.
-      - forecast_from_sources is SAP RPT, a tabular foundation model. It takes a contextTable \
-        with known values and a predictionTable with rows to predict, and writes predicted values \
-        into an output table you name. Output columns include predicted_<targetColumn>, \
+      - create_view saves a SQL transformation as a virtual table; drop_table cleans up tables \
+        and views.
+      - forecast_from_sources / run_rpt_prediction are SAP RPT, a tabular foundation model. \
+        They take context rows with known values plus rows to predict, and write the predicted \
+        values into an output table you name. Output columns include predicted_<targetColumn>, \
         confidence_<targetColumn>, confidence_interval_lower_<targetColumn>, and \
-        confidence_interval_upper_<targetColumn>. Use query_local_db afterwards to aggregate \
-        predictions and uncertainty. When actuals and planning are in separate tables, use \
-        forecast_from_sources. For a small number of hand-picked historical points (< 20), \
-        use forecastTabular instead.
+        confidence_interval_upper_<targetColumn>. \
+        Use query_local_db afterwards to aggregate predictions and uncertainty. \
+        For a single table, run_rpt_prediction uses predictionWhere (and optional contextWhere) \
+        to pick which rows to forecast — e.g. future fiscal periods or rows missing the target \
+        value. When actuals and planning are in separate tables, use forecast_from_sources instead. \
+        For a small number of hand-picked historical points (< 20), use forecastTabular.
+      - get_ground_truth compares an RPT prediction table against ground truth from the OData \
+        backend (journal entries or planning ACTUAL rows). It joins on groupBy dimensions and \
+        writes predicted vs actual values plus percentage metrics \
+        (pct_of_actual, pct_below_actual, pct_above_actual, MAPE). \
+        targetColumn must be the base column name (e.g. amountInGlobalCurrency), not a \
+        predicted_* column; the tool derives predicted_<targetColumn>.
 
       Presentation:
       - When comparing forecasts to actuals, lead with percentages — not raw currency variances.
@@ -141,6 +155,10 @@ public class AgentService {
   private final LocalDbTool duckDbTool;
   private final ForecastTool forecastTool;
   private final ForecastFromSourcesTool rptFromSourcesTool;
+  private final RptPredictionTool rptPredictionTool;
+  private final GetGroundTruthTool getGroundTruthTool;
+  private final CreateViewTool createViewTool;
+  private final DropTableTool dropTableTool;
 
   /**
    * Run the agent for the given prompt, streaming SSE events via the emitter.
@@ -160,7 +178,8 @@ public class AgentService {
           List.of(
               ToolCallbacks.from(
                   financialPlanningTool, journalEntryTool, duckDbTool, forecastTool,
-                  rptFromSourcesTool)));
+                  rptFromSourcesTool, rptPredictionTool, getGroundTruthTool,
+                  createViewTool, dropTableTool)));
       options.setInternalToolExecutionEnabled(true);
 
       final Prompt p =
