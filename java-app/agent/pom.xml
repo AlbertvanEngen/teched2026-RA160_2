@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.5.0</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.sap.teched</groupId>
+    <artifactId>teched2026-java-agent</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <name>teched2026-java-agent</name>
+    <description>TechEd 2026 RA160 – Java agent backend (Spring AI + SAP AI SDK + DuckDB)</description>
+
+    <properties>
+        <java.version>21</java.version>
+        <ai-sdk.version>1.24.0-SNAPSHOT</ai-sdk.version>
+        <spring-ai.version>1.1.8</spring-ai.version>
+        <cloud-sdk.version>5.34.0-SNAPSHOT</cloud-sdk.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>${spring-ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.sap.cloud.sdk</groupId>
+                <artifactId>sdk-modules-bom</artifactId>
+                <version>${cloud-sdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <!-- Spring Boot web (includes SseEmitter support) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- SAP Cloud SDK for AI -->
+        <dependency>
+            <groupId>com.sap.ai.sdk</groupId>
+            <artifactId>core</artifactId>
+            <version>${ai-sdk.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.sap.ai.sdk</groupId>
+            <artifactId>orchestration</artifactId>
+            <version>${ai-sdk.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.sap.ai.sdk.foundationmodels</groupId>
+            <artifactId>sap-rpt</artifactId>
+            <version>${ai-sdk.version}</version>
+        </dependency>
+
+        <!-- Spring AI (Orchestration Spring AI integration + tool calling) -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-commons</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-model</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-client-chat</artifactId>
+        </dependency>
+
+        <!-- SAP Cloud SDK OData v2 runtime -->
+        <dependency>
+            <groupId>com.sap.cloud.sdk.datamodel</groupId>
+            <artifactId>odata-core</artifactId>
+        </dependency>
+
+        <!-- DuckDB JDBC for in-memory analytics (same role as DuckDB in JS agent) -->
+        <dependency>
+            <groupId>org.duckdb</groupId>
+            <artifactId>duckdb_jdbc</artifactId>
+            <version>1.1.3</version>
+        </dependency>
+
+        <!-- JSON serialization for SSE payloads -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- Provided -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <!--
+            OData client generation profile.
+            Run with: mvn generate-sources -Pgenerate
+            Generated sources are committed to source control.
+        -->
+        <profile>
+            <id>generate</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.sap.cloud.sdk.datamodel</groupId>
+                        <artifactId>odata-generator-maven-plugin</artifactId>
+                        <version>${cloud-sdk.version}</version>
+                        <executions>
+                            <execution>
+                                <id>generate-finplanning</id>
+                                <phase>generate-sources</phase>
+                                <goals><goal>generate</goal></goals>
+                                <configuration>
+                                    <inputDirectory>${project.basedir}/src/main/resources/specs</inputDirectory>
+                                    <outputDirectory>${project.basedir}/src/main/java</outputDirectory>
+                                    <packageName>com.sap.teched.poc.generated.finplanning</packageName>
+                                    <defaultBasePath>/sap/opu/odata/sap/API_FINPLANNINGENTRYITEM_SRV</defaultBasePath>
+                                    <includeEntitySets>A_FinPlanningEntryItem,A_CompanyCode,A_CostCenter</includeEntitySets>
+                                    <nameSource>NAME</nameSource>
+                                    <overwriteFiles>true</overwriteFiles>
+                                    <serviceNameMappingFile>${project.basedir}/src/main/resources/specs/finplanning-service-mapping.properties</serviceNameMappingFile>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>generate-journalentry</id>
+                                <phase>generate-sources</phase>
+                                <goals><goal>generate</goal></goals>
+                                <configuration>
+                                    <inputDirectory>${project.basedir}/src/main/resources/specs</inputDirectory>
+                                    <outputDirectory>${project.basedir}/src/main/java</outputDirectory>
+                                    <packageName>com.sap.teched.poc.generated.journalentry</packageName>
+                                    <defaultBasePath>/sap/opu/odata/sap/API_JOURNALENTRYITEMBASIC_SRV</defaultBasePath>
+                                    <includeEntitySets>A_JournalEntryItemBasic,A_CompanyCode,A_CostCenter</includeEntitySets>
+                                    <nameSource>NAME</nameSource>
+                                    <overwriteFiles>true</overwriteFiles>
+                                    <serviceNameMappingFile>${project.basedir}/src/main/resources/specs/journalentry-service-mapping.properties</serviceNameMappingFile>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
+</project>

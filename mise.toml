@@ -7,5 +7,17 @@ description = "Start the mock OData server"
 run = "pnpm --filter purchase-order-mock-server dev"
 
 [tasks.webui]
-description = "Start the financial agent web UI dev server"
+description = "Start the web UI dev server (JS agent)"
 run = "pnpm --filter financial-agent-webui dev"
+
+[tasks.webui-java]
+description = "Start the web UI dev server proxying to the Java agent backend"
+run = "JAVA_AGENT_URL=http://localhost:3143 pnpm --filter financial-agent-webui dev"
+
+[tasks.java-agent]
+description = "Start the Java agent backend (port 3143)"
+run = "cd java-app/agent && ./mvnw spring-boot:run"
+
+[tasks.java-build]
+description = "Build the Java agent (skip tests)"
+run = "cd java-app/agent && ./mvnw package -DskipTests"

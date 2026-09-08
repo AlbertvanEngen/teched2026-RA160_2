@@ -1,14 +1,42 @@
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
-import { isAIMessage, isToolMessage } from '@langchain/core/messages';
-import type { BaseMessage } from '@langchain/core/messages';
-import { createFinancialAgent, SYSTEM_PROMPT } from 'financial-mock-agent';
 
 const app = new Hono();
+
+// When JAVA_AGENT_URL is set, proxy /api/agent/run to the Java Spring Boot backend
+// (e.g. http://localhost:3143) instead of running the JS agent inline.
+const JAVA_AGENT_URL = process.env.JAVA_AGENT_URL;
 
 app.post('/api/agent/run', async (c) => {
   const { prompt } = await c.req.json<{ prompt?: string }>();
   if (!prompt) return c.json({ error: 'prompt required' }, 400);
+
+  // --- Java backend proxy ---
+  if (JAVA_AGENT_URL) {
+    const upstream = await fetch(`${JAVA_AGENT_URL}/api/agent/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    });
+    if (!upstream.ok || !upstream.body) {
+      return c.json({ error: `Java backend error: ${upstream.status}` }, 502);
+    }
+    return new Response(upstream.body, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+    });
+  }
+
+  // --- JS agent (default) ---
+  // Dynamic imports so LangChain packages are not loaded when using the Java proxy.
+  const [{ isAIMessage, isToolMessage }, { createFinancialAgent, SYSTEM_PROMPT }] =
+    await Promise.all([
+      import('@langchain/core/messages'),
+      import('financial-mock-agent'),
+    ]);
 
   return streamSSE(c, async (s) => {
     const send = async (event: string, data: unknown) => {
@@ -28,7 +56,7 @@ app.post('/api/agent/run', async (c) => {
       );
 
       for await (const chunk of agentStream) {
-        const messages = (chunk as { messages: BaseMessage[] }).messages;
+        const messages = (chunk as { messages: import('@langchain/core/messages').BaseMessage[] }).messages;
         const last = messages[messages.length - 1];
 
         if (isAIMessage(last)) {

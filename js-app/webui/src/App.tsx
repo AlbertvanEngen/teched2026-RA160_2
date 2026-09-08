@@ -264,8 +264,8 @@ export default function App() {
         buf = parts.pop() ?? '';
 
         for (const part of parts) {
-          const eventLine = part.match(/^event: (.+)/m)?.[1];
-          const dataLine = part.match(/^data: (.+)/m)?.[1];
+          const eventLine = part.match(/^event:[ ]?(.+)/m)?.[1]?.trim();
+          const dataLine = part.match(/^data:[ ]?(.+)/m)?.[1]?.trim();
           if (!eventLine || !dataLine) continue;
 
           const payload = JSON.parse(dataLine) as Record<string, unknown>;
@@ -302,7 +302,8 @@ export default function App() {
             }
           } else if (eventLine === 'tool_result') {
             const tid = payload.id as string;
-            const result = payload.result as string;
+            const raw = payload.result;
+            const result = typeof raw === 'string' ? raw : JSON.stringify(raw);
             setTurns((prev) => prev.map((t) => t.turnId === turnId
               ? { ...t, tools: t.tools.map((e) => e.id === tid ? { ...e, result } : e) }
               : t
