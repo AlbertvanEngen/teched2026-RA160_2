@@ -45,12 +45,17 @@ public class LocalDbTool {
       description =
           "Execute a SQL SELECT query against the in-memory local database. Use this AFTER "
               + "loading data with query_financial_planning or query_journal_entry. "
-              + "Available tables: financial_planning_data (columns: cost_center, period, "
-              + "allocated, currency), journal_entry_data (columns: cost_center, period, "
-              + "amount, currency). "
-              + "The 'period' column stores fiscal year+period like '2024001' (year 2024, period 001). "
-              + "To filter by year use: period LIKE '2024%'. "
-              + "To filter by quarter: period >= '2024007' AND period <= '2024009'. "
+              + "financial_planning_data columns: id, ledger, ledgerName, planningCategory, "
+              + "ledgerFiscalYear, fiscalPeriod, fiscalYearPeriod, glAccount, glAccountName, "
+              + "companyCode, companyCodeName, costCenter, costCenterName, profitCenter, profitCenterName, "
+              + "transactionCurrency, amountInTransactionCurrency, companyCodeCurrency, "
+              + "amountInCompanyCodeCurrency, globalCurrency, amountInGlobalCurrency. "
+              + "journal_entry_data columns: same plus sourceLedger, businessTransactionCategory, "
+              + "businessTransactionType (no planningCategory). "
+              + "The fiscalYearPeriod column stores values like '2024001' (year 2024, period 001-012). "
+              + "Filter by year: fiscalYearPeriod LIKE '2024%'. "
+              + "Filter by Q3: fiscalYearPeriod >= '2024007' AND fiscalYearPeriod <= '2024009'. "
+              + "Use amountInCompanyCodeCurrency for monetary aggregations. "
               + "Supports GROUP BY, SUM, AVG, COUNT, ORDER BY, LIMIT.")
   public String queryLocalDb(
       @ToolParam(description = "SQL SELECT statement to execute against the local database")
