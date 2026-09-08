@@ -2,6 +2,7 @@ packages:
   - js-app/client
   - js-app/agent
   - js-app/webui
+  - slide-js-demo/
   - mock-server
 
 catalog:
