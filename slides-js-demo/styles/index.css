@@ -1,0 +1,33 @@
+:root {
+  --slidev-theme-primary: #0a6ed1;
+}
+
+.slidev-layout {
+  color: #223548;
+  background: #ffffff;
+  border-top: 6px solid #0a6ed1;
+}
+
+.slidev-layout h1,
+.slidev-layout h2,
+.slidev-layout h3 {
+  color: #0a4a8a;
+  font-family: "72", Arial, sans-serif;
+}
+
+.slidev-layout h1 {
+  letter-spacing: -0.025em;
+  font-weight: 600;
+}
+
+.slidev-layout code {
+  color: #0a4a8a;
+  background: #eef5fc;
+}
+
+.slidev-layout .shiki {
+  background: #f5f8fa;
+  border: 1px solid #c9d8e6;
+  border-radius: 0;
+  box-shadow: none;
+}

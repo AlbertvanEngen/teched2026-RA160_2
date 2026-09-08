@@ -13,11 +13,22 @@ function parseMarkdown(md: string): DocumentFragment {
   });
 }
 
-const SAMPLE_QUERIES = [
-  'Show me the quarterly budget for cost center A1000 for the last 12 months.',
-  'Show me the monthly cost for cost center A1000 for the last 12 months.',
-  'Forecast: plan the budget for cost center A1000 for the next 12 months based on historical data.',
-  'Load journal entries for cost center A1000 as actuals, load budget planning entries as prediction target, then run_rpt_prediction_from_sources to predict amountInGlobalCurrency.',
+const DEMO_PROMPTS = [
+  {
+    label: '1. Actual spend — FY 2025',
+    prompt:
+      'Show me the monthly actual spend for cost center A1000 for fiscal year 2025.',
+  },
+  {
+    label: '2. Forecast — FY 2026',
+    prompt:
+      'For cost center A1000, use journal entries from fiscal years 2022 through 2025 as actuals and forecast the monthly amount for fiscal year 2026. Summarize the result by fiscal period.',
+  },
+  {
+    label: '3. Compare ground truth',
+    prompt:
+      'Compare that forecast with the journal-entry ground truth for fiscal year 2026. Show forecast as a percentage of actual spend and identify the periods furthest below or above actual.',
+  },
 ];
 
 // Human-readable labels for tool names
@@ -308,6 +319,7 @@ export default function App() {
   const chatRef = useRef<HTMLDivElement>(null);
   const idRef = useRef(0);
   const sessionRef = useRef<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const nextId = useCallback(() => String(++idRef.current), []);
 
@@ -570,6 +582,36 @@ export default function App() {
     el.style.height = `${el.scrollHeight}px`;
   };
 
+  const pasteDemoPrompt = useCallback(
+    (prompt: string) => {
+      if (running) return;
+      setInput(prompt);
+      requestAnimationFrame(() => {
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+        textarea.focus();
+        textarea.setSelectionRange(prompt.length, prompt.length);
+        textarea.style.height = 'auto';
+        textarea.style.height = `${textarea.scrollHeight}px`;
+      });
+    },
+    [running],
+  );
+
+  const resetDemo = useCallback(() => {
+    if (running) return;
+    setMessages([]);
+    setTurns([]);
+    setInput('');
+    setError(null);
+    setActiveTurnId(null);
+    setActiveToolName(null);
+    setActiveToolIds(new Set());
+    idRef.current = 0;
+    sessionRef.current = null;
+    void ensureSession();
+  }, [running, ensureSession]);
+
   const isEmpty = messages.length === 0;
   const showActivity = running && activeToolName !== null;
 
@@ -579,6 +621,15 @@ export default function App() {
         <span className="shell-bar__app">Financial Agent</span>
         <span className="shell-bar__sep">/</span>
         <span className="shell-bar__sub">SAP Cloud SDK for AI</span>
+        <button
+          type="button"
+          className="shell-bar__reset"
+          onClick={resetDemo}
+          disabled={running}
+          aria-label="Reset demo and show prompt buttons"
+        >
+          ↻ Reset demo
+        </button>
       </header>
 
       {error && (
@@ -620,21 +671,23 @@ export default function App() {
                 </div>
                 <p className="empty-state__title">Ask the financial agent</p>
                 <p className="empty-state__sub">
-                  Query budgets, journal entries, and forecasts
+                  Choose a demo prompt to paste into the composer
                 </p>
                 <fieldset className="suggestions">
                   <legend className="suggestions__legend">
-                    Suggested queries
+                    Demo prompts
                   </legend>
-                  {SAMPLE_QUERIES.map((q) => (
+                  {DEMO_PROMPTS.map(({ label, prompt }) => (
                     <button
                       type="button"
-                      key={q}
+                      key={label}
                       className="suggestion-btn"
-                      title={q}
-                      onClick={() => void runPrompt(q)}
+                      title={prompt}
+                      onClick={() => pasteDemoPrompt(prompt)}
+                      disabled={running}
+                      aria-label={`Paste query: ${label}`}
                     >
-                      {q.length > 45 ? `${q.slice(0, 45)}…` : q}
+                      {label}
                     </button>
                   ))}
                 </fieldset>
@@ -652,6 +705,7 @@ export default function App() {
             <div className="input-panel__inner">
               <div className="composer">
                 <textarea
+                  ref={textareaRef}
                   rows={1}
                   value={input}
                   onChange={handleInput}
