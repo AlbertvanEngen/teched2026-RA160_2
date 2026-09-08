@@ -187,9 +187,8 @@ public class AgentService {
           new Prompt(
               List.of(new SystemMessage(SYSTEM_PROMPT), new UserMessage(prompt)), options);
 
-      chatClient.prompt(p).stream().content()
-          .doOnNext(trace::emitDelta)
-          .blockLast();
+      final String answer = chatClient.prompt(p).call().content();
+      trace.emitDelta(answer != null ? answer : "");
     } finally {
       AgentTrace.CURRENT.remove();
     }
