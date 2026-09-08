@@ -1,54 +1,84 @@
-import { type DuckDBConnection, DuckDBInstance } from "@duckdb/node-api";
+import { type DuckDBConnection, DuckDBInstance } from '@duckdb/node-api';
+
+export function isValidIdentifier(name: string) {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name);
+}
 
 let instance: Awaited<ReturnType<typeof DuckDBInstance.create>> | null = null;
 
-// Serialize all DuckDB operations to prevent concurrent DDL races
+// In-memory session workspace (DuckDB). Serialize operations to prevent concurrent DDL races.
 let queue: Promise<unknown> = Promise.resolve();
 
 function serialize<T>(fn: () => Promise<T>): Promise<T> {
-	const next = queue.then(fn, fn);
-	queue = next.then(
-		() => undefined,
-		() => undefined,
-	);
-	return next;
+  const next = queue.then(fn, fn);
+  queue = next.then(
+    () => undefined,
+    () => undefined,
+  );
+  return next;
 }
 
 async function getInstance() {
-	if (!instance) {
-		instance = await DuckDBInstance.create(":memory:");
-	}
-	return instance;
+  if (!instance) {
+    instance = await DuckDBInstance.create(':memory:');
+  }
+  return instance;
 }
 
 async function openConnection(): Promise<DuckDBConnection> {
-	const db = await getInstance();
-	return db.connect();
+  const db = await getInstance();
+  return db.connect();
 }
 
+const QUERY_TIMEOUT_MS = 15_000;
+
 export async function runQuery(
-	sql: string,
+  sql: string,
 ): Promise<Record<string, unknown>[]> {
-	return serialize(async () => {
-		const conn = await openConnection();
-		try {
-			const reader = await conn.runAndReadAll(sql);
-			return reader.getRowObjects() as Record<string, unknown>[];
-		} finally {
-			conn.closeSync();
-		}
-	});
+  return serialize(async () => {
+    const conn = await openConnection();
+    let handle: ReturnType<typeof setTimeout> | undefined;
+    const timer = new Promise<never>((_, reject) => {
+      handle = setTimeout(
+        () =>
+          reject(new Error(`query exceeded ${QUERY_TIMEOUT_MS / 1000}s limit`)),
+        QUERY_TIMEOUT_MS,
+      );
+    });
+    try {
+      const reader = await Promise.race([conn.runAndReadAll(sql), timer]);
+      return reader.getRowObjects() as Record<string, unknown>[];
+    } finally {
+      if (handle) clearTimeout(handle);
+      conn.closeSync();
+    }
+  });
 }
 
 export async function withConnection<T>(
-	fn: (conn: DuckDBConnection) => Promise<T>,
+  fn: (conn: DuckDBConnection) => Promise<T>,
 ): Promise<T> {
-	return serialize(async () => {
-		const conn = await openConnection();
-		try {
-			return await fn(conn);
-		} finally {
-			conn.closeSync();
-		}
-	});
+  return serialize(async () => {
+    const conn = await openConnection();
+    try {
+      return await fn(conn);
+    } finally {
+      conn.closeSync();
+    }
+  });
+}
+
+export async function dropObjects(names: string[]): Promise<void> {
+  if (names.length === 0) return;
+  await serialize(async () => {
+    const conn = await openConnection();
+    try {
+      for (const name of names) {
+        await conn.run(`DROP VIEW IF EXISTS ${name}`);
+        await conn.run(`DROP TABLE IF EXISTS ${name}`);
+      }
+    } finally {
+      conn.closeSync();
+    }
+  });
 }

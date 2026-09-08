@@ -1,33 +1,32 @@
 {
-	"name": "purchase-order-mock-server",
-	"version": "1.0.0",
-	"description": "Mock server for SAP Purchase Order service",
-	"main": "src/server.ts",
-	"exports": {
-		".": "./src/server.ts",
-		"./app": "./src/app.ts"
-	},
-	"type": "module",
-	"scripts": {
-		"start": "node src/server.ts",
-		"dev": "node --watch src/server.ts",
-		"build": "tsc",
-		"generate-data": "node src/generation/generate-mock-data.ts",
-		"test": "node --test test/app.test.ts",
-		"lint:fix": "biome check --write",
-		"lint": "biome check",
-		"lint:ci": "biome ci"
-	},
-	"engines": {
-		"node": "^24"
-	},
-	"dependencies": {
-		"@hono/node-server": "^2.1.1",
-		"@sap-cloud-sdk/util": "catalog:",
-		"hono": "^4.13.5",
-		"uuid": "^14.0.2"
-	},
-	"devDependencies": {
-		"@biomejs/biome": "catalog:"
-	}
+  "name": "purchase-order-mock-server",
+  "version": "1.0.0",
+  "description": "Mock server for SAP Purchase Order service",
+  "main": "src/server.ts",
+  "exports": {
+    ".": "./src/server.ts",
+    "./app": "./src/app.ts"
+  },
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.ts",
+    "dev": "node --watch src/server.ts",
+    "build": "tsc",
+    "generate-data": "node src/generation/generate-mock-data.ts",
+    "test": "node --test 'test/*.test.ts'",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": "^24"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "@sap-cloud-sdk/util": "catalog:",
+    "d3-random": "^3.0.1",
+    "hono": "^4.13.5"
+  },
+  "devDependencies": {
+    "@types/d3-random": "^3.0.4",
+    "typescript": "catalog:"
+  }
 }

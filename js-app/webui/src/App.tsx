@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Message, ToolEntry, TurnGroup } from './types.ts';
 
 marked.setOptions({ gfm: true, breaks: true });
@@ -24,15 +24,44 @@ const SAMPLE_QUERIES = [
 const TOOL_LABELS: Record<string, string> = {
   query_financial_planning: 'Querying financial planning data',
   query_journal_entry: 'Querying journal entries',
-  query_duckdb: 'Running SQL analysis',
+  run_sql: 'Running SQL',
   run_rpt_prediction: 'Running RPT prediction',
   run_rpt_prediction_from_sources: 'Running RPT prediction',
+  get_ground_truth: 'Comparing against ground truth',
   drop_table: 'Cleaning up tables',
-  create_view: 'Creating analytical view',
+  create_view: 'Creating session view',
 };
 
 function toolLabel(name: string): string {
   return TOOL_LABELS[name] ?? name.replace(/_/g, ' ');
+}
+
+function formatDuration(durationMs: number): string {
+  if (durationMs < 1000) return `${Math.max(1, Math.round(durationMs))} ms`;
+  return `${(durationMs / 1000).toFixed(durationMs < 10_000 ? 1 : 0)} s`;
+}
+
+function useElapsedDuration(
+  startedAt: number,
+  done: boolean,
+  durationMs?: number,
+): number {
+  const [elapsedMs, setElapsedMs] = useState(() =>
+    Math.max(0, Date.now() - startedAt),
+  );
+
+  useEffect(() => {
+    if (done) return;
+
+    const update = () => {
+      setElapsedMs(Math.max(0, Date.now() - startedAt));
+    };
+    update();
+    const intervalId = setInterval(update, 100);
+    return () => clearInterval(intervalId);
+  }, [done, startedAt]);
+
+  return durationMs ?? elapsedMs;
 }
 
 const THINKING_PHRASES = [
@@ -61,29 +90,55 @@ function useRotatingPhrase(active: boolean, intervalMs = 2200) {
   return THINKING_PHRASES[idx];
 }
 
-function ToolEntry({ t }: { t: import('./types.ts').ToolEntry }) {
+function ToolEntryCard({ t, isActive }: { t: ToolEntry; isActive: boolean }) {
   const [open, setOpen] = useState(false);
   const isDone = t.result !== undefined;
+  const status = isDone ? 'done' : isActive ? 'pending' : 'queued';
+  const durationMs = useElapsedDuration(t.startedAt, isDone, t.durationMs);
+  const result = t.result ?? '';
   return (
-    <div className={`tool-entry${isDone ? '' : ' is-active'}`}>
-      <button className="tool-entry__row" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <span className={`tool-entry__status ${isDone ? 'done' : 'pending'}`} aria-label={isDone ? 'complete' : 'running'} />
+    <div className={`tool-entry${isActive ? ' is-active' : ''}`}>
+      <button
+        type="button"
+        className="tool-entry__row"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+      >
+        <span
+          className={`tool-entry__status ${status}`}
+          role="status"
+          aria-label={isDone ? 'complete' : isActive ? 'running' : 'waiting'}
+        />
         <span className="tool-entry__name-text">{t.name}</span>
+        <span
+          className="tool-entry__duration"
+          title={`Processing time: ${formatDuration(durationMs)}`}
+        >
+          {formatDuration(durationMs)}
+        </span>
         <span className="tool-entry__chevron">{open ? '▾' : '▸'}</span>
       </button>
       {!open && (
         <div className="tool-entry__preview">
-          {Object.entries(t.args).slice(0, 2).map(([k, v]) => `${k}: ${String(v).slice(0, 30)}`).join('  ')}
+          {Object.entries(t.args)
+            .slice(0, 2)
+            .map(([k, v]) => `${k}: ${String(v).slice(0, 30)}`)
+            .join('  ')}
         </div>
       )}
       {open && (
         <div className="tool-entry__detail">
           <div className="tool-entry__detail-label">args</div>
-          <pre className="tool-entry__detail-pre">{JSON.stringify(t.args, null, 2)}</pre>
+          <pre className="tool-entry__detail-pre">
+            {JSON.stringify(t.args, null, 2)}
+          </pre>
           {isDone && (
             <>
               <div className="tool-entry__detail-label">result</div>
-              <pre className="tool-entry__detail-pre">{t.result!.slice(0, 600)}{t.result!.length > 600 ? '\n…' : ''}</pre>
+              <pre className="tool-entry__detail-pre">
+                {result.slice(0, 600)}
+                {result.length > 600 ? '\n…' : ''}
+              </pre>
             </>
           )}
         </div>
@@ -92,14 +147,27 @@ function ToolEntry({ t }: { t: import('./types.ts').ToolEntry }) {
   );
 }
 
-function ToolRail({ turns, activeTurnId }: { turns: TurnGroup[]; activeTurnId: string | null }) {
+function ToolRail({
+  turns,
+  activeTurnId,
+  activeToolIds,
+}: {
+  turns: TurnGroup[];
+  activeTurnId: string | null;
+  activeToolIds: ReadonlySet<string>;
+}) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const prevActiveTurnId = useRef<string | null>(null);
 
   // When a new turn becomes active, collapse the previous one
   useEffect(() => {
-    if (activeTurnId && prevActiveTurnId.current && activeTurnId !== prevActiveTurnId.current) {
-      setCollapsed((prev) => new Set([...prev, prevActiveTurnId.current!]));
+    if (
+      activeTurnId &&
+      prevActiveTurnId.current &&
+      activeTurnId !== prevActiveTurnId.current
+    ) {
+      const previousTurnId = prevActiveTurnId.current;
+      setCollapsed((prev) => new Set([...prev, previousTurnId]));
     }
     prevActiveTurnId.current = activeTurnId;
   }, [activeTurnId]);
@@ -122,23 +190,33 @@ function ToolRail({ turns, activeTurnId }: { turns: TurnGroup[]; activeTurnId: s
         )}
         {reversed.map((turn) => {
           const isOpen = !collapsed.has(turn.turnId);
-          const pending = turn.tools.some((t) => t.result === undefined);
+          const pending = turn.tools.some((tool) => activeToolIds.has(tool.id));
           return (
             <div key={turn.turnId} className="turn-group">
               <button
+                type="button"
                 className={`turn-group__header${pending ? ' is-pending' : ''}`}
                 onClick={() => toggle(turn.turnId)}
                 aria-expanded={isOpen}
               >
-                <span className={`tool-entry__status ${pending ? 'pending' : 'done'}`} aria-hidden="true" />
+                <span
+                  className={`tool-entry__status ${pending ? 'pending' : 'done'}`}
+                  aria-hidden="true"
+                />
                 <span className="turn-group__label">{turn.label}</span>
                 <span className="turn-group__count">{turn.tools.length}</span>
-                <span className="turn-group__chevron">{isOpen ? '▾' : '▸'}</span>
+                <span className="turn-group__chevron">
+                  {isOpen ? '▾' : '▸'}
+                </span>
               </button>
               {isOpen && (
                 <div className="turn-group__body">
                   {[...turn.tools].reverse().map((t) => (
-                    <ToolEntry key={t.id} t={t} />
+                    <ToolEntryCard
+                      key={t.id}
+                      t={t}
+                      isActive={activeToolIds.has(t.id)}
+                    />
                   ))}
                 </div>
               )}
@@ -155,9 +233,16 @@ function ActivityIndicator({ toolName }: { toolName: string | null }) {
   const label = toolName ? toolLabel(toolName) : phrase;
   return (
     <div className="msg-row msg-row--assistant">
-      <div className="msg-bubble msg-bubble--thinking" aria-live="polite" aria-label="Agent working">
+      <div
+        className="msg-bubble msg-bubble--thinking"
+        role="status"
+        aria-live="polite"
+        aria-label="Agent working"
+      >
         <span className="thinking-dots" aria-hidden="true">
-          <span /><span /><span />
+          <span />
+          <span />
+          <span />
         </span>
         <span>{label}</span>
       </div>
@@ -190,11 +275,14 @@ function MessageBubble({ msg }: { msg: Message }) {
       <div className="msg-col">
         {msg.thinking && (
           <button
+            type="button"
             className="thinking-toggle"
             onClick={() => setThinkingOpen((o) => !o)}
             aria-expanded={thinkingOpen}
           >
-            <span className="thinking-toggle__icon">{thinkingOpen ? '▾' : '▸'}</span>
+            <span className="thinking-toggle__icon">
+              {thinkingOpen ? '▾' : '▸'}
+            </span>
             Reasoning
           </button>
         )}
@@ -213,114 +301,253 @@ export default function App() {
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [running, setRunning] = useState(false);
-  // null = not running, '' = running but no tool yet, 'tool_name' = specific tool active
+  // null = not running, '' = running but no tool yet, otherwise latest tool label
   const [activeToolName, setActiveToolName] = useState<string | null>(null);
+  const [activeToolIds, setActiveToolIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const idRef = useRef(0);
+  const sessionRef = useRef<string | null>(null);
 
-  const nextId = () => String(++idRef.current);
+  const nextId = useCallback(() => String(++idRef.current), []);
 
-  const scrollToBottom = useCallback(() => {
-    if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+  const ensureSession = useCallback(async (): Promise<string> => {
+    if (sessionRef.current) return sessionRef.current;
+    const res = await fetch('/api/session', { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to create session');
+    const { sessionId } = (await res.json()) as { sessionId: string };
+    sessionRef.current = sessionId;
+    return sessionId;
   }, []);
 
-  useEffect(scrollToBottom, [messages, activeToolName, scrollToBottom]);
+  useEffect(() => {
+    void ensureSession();
+  }, [ensureSession]);
 
-  const runPrompt = useCallback(async (prompt: string) => {
-    if (!prompt || running) return;
+  useEffect(() => {
+    if (chatRef.current && (messages.length > 0 || activeToolName !== null)) {
+      chatRef.current.scrollTop = chatRef.current.scrollHeight;
+    }
+  }, [messages.length, activeToolName]);
 
-    setError(null);
-    setRunning(true);
-    setActiveToolName('');
+  const runPrompt = useCallback(
+    async (prompt: string) => {
+      if (!prompt || running) return;
 
-    setMessages((prev) => [...prev, { id: nextId(), role: 'user', content: prompt, toolIds: [] }]);
+      setError(null);
+      setRunning(true);
+      setActiveToolName('');
 
-    const turnId = nextId();
-    setActiveTurnId(turnId);
-    setTurns((prev) => [...prev, { turnId, label: prompt.slice(0, 40) + (prompt.length > 40 ? '…' : ''), tools: [] }]);
+      setMessages((prev) => [
+        ...prev,
+        { id: nextId(), role: 'user', content: prompt, toolIds: [] },
+      ]);
 
-    let assistantId: string | null = null;
+      const turnId = nextId();
+      setActiveTurnId(turnId);
+      setTurns((prev) => [
+        ...prev,
+        {
+          turnId,
+          label: prompt.slice(0, 40) + (prompt.length > 40 ? '…' : ''),
+          tools: [],
+        },
+      ]);
 
-    try {
-      const res = await fetch('/api/agent/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
-      });
+      let assistantId: string | null = null;
 
-      if (!res.ok || !res.body) throw new Error(`Server error ${res.status}`);
+      try {
+        let sessionId = await ensureSession();
+        let res = await fetch('/api/agent/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, sessionId }),
+        });
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = '';
+        if (res.status === 401) {
+          sessionRef.current = null;
+          sessionId = await ensureSession();
+          res = await fetch('/api/agent/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt, sessionId }),
+          });
+          setError(
+            'Session expired — agent memory was reset. Continuing in a new session.',
+          );
+        }
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
+        if (!res.ok || !res.body) throw new Error(`Server error ${res.status}`);
 
-        const parts = buf.split('\n\n');
-        buf = parts.pop() ?? '';
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
 
-        for (const part of parts) {
-          const eventLine = part.match(/^event:[ ]?(.+)/m)?.[1]?.trim();
-          const dataLine = part.match(/^data:[ ]?(.+)/m)?.[1]?.trim();
-          if (!eventLine || !dataLine) continue;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
 
-          const payload = JSON.parse(dataLine) as Record<string, unknown>;
+          const parts = buf.split('\n\n');
+          buf = parts.pop() ?? '';
 
-          if (eventLine === 'thinking') {
-            const text = payload.text as string;
-            if (!assistantId) {
-              assistantId = nextId();
-              setActiveToolName(null);
-              setMessages((prev) => [...prev, { id: assistantId!, role: 'assistant', content: '', thinking: text, toolIds: [] }]);
-            } else {
-              setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, thinking: (m.thinking ?? '') + text } : m));
-            }
-          } else if (eventLine === 'delta') {
-            const text = payload.text as string;
-            if (!assistantId) {
-              assistantId = nextId();
-              setActiveToolName(null);
-              setMessages((prev) => [...prev, { id: assistantId!, role: 'assistant', content: text, toolIds: [] }]);
-            } else {
-              setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, content: m.content + text } : m));
-            }
-          } else if (eventLine === 'tool_call') {
-            const entry: ToolEntry = {
-              id: payload.id as string,
-              name: payload.name as string,
-              args: payload.args as Record<string, unknown>,
-              startedAt: Date.now(),
-            };
-            setTurns((prev) => prev.map((t) => t.turnId === turnId ? { ...t, tools: [...t.tools, entry] } : t));
-            setActiveToolName(entry.name);
-            if (assistantId) {
-              setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, toolIds: [...m.toolIds, entry.id] } : m));
-            }
-          } else if (eventLine === 'tool_result') {
-            const tid = payload.id as string;
-            const raw = payload.result;
+          for (const part of parts) {
+            const eventLine = part.match(/^event:[ ]?(.+)/m)?.[1]?.trim();
+            const dataLine = part.match(/^data:[ ]?(.+)/m)?.[1]?.trim();
+            if (!eventLine || !dataLine) continue;
+
+            const payload = JSON.parse(dataLine) as Record<string, unknown>;
+
+            if (eventLine === 'thinking') {
+              const text = payload.text as string;
+              if (!assistantId) {
+                const newAssistantId = nextId();
+                assistantId = newAssistantId;
+                setActiveToolName(null);
+                setActiveToolIds(new Set());
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    id: newAssistantId,
+                    role: 'assistant',
+                    content: '',
+                    thinking: text,
+                    toolIds: [],
+                  },
+                ]);
+              } else {
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === assistantId
+                      ? { ...m, thinking: (m.thinking ?? '') + text }
+                      : m,
+                  ),
+                );
+              }
+            } else if (eventLine === 'delta') {
+              const text = payload.text as string;
+              if (!assistantId) {
+                const newAssistantId = nextId();
+                assistantId = newAssistantId;
+                setActiveToolName(null);
+                setActiveToolIds(new Set());
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    id: newAssistantId,
+                    role: 'assistant',
+                    content: text,
+                    toolIds: [],
+                  },
+                ]);
+              } else {
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === assistantId
+                      ? { ...m, content: m.content + text }
+                      : m,
+                  ),
+                );
+              }
+            } else if (eventLine === 'tool_call') {
+              const entry: ToolEntry = {
+                id: payload.id as string,
+                name: payload.name as string,
+                args: payload.args as Record<string, unknown>,
+                startedAt: Date.now(),
+              };
+              setTurns((prev) =>
+                prev.map((t) =>
+                  t.turnId === turnId
+                    ? { ...t, tools: [...t.tools, entry] }
+                    : t,
+                ),
+              );
+              setActiveToolName(entry.name);
+              setActiveToolIds((current) => {
+                const next = new Set(current);
+                next.add(entry.id);
+                return next;
+              });
+              if (assistantId) {
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === assistantId
+                      ? { ...m, toolIds: [...m.toolIds, entry.id] }
+                      : m,
+                  ),
+                );
+              }
+            } else if (eventLine === 'tool_result') {
+              const tid = payload.id as string;
+              const raw = payload.result;
             const result = typeof raw === 'string' ? raw : JSON.stringify(raw);
-            setTurns((prev) => prev.map((t) => t.turnId === turnId
-              ? { ...t, tools: t.tools.map((e) => e.id === tid ? { ...e, result } : e) }
-              : t
-            ));
-          } else if (eventLine === 'error') {
-            setError(payload.message as string);
+              const completedAt = Date.now();
+              setTurns((prev) =>
+                prev.map((t) =>
+                  t.turnId === turnId
+                    ? {
+                        ...t,
+                        tools: t.tools.map((e) =>
+                          e.id === tid
+                            ? {
+                                ...e,
+                                result,
+                                durationMs: Math.max(
+                                  0,
+                                  completedAt - e.startedAt,
+                                ),
+                              }
+                            : e,
+                        ),
+                      }
+                    : t,
+                ),
+              );
+              setActiveToolIds((current) => {
+                if (!current.has(tid)) return current;
+                const next = new Set(current);
+                next.delete(tid);
+                return next;
+              });
+            } else if (eventLine === 'error') {
+              setError(payload.message as string);
+            }
           }
         }
+      } catch (err) {
+        setError(String(err));
+      } finally {
+        const completedAt = Date.now();
+        setTurns((prev) =>
+          prev.map((turn) =>
+            turn.turnId === turnId
+              ? {
+                  ...turn,
+                  tools: turn.tools.map((entry) =>
+                    entry.result === undefined
+                      ? {
+                          ...entry,
+                          result: 'Tool execution completed.',
+                          durationMs: Math.max(
+                            0,
+                            completedAt - entry.startedAt,
+                          ),
+                        }
+                      : entry,
+                  ),
+                }
+              : turn,
+          ),
+        );
+        setRunning(false);
+        setActiveToolName(null);
+        setActiveToolIds(new Set());
+        setActiveTurnId(null);
       }
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setRunning(false);
-      setActiveToolName(null);
-      setActiveTurnId(null);
-    }
-  }, [running]);
+    },
+    [running, nextId, ensureSession],
+  );
 
   const submit = useCallback(async () => {
     const prompt = input.trim();
@@ -354,34 +581,63 @@ export default function App() {
         <span className="shell-bar__sub">SAP Cloud SDK for AI</span>
       </header>
 
-      {error && <div className="error-strip" role="alert">{error}</div>}
+      {error && (
+        <div className="error-strip" role="alert">
+          {error}
+        </div>
+      )}
 
       <div className="layout">
-        <ToolRail turns={turns} activeTurnId={activeTurnId} />
+        <ToolRail
+          turns={turns}
+          activeTurnId={activeTurnId}
+          activeToolIds={activeToolIds}
+        />
 
         <div className="chat-pane">
-          <div className="chat-area" ref={chatRef} role="log" aria-live="polite" aria-label="Conversation">
+          <div
+            className="chat-area"
+            ref={chatRef}
+            role="log"
+            aria-live="polite"
+            aria-label="Conversation"
+          >
             {isEmpty && !running && (
               <div className="empty-state">
                 <div className="empty-state__icon" aria-hidden="true">
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M10 2C6.13 2 3 4.91 3 8.5c0 1.96.9 3.72 2.34 4.96L5 16l3.2-1.28A8 8 0 0010 15c3.87 0 7-2.91 7-6.5S13.87 2 10 2z" fill="white"/>
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M10 2C6.13 2 3 4.91 3 8.5c0 1.96.9 3.72 2.34 4.96L5 16l3.2-1.28A8 8 0 0010 15c3.87 0 7-2.91 7-6.5S13.87 2 10 2z"
+                      fill="white"
+                    />
                   </svg>
                 </div>
                 <p className="empty-state__title">Ask the financial agent</p>
-                <p className="empty-state__sub">Query budgets, journal entries, and forecasts</p>
-                <div className="suggestions" aria-label="Suggested queries">
+                <p className="empty-state__sub">
+                  Query budgets, journal entries, and forecasts
+                </p>
+                <fieldset className="suggestions">
+                  <legend className="suggestions__legend">
+                    Suggested queries
+                  </legend>
                   {SAMPLE_QUERIES.map((q) => (
                     <button
+                      type="button"
                       key={q}
                       className="suggestion-btn"
                       title={q}
                       onClick={() => void runPrompt(q)}
                     >
-                      {q.length > 45 ? q.slice(0, 45) + '…' : q}
+                      {q.length > 45 ? `${q.slice(0, 45)}…` : q}
                     </button>
                   ))}
-                </div>
+                </fieldset>
               </div>
             )}
 
@@ -405,13 +661,26 @@ export default function App() {
                   disabled={running}
                 />
                 <button
+                  type="button"
                   className="btn-send"
                   onClick={() => void submit()}
                   disabled={running || !input.trim()}
                   aria-label="Send message"
                 >
-                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-                    <path d="M6.5 11V2M3 5.5l3.5-3.5 3.5 3.5" stroke="white" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 13 13"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M6.5 11V2M3 5.5l3.5-3.5 3.5 3.5"
+                      stroke="white"
+                      strokeWidth="1.75"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
                   </svg>
                 </button>
               </div>

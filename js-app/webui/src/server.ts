@@ -1,6 +1,6 @@
-import { createServer as createViteServer } from 'vite';
 import { createServer as createHttpServer } from 'node:http';
 import { getRequestListener } from '@hono/node-server';
+import { createServer as createViteServer } from 'vite';
 import app from './app.ts';
 
 const PORT = Number(process.env.PORT ?? 3142);

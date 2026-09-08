@@ -16,7 +16,12 @@ export type DeltaEvent = {
   text: string;
 };
 
-export type AgentEvent = ToolCallEvent | ToolResultEvent | DeltaEvent | { type: 'done' } | { type: 'error'; message: string };
+export type AgentEvent =
+  | ToolCallEvent
+  | ToolResultEvent
+  | DeltaEvent
+  | { type: 'done' }
+  | { type: 'error'; message: string };
 
 export type ToolEntry = {
   id: string;
@@ -24,6 +29,7 @@ export type ToolEntry = {
   args: Record<string, unknown>;
   result?: string;
   startedAt: number;
+  durationMs?: number;
 };
 
 export type TurnGroup = {

@@ -1,17 +1,17 @@
 {
-	"compilerOptions": {
-		"target": "es2025",
-		"module": "nodenext",
-		"allowSyntheticDefaultImports": true,
-		"esModuleInterop": true,
-		"strict": false,
-		"skipLibCheck": true,
-		"rewriteRelativeImportExtensions": true,
-		"allowImportingTsExtensions": true
-	},
-	"include": ["src/**/*"],
-	"exclude": ["node_modules", "dist"],
-	"ts-node": {
-		"esm": true
-	}
+  "compilerOptions": {
+    "target": "es2025",
+    "module": "nodenext",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "strict": false,
+    "skipLibCheck": true,
+    "rewriteRelativeImportExtensions": true,
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"],
+  "ts-node": {
+    "esm": true
+  }
 }

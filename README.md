@@ -1,6 +1,6 @@
 # TechEd 2026 RA160
 
-A demonstration of SAP OData services, generated SAP Cloud SDK clients, DuckDB analysis, and an AI-powered financial data agent — available in both **TypeScript (JavaScript)** and **Java**.
+A demonstration of SAP OData services, generated SAP Cloud SDK clients, SAP RPT predictions, and an AI-powered financial data agent — available in both **TypeScript (JavaScript)** and **Java**.
 
 ## What is included
 
@@ -8,11 +8,13 @@ A demonstration of SAP OData services, generated SAP Cloud SDK clients, DuckDB a
 - Generated OData v2 clients for both mock services.
 - A **JavaScript agent** (LangChain + SAP AI SDK) that:
   - queries the OData services;
-  - stores and analyzes data in an in-memory DuckDB database;
+  - stores fetched data in a local session workspace and analyzes it with SQL;
   - creates reusable SQL views; and
   - runs SAP AI Runtime Prediction (RPT) predictions.
 - A **Java agent** (Spring AI + SAP Cloud SDK for AI) that does the same using Spring Boot, with DuckDB via JDBC and SSE streaming.
 - A React and Hono web UI for chatting with either agent and inspecting tool activity.
+
+The agent's session workspace is backed by in-memory DuckDB (`db.ts`) — an implementation detail for local SQL over fetched OData rows and RPT output tables.
 
 ## Prerequisites
 
@@ -282,7 +284,8 @@ pnpm --filter purchase-order-mock-server build
 │   │   └── src/
 │   │       ├── agent.ts              Agent model, prompt, and tool registration
 │   │       ├── cli.ts                Agent command-line entry point
-│   │       ├── db.ts                 In-memory DuckDB access
+│   │       ├── db.ts                 Session workspace database access
+│   │       ├── sql-tool.ts           SQL query tool for the session workspace
 │   │       ├── odata-tools.ts        OData queries and table loading
 │   │       └── rpt-tool.ts           SAP RPT prediction tools
 │   ├── client/
