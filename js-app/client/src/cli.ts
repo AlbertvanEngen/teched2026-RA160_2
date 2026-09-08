@@ -1,5 +1,5 @@
-import { apiFinplanningentryitemSrv } from './generated/API_FINPLANNINGENTRYITEM_SRV/index.ts';
-import { apiJournalentryitembasicSrv } from './generated/API_JOURNALENTRYITEMBASIC_SRV/index.ts';
+import { apiFinplanningentryitemSrv } from 'financial-mock-agent/odata-client/API_FINPLANNINGENTRYITEM_SRV';
+import { apiJournalentryitembasicSrv } from 'financial-mock-agent/odata-client/API_JOURNALENTRYITEMBASIC_SRV';
 
 const destination = {
   url: process.env.MOCK_SERVER_URL ?? 'http://localhost:3141',

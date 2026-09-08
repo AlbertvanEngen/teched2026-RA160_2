@@ -4,14 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "generate": "generate-odata-client --input '../../specs/API_*ENTRYITEM*_SRV.edmx' --outputDir src/generated --generateESM",
-    "start": "tsx src/cli.ts"
+    "start": "tsx src/cli.ts",
+    "typecheck": "tsc -b"
   },
   "dependencies": {
-    "@sap-cloud-sdk/odata-v2": "catalog:"
+    "@sap-cloud-sdk/odata-v2": "catalog:",
+    "financial-mock-agent": "workspace:"
   },
   "devDependencies": {
-    "@sap-cloud-sdk/generator": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
   }

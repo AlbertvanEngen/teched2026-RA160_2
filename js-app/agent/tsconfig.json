@@ -1,17 +1,5 @@
 {
-  "compilerOptions": {
-    "target": "ES2025",
-    "module": "nodenext",
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-    "strict": false,
-    "skipLibCheck": true,
-    "rewriteRelativeImportExtensions": true,
-    "allowImportingTsExtensions": true
-  },
+  "extends": "../../tsconfig.base.json",
   "include": ["src/**/*", "test/**/*"],
-  "exclude": ["node_modules", "dist"],
-  "ts-node": {
-    "esm": true
-  }
+  "exclude": ["node_modules", "dist"]
 }

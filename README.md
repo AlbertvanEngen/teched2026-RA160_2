@@ -242,11 +242,10 @@ The server supports service documents, entity collection reads, entity reads by 
 The clients are generated from the EDMX service specifications in `specs/`:
 
 ```sh
-pnpm --filter financial-mock-sdk-client generate
 pnpm --filter financial-mock-agent generate
 ```
 
-Generation runs the `postgenerate` script, which updates generated imports for ESM runtime compatibility. Generated source is checked into each package under `src/generated/`.
+Generation runs the `postgenerate` script, which updates generated imports for ESM runtime compatibility. Generated source is checked into `agent/src/generated/`. The `financial-mock-sdk-client` package imports the generated clients from there.
 
 ## Tests and builds
 
@@ -290,8 +289,7 @@ pnpm --filter purchase-order-mock-server build
 │   │       └── rpt-tool.ts           SAP RPT prediction tools
 │   ├── client/
 │   │   └── src/
-│   │       ├── cli.ts                Direct OData client command line interface
-│   │       └── generated/            SAP Cloud SDK OData clients
+│   │       └── cli.ts                Direct OData client command line interface
 │   └── webui/
 │       └── src/
 │           ├── app.ts                Hono app for agent and OData routes
