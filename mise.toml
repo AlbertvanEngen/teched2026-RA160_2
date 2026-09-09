@@ -8,7 +8,7 @@ run = "pnpm --filter purchase-order-mock-server dev"
 
 [tasks.webui]
 description = "Start the web UI dev server (JS agent)"
-run = "pnpm --filter financial-agent-webui dev"
+run = "MOCK_SERVER_URL=http://localhost:3142 pnpm --filter financial-agent-webui dev"
 
 [tasks.webui-java]
 description = "Start the web UI dev server proxying to the Java agent backend"
