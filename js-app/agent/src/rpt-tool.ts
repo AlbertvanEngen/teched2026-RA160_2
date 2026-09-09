@@ -318,8 +318,8 @@ async function callRpt(
 function assertSafeWhereClause(where: string, label: string): string | null {
   const trimmed = where.trim();
   if (!trimmed) return `Error: ${label} must not be empty.`;
-  if (/[;]/.test(trimmed)) {
-    return `Error: ${label} must be a single SQL predicate (no semicolons).`;
+  if (/;|--|\/\*/.test(trimmed)) {
+    return `Error: ${label} must be a single SQL predicate (no semicolons or comments).`;
   }
   return null;
 }
