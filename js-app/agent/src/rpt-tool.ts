@@ -155,9 +155,6 @@ function extractPredictions(
     const record = row as Record<string, unknown>;
     const parsed = parsePredictionCell(record[targetColumn]);
 
-    // Align on the index column the service echoes back. If it is absent, fall back
-    // to position within the prediction block, which the Parquet numbered starting
-    // just after the context rows.
     const rawId = record[ROW_ID_COLUMN];
     const rowId = Number(rawId);
     byRowId.set(Number.isFinite(rowId) ? rowId : rowIdOffset + i + 1, {
@@ -170,15 +167,10 @@ function extractPredictions(
   return byRowId;
 }
 
-// Predictions are only useful if the agent can aggregate them, so they land in a
-// session table next to the dimensions of the rows they were predicted for.
-// The table is built in DuckDB from the same SELECT that produced the Parquet, so
-// dimension columns keep their source types (and '003'-style padding) for joins
+// Predictions land in a session table next to the dimensions of the rows they were
+// predicted for. The table is built from the same SELECT that produced the Parquet,
+// so dimension columns keep their source types (and '003'-style padding) for joins
 // against ground truth — only the predicted value is carried over from the service.
-//
-// `rowIdOffset` is the context row count: the Parquet numbers context rows first, so
-// prediction row i is `offset + i + 1`. Re-deriving the numbering here from the same
-// predictionSql keeps both sides on one id space.
 async function writePredictionTable(
   outputTable: string,
   predictionSql: string,
@@ -245,8 +237,6 @@ async function writePredictionTable(
   );
   const rowCount = Number(count);
 
-  // A zero-row join means the ids RPT echoed back did not line up with the source
-  // rows — a silent empty table would look like a successful forecast downstream.
   if (rowCount === 0) {
     return (
       `Error: none of RPT's ${predictions.size} predictions matched the prediction rows ` +
@@ -295,9 +285,6 @@ function formatExplanations(response: unknown): string {
   return ` Top feature influences: ${top.join(', ')}.`;
 }
 
-// Sends the combined context + prediction set to RPT as Parquet. Parquet carries
-// declared column types end to end, so nothing depends on JS runtime type inference
-// or on the service's `parse_data_types` behaviour.
 async function callRpt(
   selectSql: string,
   columns: string[],
@@ -337,68 +324,111 @@ function assertSafeWhereClause(where: string, label: string): string | null {
   return null;
 }
 
-// Single-table prediction: agent picks context vs prediction rows with SQL WHERE predicates.
-// Use run_rpt_prediction_from_sources when actuals and planning live in separate tables.
 export const runRptPredictionTool = tool(
-  async ({
-    tableName,
-    predictionWhere,
-    contextWhere,
-    outputTable,
-    targetColumn,
-    taskType,
-  }) => {
+  async (input) => {
     try {
-      if (!isValidIdentifier(tableName)) {
-        return `Error: '${tableName}' is not a valid table name.`;
+      if (!isValidIdentifier(input.outputTable)) {
+        return `Error: '${input.outputTable}' is not a valid table name.`;
       }
-      if (!isValidIdentifier(outputTable)) {
-        return `Error: '${outputTable}' is not a valid table name.`;
-      }
-      const predictionWhereError = assertSafeWhereClause(
-        predictionWhere,
-        'predictionWhere',
-      );
-      if (predictionWhereError) return predictionWhereError;
-      if (contextWhere) {
-        const contextWhereError = assertSafeWhereClause(
-          contextWhere,
-          'contextWhere',
+
+      let contextSql: string;
+      let predictionSql: string;
+      let contextCount: number;
+      let predCount: number;
+      let columns: string[];
+
+      if (input.mode === 'dual') {
+        const { contextTable, predictionTable, targetColumn } = input;
+        if (!isValidIdentifier(contextTable))
+          return `Error: '${contextTable}' is not a valid table name.`;
+        if (!isValidIdentifier(predictionTable))
+          return `Error: '${predictionTable}' is not a valid table name.`;
+
+        const [contextCols, predCols] = await Promise.all([
+          selectColumns(`SELECT * FROM ${contextTable}`),
+          selectColumns(`SELECT * FROM ${predictionTable}`),
+        ]);
+        const predSet = new Set(predCols);
+        const shared = contextCols.filter((c) => predSet.has(c));
+
+        if (!shared.includes(targetColumn)) {
+          return `Error: Target column '${targetColumn}' not found in both tables. Shared columns: ${shared.join(', ')}`;
+        }
+
+        const quoted = shared
+          .map((c) => `"${c.replaceAll('"', '""')}"`)
+          .join(', ');
+        contextSql = `SELECT 'actual' AS source, ${quoted} FROM ${contextTable}`;
+        predictionSql = `SELECT 'plan' AS source, ${quoted} FROM ${predictionTable}`;
+        columns = ['source', ...shared];
+
+        const [[{ count: cc = 0 } = {}], [{ count: pc = 0 } = {}]] =
+          await Promise.all([
+            runQuery(`SELECT COUNT(*) AS count FROM (${contextSql})`),
+            runQuery(`SELECT COUNT(*) AS count FROM (${predictionSql})`),
+          ]);
+        contextCount = Number(cc);
+        predCount = Number(pc);
+
+        if (contextCount === 0)
+          return `Error: Context table '${contextTable}' is empty.`;
+        if (predCount === 0)
+          return `Error: Prediction table '${predictionTable}' is empty.`;
+
+        rpt(
+          ` Dual-source ${input.taskType}: ${contextCount} context (${contextTable}) + ${predCount} prediction (${predictionTable})`,
         );
-        if (contextWhereError) return contextWhereError;
-      }
+        rpt(` Shared columns: ${shared.join(', ')}`);
+      } else {
+        const { tableName, predictionWhere, contextWhere, targetColumn } =
+          input;
+        if (!isValidIdentifier(tableName))
+          return `Error: '${tableName}' is not a valid table name.`;
 
-      const contextSql = contextWhere
-        ? `SELECT * FROM ${tableName} WHERE ${contextWhere}`
-        : `SELECT * FROM ${tableName} WHERE NOT (${predictionWhere})`;
-      const predictionSql = `SELECT * FROM ${tableName} WHERE ${predictionWhere}`;
-
-      const [
-        [{ count: contextCount = 0 } = {}],
-        [{ count: predCount = 0 } = {}],
-      ] = await Promise.all([
-        runQuery(`SELECT COUNT(*) AS count FROM (${contextSql})`),
-        runQuery(`SELECT COUNT(*) AS count FROM (${predictionSql})`),
-      ]);
-
-      if (Number(contextCount) === 0) {
-        return (
-          `Error: No context rows matched${contextWhere ? ` contextWhere (${contextWhere})` : ''}. ` +
-          `Broaden the context filter or load more historical data.`
+        const predErr = assertSafeWhereClause(
+          predictionWhere,
+          'predictionWhere',
         );
-      }
-      if (Number(predCount) === 0) {
-        return `Error: No prediction rows matched predictionWhere (${predictionWhere}).`;
+        if (predErr) return predErr;
+        if (contextWhere) {
+          const ctxErr = assertSafeWhereClause(contextWhere, 'contextWhere');
+          if (ctxErr) return ctxErr;
+        }
+
+        contextSql = contextWhere
+          ? `SELECT * FROM ${tableName} WHERE ${contextWhere}`
+          : `SELECT * FROM ${tableName} WHERE NOT (${predictionWhere})`;
+        predictionSql = `SELECT * FROM ${tableName} WHERE ${predictionWhere}`;
+
+        const [[{ count: cc = 0 } = {}], [{ count: pc = 0 } = {}]] =
+          await Promise.all([
+            runQuery(`SELECT COUNT(*) AS count FROM (${contextSql})`),
+            runQuery(`SELECT COUNT(*) AS count FROM (${predictionSql})`),
+          ]);
+        contextCount = Number(cc);
+        predCount = Number(pc);
+
+        if (contextCount === 0) {
+          return (
+            `Error: No context rows matched${contextWhere ? ` contextWhere (${contextWhere})` : ''}. ` +
+            `Broaden the context filter or load more historical data.`
+          );
+        }
+        if (predCount === 0) {
+          return `Error: No prediction rows matched predictionWhere (${predictionWhere}).`;
+        }
+
+        rpt(
+          ` Single-table ${input.taskType} on '${tableName}', target: ${targetColumn}`,
+        );
+        rpt(` ${contextCount} context rows, ${predCount} prediction rows`);
+
+        columns = await selectColumns(contextSql);
       }
 
-      rpt(
-        ` Single-table ${taskType} on '${tableName}', target: ${targetColumn}`,
-      );
-      rpt(` ${contextCount} context rows, ${predCount} prediction rows`);
+      const { targetColumn, taskType, outputTable } = input;
 
-      const columns = await selectColumns(contextSql);
-      // Context rows keep their known target; prediction rows null it out. Ordering
-      // puts context first so row ids line up with the prediction block at the end.
+      // Context rows keep their known target; prediction rows null it out.
       const combinedSql =
         `SELECT * FROM (${contextSql}) ` +
         `UNION ALL BY NAME ` +
@@ -411,17 +441,17 @@ export const runRptPredictionTool = tool(
         taskType,
       );
       rpt(` Prediction complete`);
-      const explanation1 = formatExplanations(response);
-      if (explanation1) rpt(explanation1);
-      const result1 = await writePredictionTable(
+      const explanation = formatExplanations(response);
+      if (explanation) rpt(explanation);
+      const result = await writePredictionTable(
         outputTable,
         predictionSql,
-        Number(contextCount),
-        extractPredictions(response, targetColumn, Number(contextCount)),
+        contextCount,
+        extractPredictions(response, targetColumn, contextCount),
         targetColumn,
         taskType,
       );
-      return result1.startsWith('Error:') ? result1 : result1 + explanation1;
+      return result.startsWith('Error:') ? result : result + explanation;
     } catch (e: unknown) {
       logRptError(e);
       return formatRptError(e);
@@ -430,156 +460,62 @@ export const runRptPredictionTool = tool(
   {
     name: 'run_rpt_prediction',
     description:
-      'Run an SAP RPT prediction on a single session table or view. ' +
-      'Use predictionWhere to select the rows whose target column should be predicted ' +
-      '(e.g. future fiscal periods, rows with NULL target values). ' +
-      'Optionally set contextWhere for rows with known target values; otherwise all rows ' +
-      'not matching predictionWhere become context. ' +
-      'Predictions are written into outputTable as predicted_<targetColumn> plus confidence_<targetColumn> ' +
-      'and confidence_interval_lower/upper_<targetColumn> columns, which you can aggregate with run_sql. ' +
-      'When actuals and planning entries are in separate tables, prefer run_rpt_prediction_from_sources.',
-    schema: z.object({
-      tableName: z.string().describe('Session table or view to read from'),
-      predictionWhere: z
-        .string()
-        .describe(
-          "SQL predicate (no WHERE keyword) selecting rows to predict, e.g. \"ledgerFiscalYear = '2026' AND fiscalPeriod IN ('010', '011', '012')\"",
-        ),
-      contextWhere: z
-        .string()
-        .optional()
-        .describe(
-          'Optional SQL predicate for context rows with known target values. Defaults to NOT (predictionWhere).',
-        ),
-      outputTable: z
-        .string()
-        .describe(
-          'Name of the session table to write the predictions into (replaced if it exists)',
-        ),
-      targetColumn: z.string().describe('Column name to predict'),
-      taskType: z.enum(['classification', 'regression']),
-    }),
-  },
-);
-
-// Dual-source prediction: journal entries (actuals) = context, planning entries (budget/forecast) = prediction rows.
-// Columns are aligned on shared dimensions; a "source" column is added to help RPT distinguish the two.
-// Only columns present in BOTH tables (plus source) are included.
-export const runRptPredictionFromSourcesTool = tool(
-  async ({
-    contextTable,
-    predictionTable,
-    outputTable,
-    targetColumn,
-    taskType,
-  }) => {
-    try {
-      if (!isValidIdentifier(outputTable)) {
-        return `Error: '${outputTable}' is not a valid table name.`;
-      }
-      if (!isValidIdentifier(contextTable)) {
-        return `Error: '${contextTable}' is not a valid table name.`;
-      }
-      if (!isValidIdentifier(predictionTable)) {
-        return `Error: '${predictionTable}' is not a valid table name.`;
-      }
-
-      const [contextCols, predCols] = await Promise.all([
-        selectColumns(`SELECT * FROM ${contextTable}`),
-        selectColumns(`SELECT * FROM ${predictionTable}`),
-      ]);
-      const predSet = new Set(predCols);
-      const shared = contextCols.filter((c) => predSet.has(c));
-
-      if (!shared.includes(targetColumn)) {
-        return `Error: Target column '${targetColumn}' not found in both tables. Shared columns: ${shared.join(', ')}`;
-      }
-
-      const quoted = shared
-        .map((c) => `"${c.replaceAll('"', '""')}"`)
-        .join(', ');
-      // A "source" column lets RPT tell actuals apart from plan rows; the target is
-      // nulled on the plan side so the service fills it in.
-      const contextSql = `SELECT 'actual' AS source, ${quoted} FROM ${contextTable}`;
-      const predictionSql = `SELECT 'plan' AS source, ${quoted} FROM ${predictionTable}`;
-
-      const [
-        [{ count: contextCount = 0 } = {}],
-        [{ count: predCount = 0 } = {}],
-      ] = await Promise.all([
-        runQuery(`SELECT COUNT(*) AS count FROM (${contextSql})`),
-        runQuery(`SELECT COUNT(*) AS count FROM (${predictionSql})`),
-      ]);
-
-      if (Number(contextCount) === 0)
-        return `Error: Context table '${contextTable}' is empty.`;
-      if (Number(predCount) === 0)
-        return `Error: Prediction table '${predictionTable}' is empty.`;
-
-      rpt(
-        ` Dual-source ${taskType}: ${contextCount} context (${contextTable}) + ${predCount} prediction (${predictionTable})`,
-      );
-      rpt(` Shared columns: ${shared.join(', ')}`);
-
-      const combinedSql =
-        `SELECT * FROM (${contextSql}) ` +
-        `UNION ALL BY NAME ` +
-        `SELECT * EXCLUDE ("${targetColumn}"), NULL AS "${targetColumn}" FROM (${predictionSql})`;
-
-      const response = await callRpt(
-        combinedSql,
-        ['source', ...shared],
-        targetColumn,
-        taskType,
-      );
-      rpt(` Prediction complete`);
-      const explanation2 = formatExplanations(response);
-      if (explanation2) rpt(explanation2);
-      const result2 = await writePredictionTable(
-        outputTable,
-        predictionSql,
-        Number(contextCount),
-        extractPredictions(response, targetColumn, Number(contextCount)),
-        targetColumn,
-        taskType,
-      );
-      return result2.startsWith('Error:') ? result2 : result2 + explanation2;
-    } catch (e: unknown) {
-      logRptError(e);
-      return formatRptError(e);
-    }
-  },
-  {
-    name: 'run_rpt_prediction_from_sources',
-    description:
-      'Run an SAP RPT prediction using two session tables with a semantically correct split: ' +
-      'contextTable (e.g. journal entries / actuals) provides the known-truth context rows; ' +
-      'predictionTable (e.g. planning entries / budgets) provides the rows to predict. ' +
-      'Only columns shared between both tables are used. A "source" column (actual/plan) is added automatically. ' +
-      'Predictions are written into outputTable as predicted_<targetColumn> plus confidence_<targetColumn> ' +
-      'and confidence_interval_lower/upper_<targetColumn> columns, then aggregate with run_sql to the granularity ' +
-      'the user asked for. Use this for forecasting questions — questions answerable from the loaded data ' +
-      'should be answered with SQL instead.',
-    schema: z.object({
-      contextTable: z
-        .string()
-        .describe(
-          'Table with known target values (context) — typically journal entries or actuals',
-        ),
-      predictionTable: z
-        .string()
-        .describe(
-          'Table whose target column will be predicted — typically planning/budget entries',
-        ),
-      outputTable: z
-        .string()
-        .describe(
-          'Name of the session table to write the predictions into (replaced if it exists)',
-        ),
-      targetColumn: z
-        .string()
-        .describe('Column to predict — must exist in both tables'),
-      taskType: z.enum(['classification', 'regression']),
-    }),
+      'Run an SAP RPT prediction and write results to a session table. ' +
+      'Two modes:\n' +
+      '• mode="single": one session table, select context vs prediction rows with SQL WHERE predicates. ' +
+      'Use predictionWhere for rows to forecast (e.g. future periods or NULL targets); ' +
+      'optionally contextWhere for known-truth rows (default: NOT predictionWhere).\n' +
+      '• mode="dual": two separate tables — contextTable (actuals/journal entries) provides context, ' +
+      'predictionTable (planning/budget entries) provides rows to predict. ' +
+      'Only shared columns are used; a source column (actual/plan) is added automatically.\n' +
+      'Predictions are written into outputTable as predicted_<targetColumn> plus ' +
+      'confidence_<targetColumn> and confidence_interval_lower/upper_<targetColumn>. ' +
+      'Aggregate the output table with run_sql to the granularity the user asked for.',
+    schema: z.discriminatedUnion('mode', [
+      z.object({
+        mode: z.literal('single'),
+        tableName: z.string().describe('Session table or view to read from'),
+        predictionWhere: z
+          .string()
+          .describe(
+            'SQL predicate (no WHERE keyword) selecting rows to predict, e.g. "ledgerFiscalYear = \'2026\'"',
+          ),
+        contextWhere: z
+          .string()
+          .optional()
+          .describe(
+            'Optional SQL predicate for context rows. Defaults to NOT (predictionWhere).',
+          ),
+        outputTable: z
+          .string()
+          .describe(
+            'Session table to write predictions into (replaced if exists)',
+          ),
+        targetColumn: z.string().describe('Column name to predict'),
+        taskType: z.enum(['classification', 'regression']),
+      }),
+      z.object({
+        mode: z.literal('dual'),
+        contextTable: z
+          .string()
+          .describe(
+            'Table with known target values — typically journal entries or actuals',
+          ),
+        predictionTable: z
+          .string()
+          .describe(
+            'Table whose target will be predicted — typically planning/budget entries',
+          ),
+        outputTable: z
+          .string()
+          .describe(
+            'Session table to write predictions into (replaced if exists)',
+          ),
+        targetColumn: z
+          .string()
+          .describe('Column to predict — must exist in both tables'),
+        taskType: z.enum(['classification', 'regression']),
+      }),
+    ]),
   },
 );

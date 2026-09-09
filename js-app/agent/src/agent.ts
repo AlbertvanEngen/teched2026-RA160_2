@@ -7,10 +7,7 @@ import {
   queryFinancialPlanningTool,
   queryJournalEntryTool,
 } from './odata-tools.ts';
-import {
-  runRptPredictionFromSourcesTool,
-  runRptPredictionTool,
-} from './rpt-tool.ts';
+import { runRptPredictionTool } from './rpt-tool.ts';
 import { runSqlTool } from './sql-tool.ts';
 
 export const SYSTEM_PROMPT = `You are a financial data analyst agent with access to two SAP OData services and a local in-memory SQL workspace for reporting and aggregation.
@@ -20,14 +17,13 @@ Tools:
   Pick a descriptive name; tables are created on first use and accumulate across calls.
 - run_sql is your primary reporting tool: run any SQL — SELECT for reporting, CREATE OR REPLACE VIEW
   to define virtual tables, DROP TABLE/VIEW to clean up, and any other DML or DDL.
-- run_rpt_prediction_from_sources / run_rpt_prediction are SAP RPT, a tabular foundation model.
-  They take context rows with known values plus rows to predict, and write the predicted values into
-  an output table you name. Output columns include predicted_<targetColumn>, confidence_<targetColumn>,
-  confidence_interval_lower_<targetColumn>, and confidence_interval_upper_<targetColumn>.
-  Query that table afterwards to aggregate predictions and uncertainty.
-  For a single table, run_rpt_prediction uses predictionWhere (and optional contextWhere) to pick
-  which rows to forecast — e.g. future fiscal periods or rows missing the target value. When actuals
-  and planning are in separate tables, use run_rpt_prediction_from_sources instead.
+- run_rpt_prediction is SAP RPT, a tabular foundation model. It takes context rows with known values
+  plus rows to predict, and writes the predicted values into an output table you name. Output columns
+  include predicted_<targetColumn>, confidence_<targetColumn>, confidence_interval_lower_<targetColumn>,
+  and confidence_interval_upper_<targetColumn>. Query that table afterwards to aggregate predictions
+  and uncertainty. Use mode="single" when data is in one table (predictionWhere selects rows to forecast;
+  optional contextWhere for known-truth rows). Use mode="dual" when actuals and planning live in separate
+  tables — contextTable provides known-truth context, predictionTable provides rows to predict.
 - get_ground_truth compares an RPT prediction table against ground truth from the mock data generators
   (journal entries or planning ACTUAL rows). It joins on groupBy dimensions and writes predicted vs
   actual values plus percentage metrics (pct_of_actual, pct_below_actual, pct_above_actual, MAPE).
@@ -121,17 +117,20 @@ function buildFinancialAgent() {
     },
   ]);
 
+  const odataTools = [queryFinancialPlanningTool, queryJournalEntryTool];
+  const analysisTool = [runSqlTool];
+  const predictionTools = [runRptPredictionTool];
+  const evaluationTools = [getGroundTruthTool];
+
   return createAgent({
     model,
     systemPrompt: SYSTEM_PROMPT,
     checkpointer,
     tools: [
-      queryFinancialPlanningTool,
-      queryJournalEntryTool,
-      runSqlTool,
-      runRptPredictionTool,
-      runRptPredictionFromSourcesTool,
-      getGroundTruthTool,
+      ...odataTools,
+      ...analysisTool,
+      ...predictionTools,
+      ...evaluationTools,
     ],
     middleware: [orchestrationPromptCachingMiddleware()],
   }).withConfig({ recursionLimit: AGENT_RECURSION_LIMIT });
