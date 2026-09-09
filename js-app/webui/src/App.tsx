@@ -162,10 +162,14 @@ function ToolRail({
   turns,
   activeTurnId,
   activeToolIds,
+  open,
+  onClose,
 }: {
   turns: TurnGroup[];
   activeTurnId: string | null;
   activeToolIds: ReadonlySet<string>;
+  open: boolean;
+  onClose: () => void;
 }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const prevActiveTurnId = useRef<string | null>(null);
@@ -193,49 +197,63 @@ function ToolRail({
   const reversed = [...turns].reverse();
 
   return (
-    <aside className="tool-rail" aria-label="Agent activity">
-      <div className="tool-rail__header">Activity</div>
-      <div className="tool-rail__list" role="log" aria-live="polite">
-        {turns.length === 0 && (
-          <p className="tool-rail__empty">Tool calls appear here</p>
-        )}
-        {reversed.map((turn) => {
-          const isOpen = !collapsed.has(turn.turnId);
-          const pending = turn.tools.some((tool) => activeToolIds.has(tool.id));
-          return (
-            <div key={turn.turnId} className="turn-group">
-              <button
-                type="button"
-                className={`turn-group__header${pending ? ' is-pending' : ''}`}
-                onClick={() => toggle(turn.turnId)}
-                aria-expanded={isOpen}
-              >
-                <span
-                  className={`tool-entry__status ${pending ? 'pending' : 'done'}`}
-                  aria-hidden="true"
-                />
-                <span className="turn-group__label">{turn.label}</span>
-                <span className="turn-group__count">{turn.tools.length}</span>
-                <span className="turn-group__chevron">
-                  {isOpen ? '▾' : '▸'}
-                </span>
-              </button>
-              {isOpen && (
-                <div className="turn-group__body">
-                  {[...turn.tools].reverse().map((t) => (
-                    <ToolEntryCard
-                      key={t.id}
-                      t={t}
-                      isActive={activeToolIds.has(t.id)}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </aside>
+    <>
+      {open && (
+        <div
+          className="tool-rail-backdrop"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={`tool-rail${open ? ' is-open' : ''}`}
+        aria-label="Agent activity"
+      >
+        <div className="tool-rail__header">Activity</div>
+        <div className="tool-rail__list" role="log" aria-live="polite">
+          {turns.length === 0 && (
+            <p className="tool-rail__empty">Tool calls appear here</p>
+          )}
+          {reversed.map((turn) => {
+            const isOpen = !collapsed.has(turn.turnId);
+            const pending = turn.tools.some((tool) =>
+              activeToolIds.has(tool.id),
+            );
+            return (
+              <div key={turn.turnId} className="turn-group">
+                <button
+                  type="button"
+                  className={`turn-group__header${pending ? ' is-pending' : ''}`}
+                  onClick={() => toggle(turn.turnId)}
+                  aria-expanded={isOpen}
+                >
+                  <span
+                    className={`tool-entry__status ${pending ? 'pending' : 'done'}`}
+                    aria-hidden="true"
+                  />
+                  <span className="turn-group__label">{turn.label}</span>
+                  <span className="turn-group__count">{turn.tools.length}</span>
+                  <span className="turn-group__chevron">
+                    {isOpen ? '▾' : '▸'}
+                  </span>
+                </button>
+                {isOpen && (
+                  <div className="turn-group__body">
+                    {[...turn.tools].reverse().map((t) => (
+                      <ToolEntryCard
+                        key={t.id}
+                        t={t}
+                        isActive={activeToolIds.has(t.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </aside>
+    </>
   );
 }
 
@@ -312,6 +330,7 @@ export default function App() {
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [running, setRunning] = useState(false);
+  const [railOpen, setRailOpen] = useState(false);
   // null = not running, '' = running but no tool yet, otherwise latest tool label
   const [activeToolName, setActiveToolName] = useState<string | null>(null);
   const [activeToolIds, setActiveToolIds] = useState<Set<string>>(new Set());
@@ -624,6 +643,15 @@ export default function App() {
         <span className="shell-bar__sub">SAP Cloud SDK for AI</span>
         <button
           type="button"
+          className="shell-bar__activity-toggle"
+          onClick={() => setRailOpen((o) => !o)}
+          aria-label={railOpen ? 'Hide activity' : 'Show activity'}
+          aria-expanded={railOpen}
+        >
+          Activity
+        </button>
+        <button
+          type="button"
           className="shell-bar__reset"
           onClick={resetDemo}
           disabled={running}
@@ -644,6 +672,8 @@ export default function App() {
           turns={turns}
           activeTurnId={activeTurnId}
           activeToolIds={activeToolIds}
+          open={railOpen}
+          onClose={() => setRailOpen(false)}
         />
 
         <div className="chat-pane">
