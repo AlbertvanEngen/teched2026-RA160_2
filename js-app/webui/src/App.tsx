@@ -36,6 +36,7 @@ const TOOL_LABELS: Record<string, string> = {
   query_financial_planning: 'Querying financial planning data',
   query_journal_entry: 'Querying journal entries',
   run_sql: 'Running SQL',
+  js_eval: 'Analyzing JSON with JavaScript',
   run_rpt_prediction: 'Running RPT prediction',
   run_rpt_prediction_from_sources: 'Running RPT prediction',
   get_ground_truth: 'Comparing against ground truth',

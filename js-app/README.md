@@ -53,11 +53,13 @@ flowchart LR
     Browser --> Web[React and Hono]
     Web --> Agent
     Agent --> OData[Generated OData clients]
-    Agent --> SQL[DuckDB tools]
-    Agent --> Prediction[Tabular prediction]
+    Agent --> Mode{AGENT_DATA_MODE}
+    Mode --> SQL[DuckDB workspace]
+    Mode --> QuickJS[QuickJS and virtual JSON files]
+    Mode --> Context[Model context]
+    Agent --> Prediction[Tabular prediction in SQL mode]
     OData --> Mock[Shared mock OData server]
-    SQL --> Workspace[In-memory workspace]
-    Prediction --> Workspace
+    Prediction --> SQL
     Agent --> AI[SAP AI Core orchestration]
 ```
 
@@ -66,9 +68,9 @@ A browser turn follows this path:
 1. The React application creates a session through `POST /api/session`.
 2. It sends a prompt and session ID to `POST /api/agent/run`.
 3. Hono validates the session and runs the agent inside `AsyncLocalStorage` context.
-4. The agent selects data, SQL, prediction, view, cleanup, or evaluation tools.
-5. OData tools fetch typed entities and append them to named DuckDB tables.
-6. SQL tools query source tables, views, and prediction output.
+4. The configured data mode exposes SQL tools, a QuickJS sandbox, or bounded JSON results in model context.
+5. Every mode fetches the same normalized rows through the generated OData clients.
+6. The selected mode aggregates those rows; prediction and ground-truth tools remain SQL-mode capabilities.
 7. The server converts agent messages into server-sent events.
 8. The UI renders the answer and tool activity for the turn.
 
@@ -77,7 +79,9 @@ A browser turn follows this path:
 | Path | Ownership |
 | --- | --- |
 | `agent/src/agent.ts` | Model configuration, system prompt, and tool registration. |
-| `agent/src/odata-tools.ts` | OData retrieval and DuckDB loading. |
+| `agent/src/odata-source.ts` | Shared OData filtering and normalized JSON row mapping. |
+| `agent/src/json-data-tools.ts` | QuickJS virtual-file and context-only data tools. |
+| `agent/src/odata-tools.ts` | SQL-mode DuckDB loading tools. |
 | `agent/src/sql-tool.ts` | Reporting and aggregation. |
 | `agent/src/rpt-tool.ts` | SAP RPT integrations. |
 | `agent/src/get-ground-truth-tool.ts` | Prediction evaluation against mock actuals. |
@@ -98,6 +102,7 @@ It serves financial planning and journal-entry data.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `AICORE_SERVICE_KEY` | None | Authenticates SAP AI SDK calls. |
+| `AGENT_DATA_MODE` | `sql` | Selects `sql`, `quickjs`, or `context` data analysis. |
 | `MOCK_SERVER_URL` | `http://localhost:3141` | Selects the OData service host. |
 | `PORT` | Mock: `3141`; web: `3142` | Overrides the port of the process being started. |
 | `MOCK_STANDALONE` | Unset | Set to `1` to stop the web server from mounting mock routes. |
@@ -105,6 +110,15 @@ It serves financial planning and journal-entry data.
 
 The web server mounts the mock application under `/sap/` unless `MOCK_STANDALONE=1`.
 This does not change the agent's default destination, so the normal workflow still starts the mock server separately on port `3141`.
+
+Set the mode for either the CLI or web process:
+
+```bash
+AGENT_DATA_MODE=quickjs pnpm --filter financial-mock-agent start -- "Summarize ACTUAL planning data for A1000."
+AGENT_DATA_MODE=context pnpm --filter financial-mock-agent start -- "Summarize ACTUAL planning data for A1000."
+```
+
+`quickjs` keeps fetched JSON in session-scoped virtual files and exposes retrieval through programmatic tool calling inside the sandbox. `context` returns bounded JSON arrays directly to the model. Neither mode exposes SQL or RPT tools.
 
 ## Generated code
 
@@ -157,12 +171,12 @@ See the [tabular-model boundary](../DEMO_STORY.md#tabular-model-boundary).
 
 ## Sessions and limitations
 
-DuckDB is in memory and shared by the Node.js process.
-Database operations are serialized to avoid concurrent DDL races.
-Web sessions use `AsyncLocalStorage` to associate created objects with cleanup metadata and expire after 30 minutes of inactivity.
-All state disappears when the process exits.
+In `sql` mode, DuckDB is in memory and shared by the Node.js process; database operations are serialized to avoid concurrent DDL races.
+In `quickjs` mode, JSON files are held only in the owning web or CLI session. `context` mode stores no data outside the conversation state.
+Web sessions use `AsyncLocalStorage` to associate created tables or files with the active session and expire after 30 minutes of inactivity.
+All workspace state disappears when the process exits.
 
-Table names are not namespaced by session.
+In `sql` mode, table names are not namespaced by session.
 Concurrent sessions can choose the same table name and affect each other's data even though cleanup ownership is tracked separately.
 Treat this as a demo limitation and fix it before allowing untrusted or concurrent use.
 

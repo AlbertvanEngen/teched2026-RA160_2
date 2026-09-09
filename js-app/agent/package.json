@@ -30,12 +30,14 @@
   "dependencies": {
     "@duckdb/node-api": "1.5.5-r.4",
     "@langchain/langgraph-checkpoint": "^1.1.5",
+    "@langchain/quickjs": "^0.6.2",
     "@sap-ai-sdk/langchain": "^2.15.0",
     "@sap-ai-sdk/rpt": "canary",
     "@sap-cloud-sdk/odata-v2": "catalog:",
     "@sap-cloud-sdk/util": "catalog:",
     "bignumber.js": "^11.1.5",
     "langchain": "^1.5.10",
+    "moment": "^2.30.1",
     "tsx": "catalog:",
     "zod": "^4.4.3"
   },

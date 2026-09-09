@@ -7,14 +7,14 @@ A demonstration of SAP OData services, generated SAP Cloud SDK clients, SAP RPT 
 - A Hono mock server with realistic financial planning and journal entry data.
 - Generated OData v2 clients for both mock services.
 - A **JavaScript agent** (LangChain + SAP AI SDK) that:
-  - queries the OData services;
-  - stores fetched data in a local session workspace and analyzes it with SQL;
-  - creates reusable SQL views; and
-  - runs SAP AI Runtime Prediction (RPT) predictions.
+  - queries the OData services through one normalized data-source layer;
+  - selects SQL, sandboxed QuickJS over virtual JSON files, or model-context analysis with `AGENT_DATA_MODE`;
+  - creates reusable SQL views in SQL mode; and
+  - runs SAP AI Runtime Prediction (RPT) predictions in SQL mode.
 - A **Java agent** (Spring AI + SAP Cloud SDK for AI) that does the same using Spring Boot, with DuckDB via JDBC and SSE streaming.
 - A React and Hono web UI for chatting with either agent and inspecting tool activity.
 
-The agent's session workspace is backed by in-memory DuckDB (`db.ts`) — an implementation detail for local SQL over fetched OData rows and RPT output tables.
+The default `sql` mode uses an in-memory DuckDB workspace. The experimental `quickjs` and `context` modes evaluate the same OData rows without SQL, making each approach independently removable.
 
 ## Prerequisites
 

@@ -1,3 +1,7 @@
+export type AgentDataMode = 'sql' | 'quickjs' | 'context';
+export declare const AGENT_DATA_MODE: AgentDataMode;
+export declare function resolveAgentDataMode(value?: string): AgentDataMode;
+export declare function systemPromptForMode(mode: AgentDataMode): string;
 export declare const SYSTEM_PROMPT: string;
 export declare const AGENT_RECURSION_LIMIT: number;
 export declare function getFinancialAgent(): ReturnType<
