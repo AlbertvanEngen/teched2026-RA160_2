@@ -2,8 +2,6 @@ import { MemorySaver } from '@langchain/langgraph-checkpoint';
 import { OrchestrationClient } from '@sap-ai-sdk/langchain';
 import { orchestrationPromptCachingMiddleware } from '@sap-ai-sdk/langchain/orchestration/prompt-caching-middleware';
 import { createAgent } from 'langchain';
-import { createViewTool } from './create-view-tool.ts';
-import { dropTableTool } from './drop-table-tool.ts';
 import { getGroundTruthTool } from './get-ground-truth-tool.ts';
 import {
   queryFinancialPlanningTool,
@@ -20,9 +18,8 @@ export const SYSTEM_PROMPT = `You are a financial data analyst agent with access
 Tools:
 - query_financial_planning / query_journal_entry fetch from OData and APPEND into a named session table.
   Pick a descriptive name; tables are created on first use and accumulate across calls.
-- run_sql is your primary reporting tool: filter, join, GROUP BY, and aggregate session tables with
-  SUM/AVG/COUNT/MIN/MAX — use it liberally to answer questions from loaded data.
-- create_view saves a SQL transformation as a virtual table; drop_table cleans up tables and views.
+- run_sql is your primary reporting tool: run any SQL — SELECT for reporting, CREATE OR REPLACE VIEW
+  to define virtual tables, DROP TABLE/VIEW to clean up, and any other DML or DDL.
 - run_rpt_prediction_from_sources / run_rpt_prediction are SAP RPT, a tabular foundation model.
   They take context rows with known values plus rows to predict, and write the predicted values into
   an output table you name. Output columns include predicted_<targetColumn>, confidence_<targetColumn>,
@@ -135,8 +132,6 @@ function buildFinancialAgent() {
       runRptPredictionTool,
       runRptPredictionFromSourcesTool,
       getGroundTruthTool,
-      dropTableTool,
-      createViewTool,
     ],
     middleware: [orchestrationPromptCachingMiddleware()],
   }).withConfig({ recursionLimit: AGENT_RECURSION_LIMIT });
@@ -155,10 +150,9 @@ export function createFinancialAgent() {
 }
 
 export {
+  clearSession,
   createSession,
-  pruneExpiredSessions,
   registerSessionObject,
-  SESSION_TTL_MS,
   sessionContext,
   touchSession,
 } from './session-store.ts';

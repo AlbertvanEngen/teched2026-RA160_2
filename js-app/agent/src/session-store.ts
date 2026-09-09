@@ -2,12 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { dropObjects } from './db.ts';
 
-/** POC session lifetime — idle sessions expire after this duration. */
-export const SESSION_TTL_MS = 30 * 60 * 1000;
-
 interface Session {
-  createdAt: number;
-  lastAccessAt: number;
   tables: Set<string>;
 }
 
@@ -24,41 +19,20 @@ export function registerSessionObject(name: string): void {
 }
 
 export function createSession(): string {
-  pruneExpiredSessions();
   const sessionId = randomUUID();
-  const now = Date.now();
-  sessions.set(sessionId, {
-    createdAt: now,
-    lastAccessAt: now,
-    tables: new Set(),
-  });
+  sessions.set(sessionId, { tables: new Set() });
   return sessionId;
 }
 
-/** Returns false if the session is missing or past TTL. */
+/** Returns false if the session does not exist. */
 export function touchSession(sessionId: string): boolean {
+  return sessions.has(sessionId);
+}
+
+/** Drop all tables/views belonging to a session and remove it. */
+export async function clearSession(sessionId: string): Promise<void> {
   const session = sessions.get(sessionId);
-  if (!session) return false;
-
-  const now = Date.now();
-  if (now - session.lastAccessAt > SESSION_TTL_MS) {
-    sessions.delete(sessionId);
-    return false;
-  }
-
-  session.lastAccessAt = now;
-  return true;
+  if (!session) return;
+  sessions.delete(sessionId);
+  await dropObjects([...session.tables]);
 }
-
-export function pruneExpiredSessions(): void {
-  const now = Date.now();
-  for (const [id, session] of sessions) {
-    if (now - session.lastAccessAt > SESSION_TTL_MS) {
-      sessions.delete(id);
-      void dropObjects([...session.tables]);
-    }
-  }
-}
-
-// Periodic cleanup so expired sessions don't linger in the registry.
-setInterval(pruneExpiredSessions, SESSION_TTL_MS / 2);
