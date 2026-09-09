@@ -13,91 +13,40 @@ duration: 30min
 timer: countdown
 ---
 
-# RA160: finance data,<br>prediction, ground truth
+# RA160 technical demo
 
-## OData entities → session SQL → RPT → ground-truth comparison
-
-<div class="mt-12 text-sm opacity-65">30 minutes · live demo · team discussion</div>
-
+<div class="mt-10 text-sm opacity-65">RA160 · live demo · team discussion</div>
 <!--
-Walk through the concrete data path and the open choices around SQL and prediction.
+State the technical contract: every reported number, including a prediction, has an inspectable source and operation.
 Timing: 1 minute.
--->
-
----
-layout: two-cols-header
----
-
-# Current implementation
-
-::left::
-
-### Finance data access
-
-- `A_FinPlanningEntryItem` from `API_FINPLANNINGENTRYITEM_SRV`
-- `A_JournalEntryItemBasic` from `API_JOURNALENTRYITEMBASIC_SRV`
-- Generated SAP Cloud SDK clients build typed `$filter` requests
-- Filter fields: `CostCenter`, `LedgerFiscalYear`, `FiscalPeriod`
-
-::right::
-
-### Local analysis and prediction
-
-- Filtered rows append to named DuckDB session tables
-- `run_sql` handles joins and `GROUP BY`
-- SAP RPT writes prediction rows back into a session table
-- Current gaps: staged exercises, one prediction-tool contract, Java track details
-
-<!--
-Start with the concrete entities and data path rather than the agent framework.
-Timing: 2 minutes.
 -->
 
 ---
 layout: statement
 ---
 
-# Three questions in the demo
+# A controller is reviewing cost center `A1000`
 
-## 1. Can we access the finance rows? → 2. Can we analyze and predict? → 3. Can we check against ground truth?
+<div class="question-path mt-10">
+  <div>
+    <strong>What did we plan and spend?</strong>
+    <span>Retrieve and aggregate them.</span>
+  </div>
+  <div>
+    <strong>What should we expect next period?</strong>
+    <span>Predict it.</span>
+  </div>
+  <div>
+    <strong>How accurate was that forecast?</strong>
+    <span>Reveal held-back actuals and measure it, showing good RPT performance vs naive baseline.</span>
+  </div>
+</div>
 
-<!--
-These are the three parts of the demo story. Each needs a different data boundary.
-Timing: 1 minute.
--->
-
----
-layout: two-cols
-layoutClass: gap-12
----
-
-# Proposed exercise path
-
-### 1. Access finance data
-
-`A_FinPlanningEntryItem` provides plan/budget rows.<br>
-`A_JournalEntryItemBasic` provides journal postings.
-
-Use typed OData filters before loading any rows locally.
-
-### 2. Analyze, then predict
-
-SQL answers known values. RPT predicts a target column only for rows outside the known context.
-
-::right::
-
-### 3. Compare with ground truth
-
-Fetch FY 2026 actual journal rows only after prediction; aggregate both paths **at the same grain** and join them.
-
-### Why use SQL?
-
-RPT benefits from having a context of >500 rows, and this could lead to accuracy issues in the LLM context.
-In addition, without additional tooling, the model will have issues, e.g. moving from the item-level to the quarterly and monthly level.
+<div class="principle mt-9">The model coordinates the work. SAP business data from "S4/HANA" and deterministic tools remain the source of financial truth.</div>
 
 <!--
-The point is not “use an agent.” It is to distinguish querying known rows, predicting missing values, and checking that prediction.
-Timing: 3 minutes.
+The three questions are the whole story. Each introduces one new boundary; do not discuss implementation yet.
+Timing: 2 minutes.
 -->
 
 ---
@@ -105,51 +54,58 @@ layout: iframe-right
 url: http://localhost:3142
 ---
 
-# Live walk-through — 5 minutes
+# Embedded application demo
 
-1. **Report** — monthly actual spend for `A1000`, FY 2025
-2. **Predict** — monthly 2026 spend from 2022–2025 actuals
-3. **Compare** — forecast versus 2026 ground truth
-4. Inspect the activity rail: OData → SQL → prediction → comparison
-
-<div class="mt-8 text-sm opacity-70">
-  Embedded from <code>http://localhost:3142</code>. Start the web UI before presenting; use a separate tab if framing is blocked.
+<div class="demo-steps">
+  <div><b>1</b><span><strong>Report</strong><br>Monthly actual spend for `A1000`, FY 2025</span></div>
+  <div><b>2</b><span><strong>Predict</strong><br>Monthly 2026 spend from 2022–2025 actuals</span></div>
+  <div><b>3</b><span><strong>Verify</strong><br>Forecast versus unseen 2026 actuals</span></div>
 </div>
 
+<div class="mt-8 text-sm opacity-70">Follow the activity rail: OData → SQL → model → comparison.</div>
+
 <!--
-The iframe is a convenience. Keep a browser tab open as fallback.
-Point out the transition from retrieval to aggregation, prediction, and comparison.
+Start the UI with `mise run webui`, then open http://localhost:3142. Keep a separate browser tab as fallback if iframe framing is blocked.
+Do the five-minute walkthrough before explaining internals.
 Timing: 5 minutes.
 -->
 
 ---
-layout: two-cols
-layoutClass: gap-12
----
 
-# Run the demo locally
+# Runtime sequence
 
-```sh
-# JavaScript track — UI, agent, and integrated mock services
-mise run webui
-```
+<div class="evidence-ladder mt-8">
+  <div class="data">
+    <b>1</b>
+    <strong>Retrieve</strong>
+    <span>Typed OData clients filter SAP-style business rows.</span>
+  </div>
+  <div class="sql">
+    <b>2</b>
+    <strong>Calculate</strong>
+    <span>Session SQL joins, groups, and exposes the query.</span>
+  </div>
+  <div class="model">
+    <b>3</b>
+    <strong>Predict</strong>
+    <span>SAP RPT fills only the unknown target values.</span>
+  </div>
+  <div class="proof">
+    <b>4</b>
+    <strong>Verify</strong>
+    <span>Held-back actuals measure the forecast at the same grain.</span>
+  </div>
+</div>
 
-Open `http://localhost:3142`.
-
-::right::
-
-### Prerequisites
-
-- Node.js 24 and pnpm 12
-- `pnpm install` from the repository root
-- SAP AI Core / Generative AI Hub credentials in local `.env`
-
-### Optional standalone server
-
-`mise run mock-server` is for direct OData/client work or a separately hosted mock service — it is **not** part of the normal JavaScript demo startup path.
+<div class="boundary-line mt-10">
+  <span>OData services</span>
+  <span>DuckDB session</span>
+  <span>SAP AI Core / RPT</span>
+  <span>Ground-truth join</span>
+</div>
 
 <!--
-For the JavaScript track, `mise run webui` is the normal one-command start. The credential prerequisite affects the agent, not the deterministic integrated mock services.
+This replaces the repeated implementation, exercise-path, and architecture setup slides. Every later slide expands one step.
 Timing: 2 minutes.
 -->
 
@@ -157,11 +113,74 @@ Timing: 2 minutes.
 layout: two-cols-header
 ---
 
-# One scenario, with the implementation details visible
+# One truth model, two OData services
 
 ::left::
 
-### 1. Report actual spend
+### Deterministic data generation
+
+- Seeded generator: the same run produces the same truth
+- Account-level base amounts, growth, seasonality, and phase drift
+- Bounded variation plus a few scenario-specific effects
+- Canonical cells project into planning and journal line items
+
+Planning `ACTUAL` and the magnitude of journal postings reconcile at the same business grain.
+
+::right::
+
+### S4/HANA-style service boundary
+
+- Hono serves planning and journal-entry OData roots
+- In-memory SQLite handles entity reads and query options
+- EDMX specifications generate typed SAP Cloud SDK clients
+- JavaScript and Java consume the same HTTP data source
+
+<div class="checkpoint mt-5"><strong>Tested constraint:</strong> <code>baseline-prediction.test.ts</code> asserts that the 2026 A1000 moving-average baseline has 2%–25% MAPE. This prevents both a trivial and an unusable forecast dataset.</div>
+
+<!--
+Seed 137 makes the generated data repeatable. The baseline test protects the intended forecasting difficulty before RPT is introduced.
+Timing: 2 minutes.
+-->
+
+---
+layout: two-cols
+layoutClass: gap-12
+---
+
+# SQL begins after narrow retrieval
+
+### S4/HANA mock-server is the source of truth
+
+- `A_FinPlanningEntryItem` provides plan and budget rows
+- `A_JournalEntryItemBasic` provides journal postings
+- Generated ODATA clients build typed filters
+- Filter before transfer: cost center, fiscal year, period, category
+
+<div class="boundary-note mt-7">The two service roots cannot join in one ordinary OData query. The mock also has no general `$apply` aggregation.</div>
+
+::right::
+
+### Aggregation via SQL analysis
+
+- Join filtered planning, journal, and prediction rows
+- Regroup at the requested grain: month, quarter, cost center
+- Query model output that is not an OData entity
+- Return the SQL and result in the activity stream
+
+<!--
+Do not claim that local SQL is universally preferable. It solves cross-service analysis and post-prediction reshaping in this demo.
+Timing: 3 minutes.
+-->
+
+---
+layout: two-cols-header
+---
+
+# One question, two deterministic steps
+
+::left::
+
+### 1. Retrieve only the relevant rows
 
 ```text
 Show monthly actual spend for A1000 in FY 2025.
@@ -173,161 +192,105 @@ $filter=CostCenter eq 'A1000'
   and LedgerFiscalYear eq '2025'
 ```
 
-Then load `journal_2025` and run `GROUP BY fiscalPeriod` over `amountInCompanyCodeCurrency`.
+The client appends the result to `journal_2025`.
 
 ::right::
 
-### 2. Predict, then compare
+### 2. Calculate the answer
 
-- Context: `A_JournalEntryItemBasic`, FY 2022–2025
-- Target rows: `A_FinPlanningEntryItem`, FY 2026
-- Example target: `amountInCompanyCodeCurrency`
-- Prediction output: `predicted_amountInCompanyCodeCurrency`
-- `get_ground_truth` loads FY 2026 journal actuals and joins at `fiscalPeriod`
+```sql
+SELECT fiscalPeriod,
+       SUM(amountInCompanyCodeCurrency) AS actual
+FROM journal_2025
+GROUP BY fiscalPeriod
+ORDER BY fiscalPeriod;
+```
 
-The check reports `pct_of_actual`, `pct_below_actual`, `pct_above_actual`, and MAPE.
+`run_sql` uses serialized DuckDB access, a 15-second timeout, and named session tables.
 
 <!--
-The generated client uses typed field names; the shown GET is the equivalent request shape. The application logs this entity and filter before appending rows to the session table.
+The agent decides to call the tools; it does not perform the financial arithmetic in model context.
 Timing: 3 minutes.
 -->
 
 ---
-layout: section
----
 
-# Current architecture
+# Prediction scenario
 
-## Service calls, local workspace, model call, and comparison
-
-<!--
-Timing: 30 seconds.
--->
-
----
-layout: full
----
-
-# Current architecture
-
-```mermaid {scale: 0.48}
-flowchart TB
-  User[Controller] --> UI[React activity UI] --> Agent[Financial analyst agent]
-
-  Agent --> Retrieval[OData retrieval]
-  Agent --> SQL[run_sql]
-  Agent --> Predict[run_rpt_prediction_from_sources]
-  Agent --> Verify[get_ground_truth]
-  Agent --> AICore[SAP AI Core orchestration]
-
-  Retrieval --> Plan[query_financial_planning\nA_FinPlanningEntryItem]
-  Retrieval --> Journal[query_journal_entry\nA_JournalEntryItemBasic]
-  Plan --> PlanClient[Generated planning client] --> Mock[Shared mock OData server]
-  Journal --> JournalClient[Generated journal client] --> Mock
-
-  Plan --> Workspace[(Named session tables\nDuckDB in memory)]
-  Journal --> Workspace
-  SQL --> Workspace
-  Predict --> Workspace
-  Predict --> RPT[SAP RPT]
-  Verify --> Workspace
-  Verify --> Mock
-```
-
-<div class="text-sm opacity-70">The agent branches into retrieval, SQL, prediction, and evaluation. Filtered OData rows and prediction output meet in the session workspace; evaluation reloads actuals from the mock server.</div>
-
-<!--
-Read top to bottom. The only shared state is the session workspace and the mock server.
-Timing: 2 minutes.
--->
-
-
----
-layout: two-cols
-layoutClass: gap-12
----
-
-# Where SQL fits
-
-### OData: fetch and filter
-
-- Filter in the service: cost center, category, fiscal year
-- Generated clients keep service access typed
-- The two service roots cannot join in one ordinary OData query
-- The mock server does **not** implement general `$apply` aggregation
-
-::right::
-
-### SQL: combine and regroup
-
-- Join planning rows, journal rows, and prediction output
-- Aggregate at the requested grain: month, quarter, cost center
-- Query prediction rows that are not OData entities
-- Show the query that calculated the result
-
-<div class="mt-8 rounded border border-amber-300/40 bg-amber-300/10 p-4">
-  After prediction, monthly/quarterly regrouping needs SQL, a new endpoint, or another fixed-purpose tool.
+<div class="prediction-split mt-8">
+  <div class="known">
+    <span>Model context</span>
+    <strong>FY 2022–2025 actuals</strong>
+    <p>Known target values from journal entries.</p>
+  </div>
+  <div class="unknown">
+    <span>Rows to predict</span>
+    <strong>FY 2026 planning rows</strong>
+    <p>The target column is nulled before the model call.</p>
+  </div>
+  <div class="holdback">
+    <span>Evaluation holdback</span>
+    <strong>FY 2026 actuals</strong>
+    <p>Excluded by workflow until the forecast exists.</p>
+  </div>
 </div>
 
-<!--
-This is not a general claim that local SQL is always preferable. It covers cross-service joins and session-local prediction rows in this demo.
-Timing: 3 minutes.
--->
-
----
-layout: two-cols
-layoutClass: gap-12
----
-
-# `run_sql` today
-
-```ts {1|3-7|9-14|all} twoslash
-// @errors: 2304
-
-type SqlInput = { sql: string }
-type SessionRow = Record<string, unknown>
-
-declare function runQuery(
-  sql: string,
-): Promise<SessionRow[]>
-
-async function runSql({ sql }: SqlInput) {
-  // 15-second query timeout; serialized workspace access
-  return runQuery(sql)
-}
-```
-
-::right::
-
-### Current contract
-
-- Tool name: `run_sql`
-- Reporting: `WHERE`, `JOIN`, `GROUP BY`, aggregates
-- Windows and regression aggregates are available for labeled SQL baselines
-- Rows return as JSON in the activity stream
-
-### Boundaries to keep or add
-
-- Session-scoped tables
-- Named loaded tables and shown SQL
-- Timeout and cleanup
-- Same filters + same grain before forecast/actual comparison
+<div class="principle mt-9"><strong>Invariant:</strong> context rows contain targets; prediction rows do not; evaluation rows are fetched only after output is stored.</div>
 
 <!--
-Twoslash shows the TypeScript shapes without expanding into a framework section.
-Current code serializes DuckDB access and uses a 15-second timeout. The tool currently forwards SQL directly; read-only access is a boundary to decide and enforce.
-Timing: 3 minutes.
+Be precise: the workflow excludes 2026 actuals from model input, but the mock server does not technically prevent access.
+Timing: 2 minutes.
 -->
 
 ---
 layout: two-cols-header
+zoom: 0.9
 ---
 
-# RPT: known context, prediction rows, and output
+# Current tool: `run_rpt_prediction`
 
 ::left::
 
-### Current demo: two source tables
+```ts
+run_rpt_prediction({
+  tableName: 'journal_and_plan',
+  predictionWhere: "source = 'plan'",
+  contextWhere: "source = 'actual'", // optional
+  targetColumn: 'amountInCompanyCodeCurrency',
+  taskType: 'regression',
+  outputTable: 'forecast_2026',
+})
+```
+
+::right::
+
+One table or view contains both row sets. `predictionWhere` selects prediction rows; context defaults to its inverse.
+
+### Advantages
+
+- Flexible split; a view can join or union sources first
+- Does not require the model to create a new table/view for context rows
+- Preserves all columns selected from the source
+
+### Disadvantages
+
+- Requires safe, correct SQL predicates
+- Explicit context and prediction predicates can overlap
+- Separate source tables need a view or union
+
+<!--
+This is the flexible single-relation tool. The main risk is that the caller owns the semantic split when both predicates are supplied.
+Timing: 90 seconds.
+-->
+
+---
+layout: two-cols-header
+zoom: 0.9
+---
+
+# Current tool: `run_rpt_prediction_from_sources`
+
+::left::
 
 ```ts
 run_rpt_prediction_from_sources({
@@ -339,66 +302,54 @@ run_rpt_prediction_from_sources({
 })
 ```
 
-- Only shared columns enter RPT.
-- The tool adds `source: actual | plan`.
-- It keeps the actual target values and nulls the target column on plan rows.
-- `forecast_2026` gets `predicted_<target>` plus confidence columns.
-
 ::right::
 
-### Single table or a view
+Two tables provide the known and unknown rows. The tool keeps shared columns, adds `source`, and nulls the prediction target.
 
-`run_rpt_prediction` accepts a named session table **or** a named view.
+### Advantages
 
-- A view is a saved `SELECT`; it does not copy data. Use it to join, union, project, or filter before prediction.
-- `predictionWhere` is a SQL predicate **without** `WHERE`; it selects target rows.
-- `contextWhere` is optional. If omitted, context is `NOT (predictionWhere)`.
-- Use the two-source tool when actuals and planning rows are separate tables.
+- Explicit roles; no SQL predicate in the tool call
+- Direct match for this demo's two OData entities
 
-```text
-predictionWhere:
-ledgerFiscalYear = '2026' AND fiscalPeriod IN ('010', '011', '012')
-```
+### Disadvantages
+
+- Drops non-shared columns; target must exist in both tables
+- Fixed `actual` / `plan` source semantics
+- Narrower row sets require filtering before the call
 
 <!--
-Make the split explicit. A prediction is not “run RPT on a table”: it is run with known target values in context and target rows whose value is nulled before the model call.
-Timing: 2 minutes.
+This is the direct fit for the demo because journal actuals and planning targets arrive in different session tables.
+Timing: 90 seconds.
 -->
 
 ---
-layout: two-cols-header
----
 
-# SQL scope and constraints
+# Prediction tool API options
 
-::left::
+<table class="option-table mt-7">
+  <thead>
+    <tr><th>Option</th><th>Advantages</th><th>Disadvantages</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Keep both current tools</strong></td>
+      <td>Each contract directly matches one data shape; no mandatory staging view</td>
+      <td>Overlapping capability, more tool-selection guidance, and duplicated tests/documentation</td>
+    </tr>
+    <tr>
+      <td><strong>Consolidate as <code>run_tabular_prediction</code></strong></td>
+      <td>One capability name; provider-neutral surface for RPT, TabPFN, or another backend</td>
+      <td>A larger discriminated schema; abstraction can hide how rows and columns are aligned</td>
+    </tr>
+  </tbody>
+</table>
 
-### What it is
+<div class="boundary-note mt-7"><strong>Both tools currently return the same output shape:</strong> predicted value, confidence, lower interval, and upper interval columns in a named session table.</div>
 
-- In-memory DuckDB in the TypeScript process (analytical DB, PostgreSQL dialect)
-- Session workspace for the demo/workshop
-- Local shaping of filtered business rows and prediction output
-
-### What it is not
-
-- A SAP DB (HANA)
-- A production persistence tier
-- A replacement for source-side aggregation where the API supports it
-
-::right::
-
-### Constraints
-
-- Source rows are copied into process memory
-- Free-form SQL needs execution limits and a read-only policy
-- Java should also have good support for in-memory SQL, e.g. SQLite
-
-<div class="mt-8 rounded border border-rose-300/40 bg-rose-300/10 p-4">
-  For large datasets, filter and aggregate at the source when the service can express the question. Do not load an unbounded dataset for local SQL.
-</div>
+<div class="decision mt-5"><strong>Workshop decision:</strong> document both current tools and their selection rule. Consolidate only after a second backend proves the common contract.</div>
 
 <!--
-Call it DuckDB, not HANA. It fills gaps in the current mock/API shape; it is not a production data-layer proposal.
+This is a tool-surface decision, not a model-quality decision. Keep TabPFN or another backend behind a provider-neutral contract only when the shared inputs and outputs are concrete.
 Timing: 2 minutes.
 -->
 
@@ -407,36 +358,67 @@ layout: two-cols
 layoutClass: gap-12
 ---
 
-# Other options
+# Ground-truth evaluation
 
-### OData aggregation/pushdown
+### Compare at identical grain
 
-Use when the service can express the filter and aggregation.
+```sql
+SELECT p.fiscalPeriod,
+       p.predicted_amount AS forecast,
+       a.actual_amount AS actual
+FROM forecast_2026 p
+JOIN actuals_2026 a
+  USING (fiscalPeriod);
+```
 
-**Missing here:** joins across the two roots, regrouping session-local RPT output, and `$apply` in the mock.
-
-### Fixed-purpose business tools
-
-Narrow tool surface.
-
-**Trade-off:** a new analytical question often means another tool.
+The same cost-center, year, sign, and aggregation rules must apply to both paths.
 
 ::right::
 
-### Sandboxed JavaScript
+### Report understandable evidence
 
-Option: [@langchain/quickjs](https://npmx.dev/package/@langchain/quickjs).
-
-**Use:** flexible transformations without teaching SQL.
-
-**Extra work:** sandboxing, resource limits, dependency policy, generated-code review, error reporting, and provenance.
-
-<div class="mt-10 rounded border border-cyan-300/40 bg-cyan-300/10 p-4">
-  Suggested order: begin with limited SQL. Revisit a QuickJS interpreter as a separate experiment.
+<div class="metric-grid">
+  <div><strong>Forecast</strong><span>predicted value</span></div>
+  <div><strong>Actual</strong><span>held-back value</span></div>
+  <div><strong>% of actual</strong><span>direction and scale</span></div>
+  <div><strong>MAPE</strong><span>error across periods</span></div>
 </div>
 
+<div class="decision mt-7"><code>get_ground_truth</code> loads FY 2026 actuals only after prediction and joins them at `fiscalPeriod`.</div>
+
 <!--
-QuickJS is a different topic: executing generated code safely. It adds operational concerns beyond limited SQL.
+Keep ground-truth evaluation in the core flow because it produces the measured result discussed by the workshop.
+Timing: 3 minutes.
+-->
+
+---
+
+# Implementation alternatives
+<table class="option-table mt-7">
+  <thead>
+    <tr><th>Option</th><th>Advantages</th><th>Disadvantages</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>OData pushdown</strong></td>
+      <td>Filters and aggregates at the source; transfers fewer rows</td>
+      <td>No cross-root join here; cannot regroup session-local RPT output; mock has no general <code>$apply</code></td>
+    </tr>
+    <tr>
+      <td><strong>Purpose-built tools</strong></td>
+      <td>Small, auditable model action surface with repeatable behavior</td>
+      <td>A new analytical question often requires another tool; less composable</td>
+    </tr>
+    <tr>
+      <td><strong>Sandboxed JavaScript</strong></td>
+      <td>Flexible transformations in a language familiar to JavaScript developers</td>
+      <td>Requires sandboxing, limits, provenance, and review of generated code</td>
+    </tr>
+  </tbody>
+</table>
+
+<!--
+The selection is specific to this scenario and the implemented service boundaries.
 Timing: 3 minutes.
 -->
 
@@ -444,62 +426,33 @@ Timing: 3 minutes.
 layout: two-cols-header
 ---
 
-# SQL scope for the first workshop pass
+# Workshop implementation scope
 
 ::left::
 
-### Start here
+### First exercise pass
 
 1. Retrieve filtered OData rows
 2. Load named session tables
-3. `SELECT`, `WHERE`, `GROUP BY`, `SUM`
-4. Join at a stated grain
-5. Show the query and result in the activity rail
-
-### Checkpoint
-
-Can we trace each result back to the input rows and query?
+3. Aggregate with SQL
+4. Predict unknown targets
+5. Compare against held-back actuals
+6. Inspect every tool call and result
 
 ::right::
 
-### Follow-up candidates
+### Finish before authoring exercises
 
-- SQL baseline: carry-forward, moving average, simple regression
-- Compare baseline and tabular model against the same actuals
-- QuickJS: code execution and provenance
-- Java: same tools, prompts, output grain, and metrics; different framework internals allowed
+- Document both prediction tools and decide whether a second backend justifies consolidation
+- Keep filters, signs, and output grain identical in evaluation
+- Stage starter and solution states
+- Package the shared mock service for both language tracks
 
-<!--
-Keep advanced SQL, model configuration, sandboxing, and Java details out of the first exercise pass.
-Timing: 2 minutes.
--->
-
----
-layout: two-cols-header
----
-
-# Open implementation issues
-
-::left::
-
-### Tool and data contract
-
-- Replace `run_rpt_prediction` and `run_rpt_prediction_from_sources` with single tool
-- State that actuals are excluded by workflow, not server controls
-- Compare prediction and actual using identical filters and grain
-
-::right::
-
-### Exercise delivery
-
-- Create staged starter/solution states from the completed reference
-- Check SAP AI Core credentials, entitlement, and model availability
-- Document ports, connectivity, model failures, and participant-owned credentials
-- Package the mock-server as one command/container e.g. via `bun --compile` for Java track
+<div class="checkpoint mt-6">Success: participants can explain where every number came from, why prediction was needed, and how accurate it was.</div>
 
 <!--
-These are the remaining implementation and exercise-authoring tasks.
-Timing: 2 minutes.
+Normal JavaScript startup is `mise run webui`; open http://localhost:3142. Node.js 24, pnpm 12, `pnpm install`, and local SAP AI Core credentials are prerequisites.
+Timing: 3 minutes.
 -->
 
 ---
@@ -508,11 +461,15 @@ layout: end
 
 # Q / A
 
-<div class="mt-12 text-sm opacity-70">
-  Demo: <code>http://localhost:3142</code> · Deck: <code>slides/slides.md</code>
+<div class="qa-path mt-10">
+  <span>Known data</span>
+  <span>SQL</span>
+  <span>Prediction</span>
+  <span>Proof</span>
 </div>
 
-<!--
-Leave this visible for discussion. The iframe is local presenter convenience; use the browser-tab fallback if needed.
--->
+<div class="mt-12 text-sm opacity-70">Demo: <code>http://localhost:3142</code></div>
 
+<!--
+Leave this visible for discussion. Use the browser-tab fallback if the local iframe is blocked.
+-->

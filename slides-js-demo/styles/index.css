@@ -30,4 +30,190 @@
   border: 1px solid #c9d8e6;
   border-radius: 0;
   box-shadow: none;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.cover-route,
+.qa-path {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 3rem;
+  color: #0a4a8a;
+  font-weight: 600;
+}
+
+.cover-route i {
+  width: 1.8rem;
+  height: 1px;
+  background: #c9d8e6;
+}
+
+.question-path,
+.prediction-split {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.2rem;
+  text-align: left;
+}
+
+.question-path > div,
+.prediction-split > div {
+  border-left: 3px solid #0a6ed1;
+  padding-left: 1rem;
+}
+
+.question-path strong,
+.question-path span,
+.prediction-split span,
+.prediction-split strong {
+  display: block;
+}
+
+.question-path strong,
+.prediction-split strong {
+  color: #0a4a8a;
+}
+
+.question-path span,
+.prediction-split p {
+  margin-top: 0.55rem;
+  font-size: 0.9rem;
+  opacity: 0.78;
+}
+
+.prediction-split span {
+  font-size: 0.78rem;
+  opacity: 0.72;
+}
+
+.prediction-split strong {
+  margin-top: 0.5rem;
+}
+
+.principle,
+.decision,
+.recommendation,
+.checkpoint,
+.boundary-note {
+  border-left: 3px solid #0a6ed1;
+  background: #eef5fc;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.9rem;
+}
+
+.demo-steps {
+  display: grid;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.demo-steps > div {
+  display: grid;
+  grid-template-columns: 1.8rem 1fr;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.demo-steps b,
+.evidence-ladder b {
+  color: #0a4a8a;
+}
+
+.evidence-ladder {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+.evidence-ladder > div {
+  border-top: 3px solid #0a6ed1;
+  padding-top: 0.8rem;
+}
+
+.evidence-ladder strong,
+.evidence-ladder span {
+  display: block;
+}
+
+.evidence-ladder strong {
+  margin-top: 0.5rem;
+  color: #0a4a8a;
+}
+
+.evidence-ladder span {
+  margin-top: 0.4rem;
+  font-size: 0.82rem;
+  opacity: 0.8;
+}
+
+.boundary-line {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  color: #475e75;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.boundary-line span {
+  border-top: 1px solid #c9d8e6;
+  padding-top: 0.5rem;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.8rem;
+}
+
+.metric-grid div {
+  border-left: 3px solid #0a6ed1;
+  padding-left: 0.75rem;
+}
+
+.metric-grid strong,
+.metric-grid span {
+  display: block;
+}
+
+.metric-grid span {
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  opacity: 0.75;
+}
+
+.option-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.option-table th,
+.option-table td {
+  border-bottom: 1px solid #c9d8e6;
+  padding: 0.7rem 0.8rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.option-table th {
+  color: #0a4a8a;
+  background: #eef5fc;
+  font-weight: 600;
+}
+
+.option-table td:first-child {
+  width: 20%;
+  color: #0a4a8a;
+}
+
+.qa-path {
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+.qa-path span {
+  border-bottom: 2px solid #0a6ed1;
+  padding-bottom: 0.4rem;
 }
