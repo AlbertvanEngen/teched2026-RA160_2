@@ -1,69 +1,93 @@
-import { randomUUID } from 'node:crypto';
 import { styleText } from 'node:util';
 import { AIMessage, ToolMessage } from '@langchain/core/messages';
-import { createFinancialAgent } from './agent.ts';
+import {
+  AGENT_DATA_MODE,
+  createFinancialAgent,
+  createSession,
+  sessionContext,
+} from './agent.ts';
 
+const promptArgument =
+  process.argv[2] === '--' ? process.argv[3] : process.argv[2];
 const userPrompt =
-  process.argv[2] ??
+  promptArgument ??
   'Load the top 10 financial planning entries and summarize them by company code.';
 
-const sessionId = randomUUID();
+const sessionId = createSession();
 
 console.log(styleText('cyan', `\nPrompt: ${userPrompt}\n`));
 console.log(styleText('dim', `Session: ${sessionId}\n`));
+console.log(styleText('dim', `Data mode: ${AGENT_DATA_MODE}\n`));
 
 const agent = createFinancialAgent();
 
-// Explicit type arguments keep the output as state values; inference otherwise widens it to the SSE byte stream.
-const stream = await agent.stream<'values', false, undefined>(
-  {
-    messages: [{ role: 'user', content: userPrompt }],
-  },
-  {
-    streamMode: 'values',
-    configurable: { thread_id: sessionId },
-  },
-);
+await sessionContext.run(sessionId, async () => {
+  // Explicit type arguments keep the output as state values; inference otherwise widens it to the SSE byte stream.
+  const stream = await agent.stream<'values', false, undefined>(
+    {
+      messages: [{ role: 'user', content: userPrompt }],
+    },
+    {
+      streamMode: 'values',
+      configurable: { thread_id: sessionId },
+    },
+  );
 
-let finalContent = '';
+  let finalContent = '';
 
-for await (const { messages } of stream) {
-  const last = messages[messages.length - 1];
-
-  if (AIMessage.isInstance(last)) {
-    const toolCalls = last.tool_calls ?? [];
-    for (const tc of toolCalls) {
-      console.log(
-        styleText('yellow', `[tool] ${tc.name}`) +
-          ' ' +
-          styleText('dim', JSON.stringify(tc.args)),
-      );
+  for await (const chunk of stream) {
+    if (
+      typeof chunk !== 'object' ||
+      chunk === null ||
+      !('messages' in chunk) ||
+      !Array.isArray(chunk.messages)
+    ) {
+      continue;
     }
-    if (!toolCalls.length && last.content) {
-      finalContent =
+    const messages = chunk.messages;
+    const last = messages[messages.length - 1];
+
+    if (AIMessage.isInstance(last)) {
+      const toolCalls = last.tool_calls ?? [];
+      for (const toolCall of toolCalls) {
+        console.log(
+          styleText('yellow', `[tool] ${toolCall.name}`) +
+            ' ' +
+            styleText('dim', JSON.stringify(toolCall.args)),
+        );
+      }
+      if (!toolCalls.length && last.content) {
+        finalContent =
+          typeof last.content === 'string'
+            ? last.content
+            : JSON.stringify(last.content);
+      }
+    } else if (ToolMessage.isInstance(last)) {
+      const text =
         typeof last.content === 'string'
           ? last.content
-          : JSON.stringify(last.content);
+          : Array.isArray(last.content)
+            ? last.content
+                .map((content) => {
+                  if (
+                    typeof content === 'object' &&
+                    content !== null &&
+                    'text' in content &&
+                    typeof content.text === 'string'
+                  ) {
+                    return content.text;
+                  }
+                  return JSON.stringify(content);
+                })
+                .join(' ')
+            : JSON.stringify(last.content);
+      const preview = text.slice(0, 120);
+      console.log(
+        styleText('green', '[result] ') +
+          styleText('dim', preview + (text.length > 120 ? '…' : '')),
+      );
     }
-  } else if (ToolMessage.isInstance(last)) {
-    const text =
-      typeof last.content === 'string'
-        ? last.content
-        : Array.isArray(last.content)
-          ? last.content
-              .map((c) =>
-                typeof c === 'object' && c !== null && 'text' in c
-                  ? String((c as { text?: string }).text ?? JSON.stringify(c))
-                  : JSON.stringify(c),
-              )
-              .join(' ')
-          : JSON.stringify(last.content);
-    const preview = text.slice(0, 120);
-    console.log(
-      styleText('green', `[result] `) +
-        styleText('dim', preview + (text.length > 120 ? '…' : '')),
-    );
   }
-}
 
-console.log(`\n${styleText('bold', finalContent)}`);
+  console.log(`\n${styleText('bold', finalContent)}`);
+});

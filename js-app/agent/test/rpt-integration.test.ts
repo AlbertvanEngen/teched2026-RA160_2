@@ -1,5 +1,5 @@
 /**
- * E2E: real RPT MAPE vs aggregate SQL moving-average MAPE on 2026 A1000 actuals.
+ * E2E: compare seasonal SQL, RPT, and TabPFN MAPE on 2026 A1000 actuals.
  * Skipped when AICORE_SERVICE_KEY is absent (CI without credentials).
  *
  * No DuckDB, no Parquet file, no extra dependencies.
@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { RptClient } from '@sap-ai-sdk/rpt';
+import { TabpfnClient } from '@sap-ai-sdk/tabpfn';
 
 import { getFinancialPlanningEntries } from '../../../mock-server/src/financial-planning/financial-planning-data.ts';
 
@@ -48,7 +49,7 @@ function topColumnScores(
     .join(', ');
 }
 
-test('RPT MAPE beats SQL 3-period moving average for 2026 A1000 actuals', {
+test('compares SQL, RPT, and TabPFN forecasts for 2026 A1000 actuals', {
   skip: process.env.AICORE_SERVICE_KEY
     ? undefined
     : 'AICORE_SERVICE_KEY not set',
@@ -61,23 +62,65 @@ test('RPT MAPE beats SQL 3-period moving average for 2026 A1000 actuals', {
   const context = actual.filter((e) => CONTEXT_YEARS.has(e.LedgerFiscalYear));
   const predInput = actual.filter((e) => e.LedgerFiscalYear === FORECAST_YEAR);
 
-  // ── SQL baseline: 3yr per-period average × global 1yr growth ───────────────
+  // ── SQL baseline: aggregate seasonal average with global year-over-year growth.
   const periodTotal = (year: string, period: string) =>
     actual
       .filter((e) => e.LedgerFiscalYear === year && e.FiscalPeriod === period)
       .reduce((s, e) => s + Math.abs(Number(e.AmountInCompanyCodeCurrency)), 0);
 
-  const total24 = PERIODS.reduce((s, p) => s + periodTotal('2024', p), 0);
-  const total25 = PERIODS.reduce((s, p) => s + periodTotal('2025', p), 0);
+  const total24 = PERIODS.reduce(
+    (sum, period) => sum + periodTotal('2024', period),
+    0,
+  );
+  const total25 = PERIODS.reduce(
+    (sum, period) => sum + periodTotal('2025', period),
+    0,
+  );
   const globalGrowth = total25 / total24;
-
-  const sqlPred = PERIODS.map((p) => {
-    const avg3yr =
-      ['2023', '2024', '2025'].reduce((s, y) => s + periodTotal(y, p), 0) / 3;
-    return avg3yr * globalGrowth;
+  const sqlPred = PERIODS.map((period) => {
+    const seasonalAverage =
+      ['2023', '2024', '2025'].reduce(
+        (sum, year) => sum + periodTotal(year, period),
+        0,
+      ) / 3;
+    return seasonalAverage * globalGrowth;
   });
   const actuals2026 = PERIODS.map((p) => periodTotal(FORECAST_YEAR, p));
   const sqlMape = mape(sqlPred, actuals2026);
+
+  const tabpfnResponse = await new TabpfnClient('tabpfn-3-plus').predict({
+    task_config: {
+      task: 'regression',
+      predict_params: { output_type: 'mean' },
+      tabpfn_config: { categorical_features_indices: [2], random_state: 42 },
+    },
+    x_train: context.map((entry) => [
+      Number(entry.LedgerFiscalYear),
+      Number(entry.FiscalPeriod),
+      entry.GLAccount,
+    ]),
+    y_train: context.map((entry) =>
+      Math.abs(Number(entry.AmountInCompanyCodeCurrency)),
+    ),
+    x_test: predInput.map((entry) => [
+      Number(entry.LedgerFiscalYear),
+      Number(entry.FiscalPeriod),
+      entry.GLAccount,
+    ]),
+  });
+  const tabpfnRowPred = Array.isArray(tabpfnResponse.prediction)
+    ? tabpfnResponse.prediction.map(Number)
+    : [];
+  const tabpfnByPeriod = new Map<string, number>();
+  predInput.forEach((entry, index) => {
+    tabpfnByPeriod.set(
+      entry.FiscalPeriod,
+      (tabpfnByPeriod.get(entry.FiscalPeriod) ?? 0) +
+        Math.abs(tabpfnRowPred[index] ?? 0),
+    );
+  });
+  const tabpfnPred = PERIODS.map((period) => tabpfnByPeriod.get(period) ?? 0);
+  const tabpfnMape = mape(tabpfnPred, actuals2026);
 
   // RowType<DataSchema> is Record<string,string|number>; null is not assignable.
   // Safe: prediction_placeholder:null tells RPT to fill exactly these cells.
@@ -161,13 +204,20 @@ test('RPT MAPE beats SQL 3-period moving average for 2026 A1000 actuals', {
   const rptMape = mape(rptPred, actuals2026);
 
   const scores = topColumnScores(response.explanations?.top_column_scores);
-  console.log(
-    `SQL MA MAPE: ${sqlMape.toFixed(1)}%  RPT MAPE: ${rptMape.toFixed(1)}%`,
-  );
+  console.log(`Seasonal SQL MAPE: ${sqlMape.toFixed(1)}%`);
+  console.log(`RPT MAPE: ${rptMape.toFixed(1)}%`);
+  console.log(`TabPFN-3-plus MAPE: ${tabpfnMape.toFixed(1)}%`);
   console.log(`Top column scores: ${scores}`);
 
+  assert.ok(Number.isFinite(sqlMape));
   assert.ok(
     rptMape < sqlMape,
-    `RPT MAPE ${rptMape.toFixed(1)}% should beat SQL MA MAPE ${sqlMape.toFixed(1)}%`,
+    `RPT MAPE ${rptMape.toFixed(1)}% should beat seasonal SQL MAPE ${sqlMape.toFixed(1)}%`,
+  );
+  assert.equal(tabpfnPred.length, PERIODS.length);
+  assert.ok(tabpfnPred.every(Number.isFinite));
+  assert.ok(
+    tabpfnMape < sqlMape,
+    `TabPFN-3-plus MAPE ${tabpfnMape.toFixed(1)}% should beat seasonal SQL MAPE ${sqlMape.toFixed(1)}%`,
   );
 });

@@ -725,11 +725,58 @@ body,
   flex-shrink: 0;
 }
 
+/* Activity toggle — only visible on narrow screens */
+.shell-bar__activity-toggle {
+  display: none;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0.25rem;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  padding: 0.25rem 0.5rem;
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  cursor: pointer;
+  margin-left: auto;
+}
+.shell-bar__activity-toggle:hover {
+  border-color: rgba(255, 255, 255, 0.75);
+  color: #fff;
+}
+.shell-bar__activity-toggle:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
 @media (max-width: 640px) {
   .layout {
     grid-template-columns: 1fr;
   }
+  .shell-bar__activity-toggle {
+    display: inline-flex;
+    align-items: center;
+  }
   .tool-rail {
+    position: fixed;
+    top: 2.75rem;
+    left: 0;
+    bottom: 0;
+    width: min(280px, 85vw);
+    z-index: 20;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+  }
+  .tool-rail.is-open {
+    transform: translateX(0);
+  }
+  .tool-rail-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 19;
+    background: rgba(0, 0, 0, 0.4);
+  }
+}
+@media (min-width: 641px) {
+  .tool-rail-backdrop {
     display: none;
   }
 }

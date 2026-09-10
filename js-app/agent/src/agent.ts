@@ -1,39 +1,64 @@
 import { MemorySaver } from '@langchain/langgraph-checkpoint';
+import { createCodeInterpreterMiddleware } from '@langchain/quickjs';
 import { OrchestrationClient } from '@sap-ai-sdk/langchain';
 import { orchestrationPromptCachingMiddleware } from '@sap-ai-sdk/langchain/orchestration/prompt-caching-middleware';
 import { createAgent } from 'langchain';
-import { createViewTool } from './create-view-tool.ts';
-import { dropTableTool } from './drop-table-tool.ts';
 import { getGroundTruthTool } from './get-ground-truth-tool.ts';
+import {
+  contextFinancialPlanningTool,
+  contextJournalEntryTool,
+  listFilesTool,
+  quickJsFinancialPlanningTool,
+  quickJsJournalEntryTool,
+  readFileTool,
+  writeFileTool,
+} from './json-data-tools.ts';
 import {
   queryFinancialPlanningTool,
   queryJournalEntryTool,
 } from './odata-tools.ts';
-import {
-  runRptPredictionFromSourcesTool,
-  runRptPredictionTool,
-} from './rpt-tool.ts';
+import { runRptPredictionTool } from './rpt-tool.ts';
 import { runSqlTool } from './sql-tool.ts';
+import { runTabpfnPredictionTool } from './tabpfn-tool.ts';
 
-export const SYSTEM_PROMPT = `You are a financial data analyst agent with access to two SAP OData services and a local in-memory SQL workspace for reporting and aggregation.
+export type AgentDataMode = 'sql' | 'quickjs' | 'context';
 
-Tools:
-- query_financial_planning / query_journal_entry fetch from OData and APPEND into a named session table.
-  Pick a descriptive name; tables are created on first use and accumulate across calls.
-- run_sql is your primary reporting tool: filter, join, GROUP BY, and aggregate session tables with
-  SUM/AVG/COUNT/MIN/MAX — use it liberally to answer questions from loaded data.
-- create_view saves a SQL transformation as a virtual table; drop_table cleans up tables and views.
-- run_rpt_prediction_from_sources / run_rpt_prediction are SAP RPT, a tabular foundation model.
-  They take context rows with known values plus rows to predict, and write the predicted values into
-  an output table you name. Output columns include predicted_<targetColumn>, confidence_<targetColumn>,
-  confidence_interval_lower_<targetColumn>, and confidence_interval_upper_<targetColumn>.
-  Query that table afterwards to aggregate predictions and uncertainty.
-  For a single table, run_rpt_prediction uses predictionWhere (and optional contextWhere) to pick
-  which rows to forecast — e.g. future fiscal periods or rows missing the target value. When actuals
-  and planning are in separate tables, use run_rpt_prediction_from_sources instead.
-- get_ground_truth compares an RPT prediction table against ground truth from the mock data generators
-  (journal entries or planning ACTUAL rows). It joins on groupBy dimensions and writes predicted vs
-  actual values plus percentage metrics (pct_of_actual, pct_below_actual, pct_above_actual, MAPE).
+const COMMON_PROMPT = `You are a financial data analyst agent with access to two SAP OData services.
+
+
+Data integrity and units:
+- Look at source data before answering. Never invent rows, totals, currencies, or units.
+- Fetch narrowly with server-side filters. Deduplicate repeated source rows by id before aggregating.
+- Never relabel a value as USD, EUR, or another unit without evidence from the matching currency column.
+- Financial planning has BUDGET, FORECAST, ACTUAL, and PLAN rows. Loading multiple categories can multiply totals, so filter planningCategory unless the question compares categories.
+- Journal expense rows are negative. Use absolute values only when explicitly presenting spend magnitude, and say that you did so.
+
+Shared columns: companyCode, costCenter, profitCenter, glAccount, ledger, ledgerFiscalYear,
+fiscalPeriod (001–012), fiscalYearPeriod.
+Fiscal periods map to calendar quarters as follows: 001–003 = Q1, 004–006 = Q2,
+007–009 = Q3, and 010–012 = Q4. Aggregate by fiscalYearPeriod when a year-quarter
+grain is requested.
+
+Data sources:
+- Financial planning: fiscal years 2018–2028. Each category row is split into 1–2 line items.
+- Journal entries: fiscal years 2018–2028. Each cell is split into 5–7 signed line items.
+- Planning ACTUAL amounts match the absolute journal-entry sum for the same dimensions.
+
+Present the requested grain, show the currency, and state material filters or result limits.`;
+
+const SQL_MODE_PROMPT = `${COMMON_PROMPT}
+
+Workspace mode: SQL.
+- query_financial_planning and query_journal_entry append fetched rows to named in-memory DuckDB tables.
+- run_sql is the primary reporting tool: run any SQL — SELECT for reporting, CREATE OR REPLACE VIEW
+  to define virtual tables, DROP TABLE/VIEW to clean up, and any other DML or DDL.
+- run_rpt_prediction is SAP RPT, a tabular foundation model. It writes predicted values into an output
+  table. Use mode="single" when data is in one table (predictionWhere selects rows to forecast; optional
+  contextWhere selects known-truth rows). Use mode="dual" when actuals and planning live in separate tables.
+- run_tabpfn_prediction runs TabPFN on one session table and returns predictions as JSON. Use it for
+  in-context tabular prediction, especially when categorical or mixed-type features matter.
+- get_ground_truth compares an RPT prediction table to generated ground truth.
+- Session tables are append-only. A repeated fetch duplicates rows unless you deduplicate by id.
 
 Presentation:
 - When comparing forecasts to ground truth, lead with percentages — not raw currency variances.
@@ -50,73 +75,52 @@ Presentation:
   a prior year's actuals and call it ground truth unless the user explicitly asked for a
   year-over-year benchmark — label that clearly as YoY, not validation.
 
-Data integrity and units:
-- Session tables are append-only across tool calls. Repeating the same OData fetch can duplicate
-  rows in the session table. For reporting totals, deduplicate by source row id before aggregating
-  (for example, aggregate from a DISTINCT id subquery).
-- Never relabel a value as USD/EUR (or any other unit) without data evidence from those columns.
-  If the user expectation conflicts with loaded units (transactionCurrency, companyCodeCurrency, globalCurrency), report the data unit and state the mismatch.
-- If you discover duplicate-loaded rows or a unit mismatch after answering, rerun SQL and correct the data from the available sources.
+Use SQL for deterministic reporting. Use RPT only when the requested answer does not exist in source data and is genuinely predictive. Query prediction output after RPT to present the requested aggregate.`;
 
-How to think about it:
-- Look at the data first — you can't analyse what you haven't loaded.
-- If the answer already exists in the data, read it out of the data. Reporting on what was budgeted,
-  posted or spent is a SQL question, and adding a prediction to it just adds noise.
-- If the answer does not exist in the data — a forecast, a projection, a recommended plan value,
-  a period nobody has filled in yet — RPT is the primary forecast. A hand-rolled SQL trend
-  (window functions, LAG/LEAD, moving averages, REGR_*/CORR over source tables) is allowed only
-  as an explicitly labeled baseline for comparison against RPT — never as the primary answer
-  and never unlabeled. If you present a SQL baseline, name the method (e.g. "3-period moving
-  average of ACTUAL") and evaluate it against the same ground truth as RPT.
-- A baseline is only a fair comparison if it runs at the same grain as RPT. RPT predicts individual
-  line items, so build the baseline over line items too and aggregate it afterwards — do not fit a
-  trend on pre-aggregated monthly or quarterly totals and compare that against RPT's summed
-  line-level output. Aggregate both to the granularity the user asked for, at the same step.
-- When you do predict, RPT's output is the answer. Aggregate its output table to the granularity the
-  user asked for and present that, rather than reporting raw line-level predictions or relegating them
-  to a footnote beside numbers you derived yourself.
-- Forecast guardrails:
-  - For next-year planning forecasts, use planning ACTUAL history as context and target-year rows as prediction input.
-  - Filter planningCategory for totals and forecasting; only load multiple categories when the task explicitly compares categories, and then group by planningCategory.
-  - Do not use signed journal rows as context for a positive planning-target forecast unless explicitly requested.
-  - Run a quick SQL preflight (year/category totals) before prediction and a plausibility check after; if totals are clearly off-scale (for example around 10x), fix setup and rerun.
-  - If results look exactly 100x scaled, normalize only when corroborated by ground-truth comparison, and state that explicitly.
-- For get_ground_truth, targetColumn must be the base column name (for example amountInGlobalCurrency), not a predicted_* column; the tool derives predicted_<targetColumn>.
-- For get_ground_truth, targetColumn must be the base column name (for example amountInGlobalCurrency), not a predicted_* column; the tool derives predicted_<targetColumn>. Confidence columns can still be queried directly from the prediction output table with run_sql.
+const QUICKJS_MODE_PROMPT = `${COMMON_PROMPT}
 
-Tables share: companyCode, costCenter, profitCenter, glAccount, ledger, ledgerFiscalYear,
-fiscalPeriod (001–012), fiscalYearPeriod.
+Workspace mode: sandboxed JavaScript over session-scoped JSON files. SQL and RPT are unavailable in this evaluation mode.
+- Use js_eval for data access and analysis. Inside it, query through tools.queryFinancialPlanning or tools.queryJournalEntry; each writes a JSON array to the requested absolute path.
+- Read the rows with await tools.readFile({ path }) and JSON.parse. You may write derived JSON with tools.writeFile and inspect paths with tools.listFiles.
+- Prefer one js_eval call for retrieval plus filter/map/reduce aggregation. Keep large row arrays inside the sandbox and return only the compact evidence needed for the answer.
+- The sandbox has no network, Node.js APIs, imports, or host filesystem access. Only documented tools.* calls cross the boundary.
+- Use Promise.all only for independent source requests. Do not request the same source slice twice.`;
 
-Data sources (single shared truth — journal postings and planning rows are projections of the same underlying amounts):
-- Financial planning: budgets, forecasts, actuals, plans — fiscal year 2018–2028, fiscalPeriod 001–012.
-  Each cell (company × costCenter × glAccount × fiscalYear × fiscalPeriod) has four planning category
-  rows: BUDGET, FORECAST, ACTUAL, PLAN. They share the same canonical amount — ACTUAL matches
-  |journal entry sum| for the same dimensions. Each category row is split into 1–2 line items.
-  Loading without a planningCategory filter returns all four categories and quadruples the total.
-- Journal entries: posted accounting transactions — fiscal year 2018–2028, fiscalPeriod 001–012.
-  Expense accounts (510000, 610000, 620000, 630000) carry negative amounts; income accounts are
-  positive. Each cell is split into 5–7 line items, all of which sum to the same canonical amount
-  as the corresponding planning ACTUAL rows. Compare magnitudes with ABS() when evaluating against
-  planning amounts.`;
+const CONTEXT_MODE_PROMPT = `${COMMON_PROMPT}
 
+Workspace mode: model context only. SQL, JavaScript execution, files, and RPT are unavailable in this evaluation mode.
+- query_financial_planning and query_journal_entry return JSON arrays directly into the conversation.
+- Analyze those returned rows with your native reasoning. Keep each request narrowly filtered; each call returns at most 500 rows and defaults to 200.
+- If the complete answer would require rows beyond that limit, narrow the query into non-overlapping slices or disclose that the available context is incomplete.
+- Never claim an exact aggregate unless every relevant row was retrieved.`;
+
+export function resolveAgentDataMode(
+  value = process.env.AGENT_DATA_MODE,
+): AgentDataMode {
+  const mode = value?.trim().toLowerCase() || 'sql';
+  if (mode === 'sql' || mode === 'quickjs' || mode === 'context') {
+    return mode;
+  }
+  throw new Error(
+    `Invalid AGENT_DATA_MODE '${value}'. Expected sql, quickjs, or context.`,
+  );
+}
+
+export function systemPromptForMode(mode: AgentDataMode): string {
+  if (mode === 'quickjs') return QUICKJS_MODE_PROMPT;
+  if (mode === 'context') return CONTEXT_MODE_PROMPT;
+  return SQL_MODE_PROMPT;
+}
+
+export const AGENT_DATA_MODE = resolveAgentDataMode();
+export const SYSTEM_PROMPT = systemPromptForMode(AGENT_DATA_MODE);
 export const AGENT_RECURSION_LIMIT = 64;
-
 const checkpointer = new MemorySaver();
-
-let agentInstance: ReturnType<typeof createAgent> | null = null;
 
 function buildFinancialAgent() {
   const model = new OrchestrationClient([
-    {
-      promptTemplating: {
-        model: { name: 'gpt-5.6-luna' },
-      },
-    },
-    {
-      promptTemplating: {
-        model: { name: 'gemini-3.5-flash' },
-      },
-    },
+    // { promptTemplating: { model: { name: 'gpt-5.6-luna' } } },
+    { promptTemplating: { model: { name: 'gemini-3.5-flash' } } },
     {
       promptTemplating: {
         model: { name: 'anthropic--claude-4.6-sonnet' },
@@ -124,28 +128,51 @@ function buildFinancialAgent() {
     },
   ]);
 
+  const tools =
+    AGENT_DATA_MODE === 'context'
+      ? [contextFinancialPlanningTool, contextJournalEntryTool]
+      : AGENT_DATA_MODE === 'sql'
+        ? [
+            queryFinancialPlanningTool,
+            queryJournalEntryTool,
+            runSqlTool,
+            runRptPredictionTool,
+            runTabpfnPredictionTool,
+            getGroundTruthTool,
+          ]
+        : [];
+
+  const middleware =
+    AGENT_DATA_MODE === 'quickjs'
+      ? [
+          createCodeInterpreterMiddleware({
+            toolName: 'js_eval',
+            executionTimeoutMs: 30_000,
+            memoryLimitBytes: 64 * 1024 * 1024,
+            maxResultChars: 12_000,
+            ptc: [
+              quickJsFinancialPlanningTool,
+              quickJsJournalEntryTool,
+              readFileTool,
+              writeFileTool,
+              listFilesTool,
+            ],
+          }),
+          orchestrationPromptCachingMiddleware(),
+        ]
+      : [orchestrationPromptCachingMiddleware()];
+
   return createAgent({
     model,
     systemPrompt: SYSTEM_PROMPT,
     checkpointer,
-    tools: [
-      queryFinancialPlanningTool,
-      queryJournalEntryTool,
-      runSqlTool,
-      runRptPredictionTool,
-      runRptPredictionFromSourcesTool,
-      getGroundTruthTool,
-      dropTableTool,
-      createViewTool,
-    ],
-    middleware: [orchestrationPromptCachingMiddleware()],
+    tools,
+    middleware,
   }).withConfig({ recursionLimit: AGENT_RECURSION_LIMIT });
 }
+const agentInstance = buildFinancialAgent();
 
 export function getFinancialAgent() {
-  if (!agentInstance) {
-    agentInstance = buildFinancialAgent();
-  }
   return agentInstance;
 }
 
@@ -155,10 +182,9 @@ export function createFinancialAgent() {
 }
 
 export {
+  clearSession,
   createSession,
-  pruneExpiredSessions,
   registerSessionObject,
-  SESSION_TTL_MS,
   sessionContext,
   touchSession,
 } from './session-store.ts';
