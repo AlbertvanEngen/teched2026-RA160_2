@@ -9,6 +9,7 @@ import { registerSessionObject } from './session-store.ts';
 const rpt = (msg: string) => console.log(styleText('cyan', '[RPT] ') + msg);
 
 type TaskType = 'classification' | 'regression';
+const RPT_MODEL = process.env.RPT_MODEL ?? 'sap-rpt-1.6';
 
 type PredictionRow = {
   predicted: string | number;
@@ -295,7 +296,7 @@ async function callRpt(
   const dropped = columns.filter((c) => !features.includes(c));
   if (dropped.length) rpt(` Excluded from features: ${dropped.join(', ')}`);
 
-  const rptClient = new RptClient({ modelName: 'sap-rpt-1.6' });
+  const rptClient = new RptClient({ modelName: RPT_MODEL });
   return withParquetBlob(selectSql, features, (file) =>
     rptClient.predictParquet({
       file,

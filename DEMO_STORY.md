@@ -419,10 +419,12 @@ Expected visible flow:
 
 1. The agent loads historical journal entries as context.
 2. It loads the target planning rows for the forecast period.
-3. It invokes `run_tabular_prediction` for a regression task.
-4. The prediction tool writes results into a new session table.
-5. SQL aggregates the prediction table to monthly totals.
-6. The UI shows retrieval, prediction, and aggregation as distinct steps.
+3. SQL aggregates both sources to one row per fiscal year, fiscal period, G/L account, and ledger.
+4. It invokes `run_tabular_prediction` for those account-month rows.
+5. SQL sums account-level predictions into the twelve monthly totals.
+6. The UI shows retrieval, preparation, prediction, and aggregation as distinct steps.
+
+The low-data variant keeps only fiscal year 2025 for `A1000` model context and supplies 2022–2025 histories from the three peer entities. Shared account/month/cycle shapes and stable entity scales let the model transfer structure; the aggregate baselines still receive all four `A1000` years, making the comparison conservative.
 
 Important teaching points:
 
@@ -560,12 +562,12 @@ Optional work should come only after the core validation flow is complete.
 
 ### SQL forecast baseline
 
-Allow the agent to create a transparent baseline forecast with SQL, such as prior-year carry-forward, a moving average, or a simple regression.
+Allow the agent to create a transparent aggregate forecast with SQL, such as a global mean, seasonal moving average, or simple regression.
 Store the baseline in its own session table and compare it with the tabular-model output against the same actuals, filters, and aggregation grain.
 
-This extension should expose the generated SQL and label the method in the final answer.
-Do not describe the SQL as “random,” and do not assume SAP RPT wins the comparison.
-The value is the measured comparison between a transparent baseline and a specialized tabular model.
+The deterministic mock data combines account-specific seasonality and trends with a recurring ledger-adjustment cycle.
+Aggregate-only methods cannot see that row-level interaction; RPT and TabPFN receive the ledger and account dimensions and should materially outperform both the naive mean and seasonal SQL baselines.
+Expose the generated SQL, label every method, and report the measured MAPE rather than relying on an unverified quality claim.
 
 
 ### Model harmonization and prompt caching

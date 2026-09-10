@@ -1,9 +1,10 @@
 /**
- * E2E: compare seasonal SQL, RPT, and TabPFN MAPE on 2026 A1000 actuals.
- * Skipped when AICORE_SERVICE_KEY is absent (CI without credentials).
+ * E2E: compare naive mean, seasonal SQL, RPT, and TabPFN on twelve monthly
+ * A1000 totals for 2026. The models get one A1000 context year plus four years
+ * from peer entities, aggregated to account-month rows before prediction.
+ * Skipped when AICORE_SERVICE_KEY is absent.
  *
  * No DuckDB, no Parquet file, no extra dependencies.
- * Rows are sent directly via predictWithoutSchema (row/col payload format).
  */
 
 import assert from 'node:assert/strict';
@@ -13,6 +14,7 @@ import { RptClient } from '@sap-ai-sdk/rpt';
 import { TabpfnClient } from '@sap-ai-sdk/tabpfn';
 
 import { getFinancialPlanningEntries } from '../../../mock-server/src/financial-planning/financial-planning-data.ts';
+import type { PlanningEntry } from '../../../mock-server/src/shared/db.ts';
 
 const COST_CENTER = 'A1000';
 const CONTEXT_YEARS = new Set(['2022', '2023', '2024', '2025']);
@@ -22,6 +24,49 @@ const PERIODS = Array.from({ length: 12 }, (_, i) =>
 );
 const ROW_ID = '__row_id';
 const TARGET = 'amount';
+const RPT_MODEL = process.env.RPT_MODEL ?? 'sap-rpt-1.6';
+
+type AccountMonth = {
+  companyCode: string;
+  costCenter: string;
+  profitCenter: string;
+  ledgerFiscalYear: string;
+  fiscalPeriod: string;
+  glAccount: string;
+  ledger: string;
+  amount: number;
+};
+
+function aggregateAccountMonths(entries: PlanningEntry[]): AccountMonth[] {
+  const months = new Map<string, AccountMonth>();
+  for (const entry of entries) {
+    const key = [
+      entry.CompanyCode,
+      entry.CostCenter,
+      entry.ProfitCenter,
+      entry.LedgerFiscalYear,
+      entry.FiscalPeriod,
+      entry.GLAccount,
+      entry.Ledger,
+    ].join(':');
+    const month = months.get(key);
+    if (month) {
+      month.amount += Math.abs(Number(entry.AmountInCompanyCodeCurrency));
+    } else {
+      months.set(key, {
+        companyCode: entry.CompanyCode,
+        costCenter: entry.CostCenter,
+        profitCenter: entry.ProfitCenter,
+        ledgerFiscalYear: entry.LedgerFiscalYear,
+        fiscalPeriod: entry.FiscalPeriod,
+        glAccount: entry.GLAccount,
+        ledger: entry.Ledger,
+        amount: Math.abs(Number(entry.AmountInCompanyCodeCurrency)),
+      });
+    }
+  }
+  return [...months.values()];
+}
 
 function mape(predictions: number[], actuals: number[]): number {
   return (
@@ -49,24 +94,52 @@ function topColumnScores(
     .join(', ');
 }
 
-test('compares SQL, RPT, and TabPFN forecasts for 2026 A1000 actuals', {
+test('tabular models transfer peer patterns with one A1000 context year', {
   skip: process.env.AICORE_SERVICE_KEY
     ? undefined
     : 'AICORE_SERVICE_KEY not set',
 }, async () => {
   const all = await getFinancialPlanningEntries();
-  const actual = all.filter(
-    (e) => e.CostCenter === COST_CENTER && e.PlanningCategory === 'ACTUAL',
-  );
+  const allActual = all.filter((e) => e.PlanningCategory === 'ACTUAL');
+  const actual = allActual.filter((e) => e.CostCenter === COST_CENTER);
 
-  const context = actual.filter((e) => CONTEXT_YEARS.has(e.LedgerFiscalYear));
+  const context = allActual.filter(
+    (e) =>
+      CONTEXT_YEARS.has(e.LedgerFiscalYear) &&
+      (e.CostCenter !== COST_CENTER || e.LedgerFiscalYear === '2025'),
+  );
   const predInput = actual.filter((e) => e.LedgerFiscalYear === FORECAST_YEAR);
+  const contextMonths = aggregateAccountMonths(context);
+  const predictionMonths = aggregateAccountMonths(predInput);
+
+  const targetContextMonths = contextMonths.filter(
+    (month) => month.costCenter === COST_CENTER,
+  );
+  assert.equal(targetContextMonths.length, 36);
+  assert.equal(contextMonths.length - targetContextMonths.length, 432);
 
   // ── SQL baseline: aggregate seasonal average with global year-over-year growth.
   const periodTotal = (year: string, period: string) =>
     actual
       .filter((e) => e.LedgerFiscalYear === year && e.FiscalPeriod === period)
       .reduce((s, e) => s + Math.abs(Number(e.AmountInCompanyCodeCurrency)), 0);
+
+  const actuals2026 = PERIODS.map((p) => periodTotal(FORECAST_YEAR, p));
+  const naiveMean =
+    [...CONTEXT_YEARS].reduce(
+      (sum, year) =>
+        sum +
+        PERIODS.reduce(
+          (yearSum, period) => yearSum + periodTotal(year, period),
+          0,
+        ),
+      0,
+    ) /
+    (CONTEXT_YEARS.size * PERIODS.length);
+  const naiveMape = mape(
+    PERIODS.map(() => naiveMean),
+    actuals2026,
+  );
 
   const total24 = PERIODS.reduce(
     (sum, period) => sum + periodTotal('2024', period),
@@ -85,37 +158,45 @@ test('compares SQL, RPT, and TabPFN forecasts for 2026 A1000 actuals', {
       ) / 3;
     return seasonalAverage * globalGrowth;
   });
-  const actuals2026 = PERIODS.map((p) => periodTotal(FORECAST_YEAR, p));
   const sqlMape = mape(sqlPred, actuals2026);
 
   const tabpfnResponse = await new TabpfnClient('tabpfn-3-plus').predict({
     task_config: {
       task: 'regression',
       predict_params: { output_type: 'mean' },
-      tabpfn_config: { categorical_features_indices: [2], random_state: 42 },
+      tabpfn_config: {
+        categorical_features_indices: [2, 3, 4, 5, 6],
+        random_state: 42,
+      },
     },
-    x_train: context.map((entry) => [
-      Number(entry.LedgerFiscalYear),
-      Number(entry.FiscalPeriod),
-      entry.GLAccount,
+    x_train: contextMonths.map((month) => [
+      Number(month.ledgerFiscalYear),
+      Number(month.fiscalPeriod),
+      month.glAccount,
+      month.ledger,
+      month.companyCode,
+      month.costCenter,
+      month.profitCenter,
     ]),
-    y_train: context.map((entry) =>
-      Math.abs(Number(entry.AmountInCompanyCodeCurrency)),
-    ),
-    x_test: predInput.map((entry) => [
-      Number(entry.LedgerFiscalYear),
-      Number(entry.FiscalPeriod),
-      entry.GLAccount,
+    y_train: contextMonths.map((month) => month.amount),
+    x_test: predictionMonths.map((month) => [
+      Number(month.ledgerFiscalYear),
+      Number(month.fiscalPeriod),
+      month.glAccount,
+      month.ledger,
+      month.companyCode,
+      month.costCenter,
+      month.profitCenter,
     ]),
   });
   const tabpfnRowPred = Array.isArray(tabpfnResponse.prediction)
     ? tabpfnResponse.prediction.map(Number)
     : [];
   const tabpfnByPeriod = new Map<string, number>();
-  predInput.forEach((entry, index) => {
+  predictionMonths.forEach((entry, index) => {
     tabpfnByPeriod.set(
-      entry.FiscalPeriod,
-      (tabpfnByPeriod.get(entry.FiscalPeriod) ?? 0) +
+      entry.fiscalPeriod,
+      (tabpfnByPeriod.get(entry.fiscalPeriod) ?? 0) +
         Math.abs(tabpfnRowPred[index] ?? 0),
     );
   });
@@ -126,25 +207,27 @@ test('compares SQL, RPT, and TabPFN forecasts for 2026 A1000 actuals', {
   // Safe: prediction_placeholder:null tells RPT to fill exactly these cells.
   const PREDICT_PLACEHOLDER = null as unknown as number;
 
-  const contextRows = context.map((e, i) => ({
+  const contextRows = contextMonths.map((month, i) => ({
     [ROW_ID]: String(i + 1),
-    source: 'actual',
-    glAccount: e.GLAccount,
-    costCenter: e.CostCenter,
-    ledgerFiscalYear: Number(e.LedgerFiscalYear),
-    fiscalPeriod: e.FiscalPeriod,
-    planningCategory: e.PlanningCategory,
-    [TARGET]: Math.abs(Number(e.AmountInCompanyCodeCurrency)),
+    companyCode: month.companyCode,
+    costCenter: month.costCenter,
+    profitCenter: month.profitCenter,
+    glAccount: month.glAccount,
+    ledger: month.ledger,
+    ledgerFiscalYear: Number(month.ledgerFiscalYear),
+    fiscalPeriod: month.fiscalPeriod,
+    [TARGET]: month.amount,
   }));
 
-  const predRows = predInput.map((e, i) => ({
-    [ROW_ID]: String(context.length + i + 1),
-    source: 'plan',
-    glAccount: e.GLAccount,
-    costCenter: e.CostCenter,
-    ledgerFiscalYear: Number(e.LedgerFiscalYear),
-    fiscalPeriod: e.FiscalPeriod,
-    planningCategory: e.PlanningCategory,
+  const predRows = predictionMonths.map((month, i) => ({
+    [ROW_ID]: String(contextMonths.length + i + 1),
+    companyCode: month.companyCode,
+    costCenter: month.costCenter,
+    profitCenter: month.profitCenter,
+    glAccount: month.glAccount,
+    ledger: month.ledger,
+    ledgerFiscalYear: Number(month.ledgerFiscalYear),
+    fiscalPeriod: month.fiscalPeriod,
     [TARGET]: PREDICT_PLACEHOLDER,
   }));
 
@@ -159,7 +242,7 @@ test('compares SQL, RPT, and TabPFN forecasts for 2026 A1000 actuals', {
     explanations: { top_column_scores: 5 },
   };
 
-  const rptClient = new RptClient({ modelName: 'sap-rpt-1.6' });
+  const rptClient = new RptClient({ modelName: RPT_MODEL });
 
   // PredictionData<DataSchema> Xor on rows/columns doesn't model null values in rows.
   // Cast the whole payload; shape is correct at runtime.
@@ -191,33 +274,66 @@ test('compares SQL, RPT, and TabPFN forecasts for 2026 A1000 actuals', {
   }
 
   const periodTotals = new Map<string, number>();
-  predInput.forEach((e, i) => {
-    const rowId = String(context.length + i + 1);
+  predictionMonths.forEach((e, i) => {
+    const rowId = String(contextMonths.length + i + 1);
     const pred = predByRowId.get(rowId) ?? 0;
     periodTotals.set(
-      e.FiscalPeriod,
-      (periodTotals.get(e.FiscalPeriod) ?? 0) + Math.abs(pred),
+      e.fiscalPeriod,
+      (periodTotals.get(e.fiscalPeriod) ?? 0) + Math.abs(pred),
     );
   });
 
   const rptPred = PERIODS.map((p) => periodTotals.get(p) ?? 0);
   const rptMape = mape(rptPred, actuals2026);
+  const monthlyErrors = PERIODS.map((period, index) => ({
+    period,
+    rpt:
+      (Math.abs(rptPred[index] - actuals2026[index]) / actuals2026[index]) *
+      100,
+    tabpfn:
+      (Math.abs(tabpfnPred[index] - actuals2026[index]) / actuals2026[index]) *
+      100,
+  }));
+  const worstRptMonth = monthlyErrors.reduce((worst, month) =>
+    month.rpt > worst.rpt ? month : worst,
+  );
+  const worstTabpfnMonth = monthlyErrors.reduce((worst, month) =>
+    month.tabpfn > worst.tabpfn ? month : worst,
+  );
 
   const scores = topColumnScores(response.explanations?.top_column_scores);
+  const bestAggregateMape = Math.min(naiveMape, sqlMape);
+  console.log(`Global-mean MAPE: ${naiveMape.toFixed(1)}%`);
   console.log(`Seasonal SQL MAPE: ${sqlMape.toFixed(1)}%`);
-  console.log(`RPT MAPE: ${rptMape.toFixed(1)}%`);
+  console.log(`${RPT_MODEL} MAPE: ${rptMape.toFixed(1)}%`);
   console.log(`TabPFN-3-plus MAPE: ${tabpfnMape.toFixed(1)}%`);
+  console.log(
+    `Worst RPT month: ${worstRptMonth.period} at ${worstRptMonth.rpt.toFixed(1)}%`,
+  );
+  console.log(
+    `Worst TabPFN month: ${worstTabpfnMonth.period} at ${worstTabpfnMonth.tabpfn.toFixed(1)}%`,
+  );
   console.log(`Top column scores: ${scores}`);
 
+  assert.ok(Number.isFinite(naiveMape));
   assert.ok(Number.isFinite(sqlMape));
+  assert.equal(periodTotals.size, PERIODS.length);
   assert.ok(
-    rptMape < sqlMape,
-    `RPT MAPE ${rptMape.toFixed(1)}% should beat seasonal SQL MAPE ${sqlMape.toFixed(1)}%`,
+    rptMape < 5 && rptMape < bestAggregateMape * 0.5,
+    `RPT monthly MAPE ${rptMape.toFixed(1)}% should be below 5% and less than half the best aggregate baseline MAPE ${bestAggregateMape.toFixed(1)}%`,
+  );
+  assert.ok(
+    worstRptMonth.rpt < 10,
+    `RPT worst-month error ${worstRptMonth.rpt.toFixed(1)}% should stay below 10%`,
   );
   assert.equal(tabpfnPred.length, PERIODS.length);
   assert.ok(tabpfnPred.every(Number.isFinite));
   assert.ok(
-    tabpfnMape < sqlMape,
-    `TabPFN-3-plus MAPE ${tabpfnMape.toFixed(1)}% should beat seasonal SQL MAPE ${sqlMape.toFixed(1)}%`,
+    tabpfnMape < 5 && tabpfnMape < bestAggregateMape * 0.5,
+    `TabPFN-3-plus monthly MAPE ${tabpfnMape.toFixed(1)}% should be below 5% and less than half the best aggregate baseline MAPE ${bestAggregateMape.toFixed(1)}%`,
+  );
+  assert.ok(
+    worstTabpfnMonth.tabpfn < 12,
+    `TabPFN-3-plus worst-month error ${worstTabpfnMonth.tabpfn.toFixed(1)}% should stay below 12%`,
   );
 });

@@ -25,20 +25,17 @@ const ACCOUNT_BASE_AMOUNTS: Record<string, number> = {
   '630000': 5_000,
 };
 
-// Per-account seasonal profile: amp = wave amplitude, phase = period index of peak (0-based),
-// growth = annual compound growth rate.
-// Different accounts peak at different months AND grow at different rates — exactly the
-// cross-column signal RPT can learn from (glAccount, costCenter) features that a
-// period-level aggregate moving average cannot.
+// Per-account profile: amp = wave amplitude, phase = period index of peak (0-based),
+// growth = the multiplicative step within a repeating three-year operating cycle.
+// Different accounts peak at different months and move differently through the cycle,
+// giving tabular models cross-column signals that aggregate moving averages cannot use.
 const ACCOUNT_SEASONAL: Record<
   string,
   { amp: number; phase: number; growth: number }
 > = {
-  '410000': { amp: 0.2, phase: 4, growth: 0.03 }, // Revenue: mid-year peak, 3%/yr
+  '410000': { amp: 0.2, phase: 4, growth: 0.03 }, // Revenue: mid-year peak
   '420000': { amp: 0.12, phase: 4, growth: 0.01 }, // Other Income: follows revenue
   '510000': { amp: 0.18, phase: 5, growth: 0.035 }, // COGS: follows revenue, slight lag
-  // A1000 entity accounts: amplitudes sharpened so the aggregate has a dominant seasonal
-  // shape. Phase drift (0.2 period/yr) gives RPT a learnable trend that MA averages out.
   '610000': { amp: 0.25, phase: 7, growth: 0.02 }, // Operating Expenses: autumn spike
   '620000': { amp: 0.4, phase: 1, growth: 0.07 }, // Personnel: Q1 bonus, 40% swing
   '630000': { amp: 0.15, phase: 0, growth: -0.04 }, // Depreciation: first-month peak
@@ -55,6 +52,16 @@ const LEDGERS = [
   { code: '0L', name: 'Leading Ledger' },
   { code: '2L', name: 'Extension Ledger' },
 ];
+
+// Ledger is a genuine categorical driver, not random decoration. Extension-ledger
+// cells carry recurring adjustments while leading-ledger cells carry the steady
+// run rate. The three-year assignment cycle changes each period's future mix, so
+// aggregate seasonal averages miss it while tabular models can learn the ledger
+// effect from repeated account-period histories.
+const LEDGER_AMOUNT_MULTIPLIERS: Record<string, number> = {
+  '0L': 0.65,
+  '2L': 1.65,
+};
 
 const GL_ACCOUNTS = [
   { code: '410000', name: 'Revenue' },
@@ -93,11 +100,16 @@ const PROFIT_CENTERS = [
   { code: 'PC5000', name: 'Distribution' },
 ];
 
+// Entities share account/month/cycle shapes but apply stable size factors. This
+// lets a tabular model transfer structure from peer entities when one entity has
+// little history, while preserving distinct absolute levels.
+
 const ENTITY_PROFILES = [
   {
     company: COMPANIES[0],
     costCenter: COST_CENTERS[0],
     profitCenter: PROFIT_CENTERS[0],
+    amountScale: 1,
     currency: 'EUR',
     accounts: [GL_ACCOUNTS[3], GL_ACCOUNTS[4], GL_ACCOUNTS[5]],
     transactionTypes: ['SA', 'AB'],
@@ -106,6 +118,7 @@ const ENTITY_PROFILES = [
     company: COMPANIES[1],
     costCenter: COST_CENTERS[1],
     profitCenter: PROFIT_CENTERS[1],
+    amountScale: 1.2,
     currency: 'USD',
     accounts: [GL_ACCOUNTS[0], GL_ACCOUNTS[1], GL_ACCOUNTS[3]],
     transactionTypes: ['DR', 'DZ', 'RE'],
@@ -114,6 +127,7 @@ const ENTITY_PROFILES = [
     company: COMPANIES[3],
     costCenter: COST_CENTERS[6],
     profitCenter: PROFIT_CENTERS[1],
+    amountScale: 0.85,
     currency: 'USD',
     accounts: [GL_ACCOUNTS[0], GL_ACCOUNTS[1], GL_ACCOUNTS[3]],
     transactionTypes: ['DR', 'DZ', 'RE'],
@@ -122,6 +136,7 @@ const ENTITY_PROFILES = [
     company: COMPANIES[4],
     costCenter: COST_CENTERS[4],
     profitCenter: PROFIT_CENTERS[2],
+    amountScale: 1.1,
     currency: 'EUR',
     accounts: [GL_ACCOUNTS[3], GL_ACCOUNTS[4], GL_ACCOUNTS[5]],
     transactionTypes: ['SA', 'KR', 'KZ'],
@@ -156,6 +171,17 @@ const FISCAL_PERIODS = [
   '011',
   '012',
 ];
+
+function ledgerForCell(
+  entityIndex: number,
+  accountIndex: number,
+  fiscalYear: string,
+  fiscalPeriod: string,
+) {
+  const cycle =
+    Number(fiscalYear) + Number(fiscalPeriod) + entityIndex + accountIndex;
+  return LEDGERS[cycle % 3 === 0 ? 1 : 0];
+}
 
 type TruthCell = {
   company: (typeof COMPANIES)[number];
@@ -214,9 +240,9 @@ function semanticAmountMultiplier(
   return 1;
 }
 
-// σ=0.05: clean enough that RPT fits the seasonal signal tightly; noisy enough
-// that a moving average is still measurably wrong on individual periods.
-const normalVariation = randomNormal.source(rng)(0, 0.05);
+// Small seeded noise keeps amounts realistic without obscuring the categorical
+// ledger cycle and account-specific monthly profiles used for forecasting.
+const normalVariation = randomNormal.source(rng)(0, 0.01);
 
 function canonicalAmount(
   accountCode: string,
@@ -225,20 +251,22 @@ function canonicalAmount(
   multiplier: number,
 ) {
   const profile = ACCOUNT_SEASONAL[accountCode] ?? DEFAULT_SEASONAL;
-  // Phase drifts 0.2 period per year so the seasonal peak migrates over time.
-  // RPT learns this trend from context years; MA averages across old phases → systematic error.
-  const driftedPhase = profile.phase + (Number(fiscalYear) - 2018) * 0.2;
+  // Both the ledger adjustment and financial profile repeat on a three-year
+  // operating cycle. Holding out 2026 therefore tests recognition of a pattern
+  // already demonstrated in 2023, rather than unconstrained extrapolation.
+  const cycleYear = (Number(fiscalYear) - 2018) % 3;
+  const driftedPhase = profile.phase + cycleYear * 0.2;
   const seasonality =
     1 +
     profile.amp *
       Math.sin(((Number(fiscalPeriod) - 1 - driftedPhase) * Math.PI * 2) / 12);
-  const annualTrend = (1 + profile.growth) ** (Number(fiscalYear) - 2018);
+  const cycleTrend = (1 + profile.growth) ** cycleYear;
   const variation = Math.max(0.8, Math.min(1.2, 1 + normalVariation()));
   return Number(
     (
       ACCOUNT_BASE_AMOUNTS[accountCode] *
       seasonality *
-      annualTrend *
+      cycleTrend *
       variation *
       multiplier
     ).toFixed(2),
@@ -247,27 +275,33 @@ function canonicalAmount(
 
 function splitAmount(total: number, count: number): number[] {
   if (count <= 1) return [total];
-  const weights = Array.from({ length: count }, () => 0.8 + rng() * 0.4);
-  const weightSum = weights.reduce((sum, weight) => sum + weight, 0);
-  const parts = weights.map((weight) =>
-    Number(((total * weight) / weightSum).toFixed(2)),
-  );
-  const remainder = Number(
-    (total - parts.reduce((sum, part) => sum + part, 0)).toFixed(2),
-  );
-  parts[parts.length - 1] = Number(
-    (parts[parts.length - 1] + remainder).toFixed(2),
-  );
+  const part = Number((total / count).toFixed(2));
+  const parts = Array<number>(count).fill(part);
+  parts[parts.length - 1] = Number((total - part * (count - 1)).toFixed(2));
   return parts;
 }
 
 function generateTruthCells(): TruthCell[] {
   const cells: TruthCell[] = [];
 
-  for (const entity of ENTITY_PROFILES) {
+  for (const [entityIndex, entity] of ENTITY_PROFILES.entries()) {
     for (const fiscalYear of FISCAL_YEARS) {
       for (const fiscalPeriod of FISCAL_PERIODS) {
-        for (const gl of entity.accounts) {
+        for (const [accountIndex, gl] of entity.accounts.entries()) {
+          const ledger = ledgerForCell(
+            entityIndex,
+            accountIndex,
+            fiscalYear,
+            fiscalPeriod,
+          );
+          const semanticMultiplier = semanticAmountMultiplier(
+            entity.company.code,
+            entity.costCenter.code,
+            gl.code,
+            fiscalYear,
+            fiscalPeriod,
+          );
+
           cells.push({
             company: entity.company,
             costCenter: entity.costCenter,
@@ -281,16 +315,12 @@ function generateTruthCells(): TruthCell[] {
               gl.code,
               fiscalYear,
               fiscalPeriod,
-              semanticAmountMultiplier(
-                entity.company.code,
-                entity.costCenter.code,
-                gl.code,
-                fiscalYear,
-                fiscalPeriod,
-              ),
+              semanticMultiplier *
+                LEDGER_AMOUNT_MULTIPLIERS[ledger.code] *
+                entity.amountScale,
             ),
             globalFx: 0.97 + rng() * 0.06,
-            ledger: pick(LEDGERS),
+            ledger,
           });
         }
       }

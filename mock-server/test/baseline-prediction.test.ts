@@ -1,9 +1,6 @@
 /**
- * Validates that the mock data has the right shape for the workshop demo:
- * the global-mean baseline MAPE for 2026 A1000 actuals is in the
- * credible-but-imperfect range (2–25%).
- *
- * This is the floor the workshop shows before introducing RPT and TabPFN.
+ * Guards the demo data contract: aggregate-only forecasting should remain
+ * plausible but materially worse than models that use row-level dimensions.
  */
 
 import assert from 'node:assert/strict';
@@ -12,13 +9,14 @@ import test from 'node:test';
 import { getFinancialPlanningEntries } from '../src/financial-planning/financial-planning-data.ts';
 
 const COST_CENTER = 'A1000';
-const CONTEXT_YEARS = ['2023', '2024', '2025'] as const;
+const CONTEXT_YEARS = ['2022', '2023', '2024', '2025'] as const;
+const SEASONAL_YEARS = ['2023', '2024', '2025'] as const;
 const FORECAST_YEAR = '2026';
 const PERIODS = Array.from({ length: 12 }, (_, i) =>
   String(i + 1).padStart(3, '0'),
 );
 
-test('3-period aggregate MA MAPE is credible but imperfect for the workshop demo', async () => {
+test('aggregate baselines remain credible but imperfect for the workshop demo', async () => {
   const entries = await getFinancialPlanningEntries();
   const a1000 = entries.filter(
     (e) => e.CostCenter === COST_CENTER && e.PlanningCategory === 'ACTUAL',
@@ -29,31 +27,54 @@ test('3-period aggregate MA MAPE is credible but imperfect for the workshop demo
       .filter((e) => e.LedgerFiscalYear === year && e.FiscalPeriod === period)
       .reduce((s, e) => s + Math.abs(Number(e.AmountInCompanyCodeCurrency)), 0);
 
-  const contextTotal = CONTEXT_YEARS.reduce(
-    (sum, year) =>
-      sum +
-      PERIODS.reduce(
-        (yearSum, period) => yearSum + periodTotal(year, period),
-        0,
-      ),
+  const naiveMean =
+    CONTEXT_YEARS.reduce(
+      (sum, year) =>
+        sum +
+        PERIODS.reduce(
+          (yearSum, period) => yearSum + periodTotal(year, period),
+          0,
+        ),
+      0,
+    ) /
+    (CONTEXT_YEARS.length * PERIODS.length);
+  const actuals = PERIODS.map((period) => periodTotal(FORECAST_YEAR, period));
+  const total2024 = PERIODS.reduce(
+    (sum, period) => sum + periodTotal('2024', period),
     0,
   );
-  const naiveMean = contextTotal / (CONTEXT_YEARS.length * PERIODS.length);
-  const actuals = PERIODS.map((period) => periodTotal(FORECAST_YEAR, period));
-  const mapePct =
+  const total2025 = PERIODS.reduce(
+    (sum, period) => sum + periodTotal('2025', period),
+    0,
+  );
+  const globalGrowth = total2025 / total2024;
+  const seasonalSql = PERIODS.map(
+    (period) =>
+      (SEASONAL_YEARS.reduce(
+        (sum, year) => sum + periodTotal(year, period),
+        0,
+      ) /
+        SEASONAL_YEARS.length) *
+      globalGrowth,
+  );
+  const mape = (predictions: number[]) =>
     (100 *
-      actuals.reduce(
-        (sum, actual) => sum + Math.abs(naiveMean - actual) / actual,
+      predictions.reduce(
+        (sum, prediction, index) =>
+          sum + Math.abs(prediction - actuals[index]) / actuals[index],
         0,
       )) /
     PERIODS.length;
 
+  const naiveMape = mape(PERIODS.map(() => naiveMean));
+  const seasonalSqlMape = mape(seasonalSql);
+
   assert.ok(
-    mapePct > 2,
-    `Global-mean MAPE ${mapePct.toFixed(1)}% should exceed 2% (not trivially perfect)`,
+    naiveMape > 12 && naiveMape < 35,
+    `Global-mean MAPE ${naiveMape.toFixed(1)}% should be plausible but clearly imperfect`,
   );
   assert.ok(
-    mapePct < 25,
-    `Global-mean MAPE ${mapePct.toFixed(1)}% should stay below 25% (plausible baseline)`,
+    seasonalSqlMape > 15 && seasonalSqlMape < 35,
+    `Seasonal SQL MAPE ${seasonalSqlMape.toFixed(1)}% should leave material room for tabular models`,
   );
 });

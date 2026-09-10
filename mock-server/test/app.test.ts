@@ -331,43 +331,121 @@ test('returns 404 for unknown journal entry item ID', async () => {
   assert.equal(response.status, 404);
 });
 
-test('keeps recurring monthly patterns stable across fiscal years for RPT evaluation', async () => {
-  const totals = new Map<string, number>();
-  let hasYearlyVariation = false;
+test('repeats ledger-adjustment patterns every three years for model evaluation', async () => {
+  const ledgers = new Map<string, string>();
+  const amounts = new Map<string, number>();
 
   for (const entry of await getFinancialPlanningEntries()) {
     if (
       entry.CostCenter !== 'A1000' ||
       entry.PlanningCategory !== 'ACTUAL' ||
-      !['2022', '2023'].includes(entry.LedgerFiscalYear)
+      !['2023', '2026'].includes(entry.LedgerFiscalYear)
     ) {
       continue;
     }
 
-    const key = `${entry.LedgerFiscalYear}:${entry.FiscalPeriod}`;
+    const key = `${entry.LedgerFiscalYear}:${entry.FiscalPeriod}:${entry.GLAccount}`;
+    ledgers.set(key, entry.Ledger);
+    amounts.set(
+      key,
+      (amounts.get(key) ?? 0) + Number(entry.AmountInCompanyCodeCurrency),
+    );
+  }
+
+  let hasVariation = false;
+  for (const fiscalPeriod of [
+    '001',
+    '002',
+    '003',
+    '004',
+    '005',
+    '006',
+    '007',
+    '008',
+    '009',
+    '010',
+    '011',
+    '012',
+  ]) {
+    for (const glAccount of ['610000', '620000', '630000']) {
+      const priorKey = `2023:${fiscalPeriod}:${glAccount}`;
+      const forecastKey = `2026:${fiscalPeriod}:${glAccount}`;
+      assert.equal(
+        ledgers.get(forecastKey),
+        ledgers.get(priorKey),
+        `expected ${glAccount}/${fiscalPeriod} ledger adjustment to recur`,
+      );
+
+      const priorAmount = amounts.get(priorKey) ?? 0;
+      const forecastAmount = amounts.get(forecastKey) ?? 0;
+      const ratio = forecastAmount / priorAmount;
+      assert.ok(
+        ratio > 0.9 && ratio < 1.1,
+        `expected ${glAccount}/${fiscalPeriod} amount to recur within 10%`,
+      );
+      hasVariation ||= Math.abs(ratio - 1) > 0.01;
+    }
+  }
+
+  assert.ok(
+    hasVariation,
+    'expected small seeded variation between recurring cycles',
+  );
+});
+
+test('shares account-month patterns across peer entities at stable scales', async () => {
+  const totals = new Map<string, number>();
+  const ledgers = new Map<string, string>();
+
+  for (const entry of await getFinancialPlanningEntries()) {
+    if (
+      entry.PlanningCategory !== 'ACTUAL' ||
+      entry.GLAccount !== '630000' ||
+      !['A1000', 'E5000'].includes(entry.CostCenter) ||
+      entry.LedgerFiscalYear < '2022' ||
+      entry.LedgerFiscalYear > '2025'
+    ) {
+      continue;
+    }
+
+    const key = `${entry.CostCenter}:${entry.LedgerFiscalYear}:${entry.FiscalPeriod}`;
     totals.set(
       key,
       (totals.get(key) ?? 0) + Number(entry.AmountInCompanyCodeCurrency),
     );
+    ledgers.set(key, entry.Ledger);
   }
 
-  for (let period = 1; period <= 12; period++) {
-    const fiscalPeriod = String(period).padStart(3, '0');
-    const priorYear = totals.get(`2022:${fiscalPeriod}`);
-    const followingYear = totals.get(`2023:${fiscalPeriod}`);
+  for (const fiscalYear of ['2022', '2023', '2024', '2025']) {
+    for (const fiscalPeriod of [
+      '001',
+      '002',
+      '003',
+      '004',
+      '005',
+      '006',
+      '007',
+      '008',
+      '009',
+      '010',
+      '011',
+      '012',
+    ]) {
+      const targetKey = `A1000:${fiscalYear}:${fiscalPeriod}`;
+      const peerKey = `E5000:${fiscalYear}:${fiscalPeriod}`;
+      assert.equal(
+        ledgers.get(peerKey),
+        ledgers.get(targetKey),
+        `expected peer ledger cycle to align for ${fiscalYear}/${fiscalPeriod}`,
+      );
 
-    const annualScaleError = Math.abs(followingYear / priorYear - 1.01);
-    assert.ok(
-      annualScaleError < 0.15,
-      `expected ${fiscalPeriod} to retain its seasonal level after annual scaling`,
-    );
-    hasYearlyVariation ||= annualScaleError > 0.001;
+      const ratio = (totals.get(peerKey) ?? 0) / (totals.get(targetKey) ?? 0);
+      assert.ok(
+        ratio > 1.05 && ratio < 1.16,
+        `expected peer scale near 1.1 for ${fiscalYear}/${fiscalPeriod}`,
+      );
+    }
   }
-
-  assert.ok(
-    hasYearlyVariation,
-    'expected bounded yearly variation in source data',
-  );
 });
 
 test('keeps journal and planning line-item grains aligned for RPT evaluation', async () => {

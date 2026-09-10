@@ -40,9 +40,10 @@ Fiscal periods map to calendar quarters as follows: 001–003 = Q1, 004–006 = 
 grain is requested.
 
 Data sources:
-- Financial planning: fiscal years 2018–2028. Each category row is split into 1–2 line items.
-- Journal entries: fiscal years 2018–2028. Each cell is split into 5–7 signed line items.
+- Financial planning: fiscal years 2018–2028. Each category cell is split into three line items.
+- Journal entries: fiscal years 2018–2028. Each cell is split into three signed line items.
 - Planning ACTUAL amounts match the absolute journal-entry sum for the same dimensions.
+- Ledger is a recurring categorical amount driver; retain it as a feature when forecasting.
 
 Present the requested grain, show the currency, and state material filters or result limits.`;
 
@@ -57,6 +58,10 @@ Workspace mode: SQL.
   contextWhere selects known-truth rows). Use mode="dual" when actuals and planning live in separate tables.
 - run_tabpfn_prediction runs TabPFN on one session table and returns predictions as JSON. Use it for
   in-context tabular prediction, especially when categorical or mixed-type features matter.
+- For monthly forecasts, first aggregate source line items to fiscal year, fiscal period,
+  G/L account, and ledger. Predict those account-month rows, then sum them by fiscal period.
+- When the target cost center has little history, include peer entities that share its
+  G/L accounts and retain company, cost center, and profit center as model features.
 - get_ground_truth compares an RPT prediction table to generated ground truth.
 - Session tables are append-only. A repeated fetch duplicates rows unless you deduplicate by id.
 
