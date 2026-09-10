@@ -33,6 +33,7 @@
     "@langchain/quickjs": "^0.6.2",
     "@sap-ai-sdk/langchain": "^2.15.0",
     "@sap-ai-sdk/rpt": "canary",
+    "@sap-ai-sdk/tabpfn": "workspace:*",
     "@sap-cloud-sdk/odata-v2": "catalog:",
     "@sap-cloud-sdk/util": "catalog:",
     "bignumber.js": "^11.1.5",

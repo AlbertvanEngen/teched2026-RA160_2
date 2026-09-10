@@ -1,0 +1,642 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TabPFN Tabular Prediction",
+    "description": "A REST API for in-context tabular prediction with the TabPFN foundation model. Send labeled training rows and the rows to predict in a single request; the model returns predictions immediately without a separate training step.",
+    "version": "0.1.0",
+    "x-logo": {
+      "url": "https://www.sap.com/favicon.ico"
+    }
+  },
+  "servers": [
+    {
+      "url": "/v1"
+    }
+  ],
+  "paths": {
+    "/predict": {
+      "post": {
+        "summary": "Make in-context tabular predictions for the provided test rows based on the provided training rows.",
+        "description": "Make in-context tabular predictions with TabPFN. The labeled training data (`x_train`, `y_train`) and the rows to predict (`x_test`) are sent in a single request. Two request encodings are supported: inline JSON (`application/json`) and multipart file upload (`multipart/form-data`).",
+        "operationId": "predict",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PredictRequestPayload"
+              },
+              "examples": {
+                "classification_example": {
+                  "summary": "Classification (column-oriented JSON)",
+                  "description": "Predict a binary churn label using in-context learning with column-oriented data.",
+                  "value": {
+                    "task_config": {
+                      "task": "classification",
+                      "predict_params": {
+                        "output_type": "probas"
+                      }
+                    },
+                    "x_train": {
+                      "age": [42, 51, 29],
+                      "tenure": [3, 9, 1]
+                    },
+                    "y_train": {
+                      "churn": [0, 1, 0]
+                    },
+                    "x_test": {
+                      "age": [37],
+                      "tenure": [5]
+                    }
+                  }
+                },
+                "regression_example": {
+                  "summary": "Regression (row-oriented JSON)",
+                  "description": "Predict a numeric target using in-context learning with row-oriented data.",
+                  "value": {
+                    "task_config": {
+                      "task": "regression",
+                      "predict_params": {
+                        "output_type": "mean"
+                      }
+                    },
+                    "x_train": [[5, 2], [2, 1.5], [3.2, 0.7], [0.8, 2.8]],
+                    "y_train": [1, 1.8, 1.6, 1.8],
+                    "x_test": [[1.5, 1.9], [2.4, 0.8], [3.6, 4.5]]
+                  }
+                },
+                "regression_advanced_example": {
+                  "summary": "Regression with advanced options",
+                  "description": "Predict quantiles with custom model options.",
+                  "value": {
+                    "task_config": {
+                      "task": "regression",
+                      "predict_params": {
+                        "output_type": "quantiles",
+                        "quantiles": [0.1, 0.5, 0.9]
+                      },
+                      "tabpfn_config": {
+                        "n_estimators": 4,
+                        "random_state": 42,
+                        "memory_saving_mode": true
+                      }
+                    },
+                    "x_train": [[5, 2], [2, 1.5], [3.2, 0.7], [0.8, 2.8]],
+                    "y_train": [1, 1.8, 1.6, 1.8],
+                    "x_test": [[1.5, 1.9], [2.4, 0.8]]
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/BodyPredictMultipart"
+              },
+              "encoding": {
+                "x_train": {
+                  "contentType": "text/csv, application/vnd.apache.parquet"
+                },
+                "y_train": {
+                  "contentType": "text/csv, application/vnd.apache.parquet"
+                },
+                "x_test": {
+                  "contentType": "text/csv, application/vnd.apache.parquet"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Prediction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictResponsePayload"
+                },
+                "examples": {
+                  "classification_example": {
+                    "summary": "Classification response (probas)",
+                    "value": {
+                      "prediction": [[0.83, 0.17]],
+                      "metadata": {
+                        "task": "classification",
+                        "test_set_num_rows": 1,
+                        "test_set_num_cols": 2,
+                        "tabpfn_config": {}
+                      }
+                    }
+                  },
+                  "regression_quantiles_example": {
+                    "summary": "Regression response (quantiles)",
+                    "value": {
+                      "prediction": [[1.4, 1.7, 2.1], [1.9, 2.2, 2.6]],
+                      "metadata": {
+                        "task": "regression",
+                        "test_set_num_rows": 2,
+                        "test_set_num_cols": 2,
+                        "tabpfn_config": {
+                          "n_estimators": 4,
+                          "random_state": 42,
+                          "memory_saving_mode": true
+                        }
+                      }
+                    }
+                  },
+                  "regression_full_example": {
+                    "summary": "Regression response (full)",
+                    "value": {
+                      "prediction": {
+                        "mean": [1.7, 2.2],
+                        "median": [1.65, 2.15],
+                        "mode": [1.6, 2.1],
+                        "quantiles": [[1.4, 1.9], [1.7, 2.2], [2.1, 2.6]],
+                        "distribution": {}
+                      },
+                      "metadata": {
+                        "task": "regression",
+                        "test_set_num_rows": 2,
+                        "test_set_num_cols": 2,
+                        "tabpfn_config": {}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input data",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Invalid input data: x_test must have the same columns as x_train."
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload Too Large",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Request body too large."
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": [
+                    {
+                      "loc": ["body", "task_config"],
+                      "msg": "Field required",
+                      "type": "missing"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Internal server error."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "TaskType": {
+        "enum": ["classification", "regression"],
+        "title": "TaskType",
+        "type": "string",
+        "description": "The type of prediction task."
+      },
+      "ClassificationOutputType": {
+        "enum": ["probas", "preds"],
+        "title": "ClassificationOutputType",
+        "type": "string",
+        "description": "Output type for classification tasks."
+      },
+      "RegressionOutputType": {
+        "enum": ["mean", "median", "mode", "quantiles", "full"],
+        "title": "RegressionOutputType",
+        "type": "string",
+        "description": "Output type for regression tasks."
+      },
+      "FitMode": {
+        "enum": [
+          "low_memory",
+          "fit_preprocessors",
+          "fit_with_cache",
+          "batched"
+        ],
+        "title": "FitMode",
+        "type": "string",
+        "description": "Preprocessing/caching strategy used by the model."
+      },
+      "InferencePrecision": {
+        "enum": ["autocast", "auto"],
+        "title": "InferencePrecision",
+        "type": "string",
+        "description": "Numeric precision used during inference."
+      },
+      "CellValue": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "CellValue",
+        "description": "A single cell value. Non-finite values (infinities) are serialized as null."
+      },
+      "ColumnOrientedData": {
+        "additionalProperties": {
+          "items": {
+            "$ref": "#/components/schemas/CellValue"
+          },
+          "type": "array"
+        },
+        "type": "object",
+        "title": "ColumnOrientedData",
+        "description": "Column-oriented tabular data: a mapping of column names to their list of values."
+      },
+      "RowOrientedData": {
+        "items": {
+          "items": {
+            "$ref": "#/components/schemas/CellValue"
+          },
+          "type": "array"
+        },
+        "type": "array",
+        "title": "RowOrientedData",
+        "description": "Row-oriented tabular data: a list of rows, where each row is a list of cell values."
+      },
+      "TrainingFeatures": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ColumnOrientedData"
+          },
+          {
+            "$ref": "#/components/schemas/RowOrientedData"
+          }
+        ],
+        "title": "TrainingFeatures",
+        "description": "Training or test features. Either column-oriented (object of column name to list of values) or row-oriented (list of rows). `x_test` must have the same columns as `x_train`."
+      },
+      "TrainingTarget": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ColumnOrientedData"
+          },
+          {
+            "items": {
+              "$ref": "#/components/schemas/CellValue"
+            },
+            "type": "array"
+          }
+        ],
+        "title": "TrainingTarget",
+        "description": "Training target. Exactly one column, aligned row-for-row with `x_train`. May be column-oriented (object with a single key) or a flat list of values. For regression the target must be numeric."
+      },
+      "PredictParams": {
+        "additionalProperties": false,
+        "description": "Controls what the prediction contains. Nested under `task_config.predict_params`.",
+        "properties": {
+          "output_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClassificationOutputType"
+              },
+              {
+                "$ref": "#/components/schemas/RegressionOutputType"
+              }
+            ],
+            "description": "What the prediction contains. Defaults to `probas` for classification and `mean` for regression."
+          },
+          "quantiles": {
+            "description": "A list of floats between 0 and 1 (e.g. [0.1, 0.5, 0.9]). Required when `output_type` is `quantiles`.",
+            "items": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "title": "Quantiles",
+            "type": "array"
+          }
+        },
+        "title": "PredictParams",
+        "type": "object"
+      },
+      "TabpfnConfig": {
+        "additionalProperties": false,
+        "description": "Model options for TabPFN. All options are optional and nested under `task_config.tabpfn_config`.",
+        "properties": {
+          "n_estimators": {
+            "description": "Number of ensemble members. Higher can improve accuracy at the cost of latency.",
+            "title": "N Estimators",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8
+          },
+          "softmax_temperature": {
+            "description": "Sharpness of the predicted distribution. Lower values produce more confident predictions.",
+            "title": "Softmax Temperature",
+            "type": "number"
+          },
+          "average_before_softmax": {
+            "description": "Whether ensemble outputs are averaged before or after the softmax.",
+            "title": "Average Before Softmax",
+            "type": "boolean"
+          },
+          "balance_probabilities": {
+            "description": "Classification only. Re-balances predicted probabilities across classes.",
+            "title": "Balance Probabilities",
+            "type": "boolean"
+          },
+          "categorical_features_indices": {
+            "description": "Column indices to force to categorical. By default column types are inferred.",
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "title": "Categorical Features Indices",
+            "type": "array"
+          },
+          "random_state": {
+            "description": "Seed for reproducible predictions.",
+            "title": "Random State",
+            "type": "integer"
+          },
+          "inference_precision": {
+            "$ref": "#/components/schemas/InferencePrecision",
+            "description": "Numeric precision used during inference."
+          },
+          "fit_mode": {
+            "$ref": "#/components/schemas/FitMode",
+            "description": "Preprocessing/caching strategy."
+          },
+          "memory_saving_mode": {
+            "description": "Trades speed for lower memory use. Selected automatically by dataset size when unset.",
+            "title": "Memory Saving Mode",
+            "type": "boolean"
+          },
+          "inference_config": {
+            "additionalProperties": true,
+            "description": "Advanced, fine-grained inference overrides. For expert use.",
+            "title": "Inference Config",
+            "type": "object"
+          }
+        },
+        "title": "TabpfnConfig",
+        "type": "object"
+      },
+      "TaskConfig": {
+        "additionalProperties": false,
+        "description": "Task type plus model and output options.",
+        "properties": {
+          "task": {
+            "$ref": "#/components/schemas/TaskType",
+            "description": "The type of prediction task."
+          },
+          "predict_params": {
+            "$ref": "#/components/schemas/PredictParams",
+            "description": "Controls what the prediction contains."
+          },
+          "tabpfn_config": {
+            "$ref": "#/components/schemas/TabpfnConfig",
+            "description": "Model options for TabPFN."
+          }
+        },
+        "required": ["task"],
+        "title": "TaskConfig",
+        "type": "object"
+      },
+      "PredictRequestPayload": {
+        "additionalProperties": false,
+        "description": "Top-level request payload for inline JSON predictions. Send labeled training rows and the rows to predict in a single request.",
+        "properties": {
+          "task_config": {
+            "$ref": "#/components/schemas/TaskConfig",
+            "description": "Task type plus model and output options."
+          },
+          "x_train": {
+            "$ref": "#/components/schemas/TrainingFeatures",
+            "description": "Training features. One row per labeled example."
+          },
+          "y_train": {
+            "$ref": "#/components/schemas/TrainingTarget",
+            "description": "Training target. Exactly one column, aligned row-for-row with `x_train`."
+          },
+          "x_test": {
+            "$ref": "#/components/schemas/TrainingFeatures",
+            "description": "The rows to predict. Must have the same columns as `x_train`."
+          }
+        },
+        "required": ["task_config", "x_train", "y_train", "x_test"],
+        "title": "PredictRequestPayload",
+        "type": "object"
+      },
+      "BodyPredictMultipart": {
+        "properties": {
+          "x_train": {
+            "type": "string",
+            "format": "binary",
+            "title": "X Train",
+            "description": "CSV or Parquet file containing the training features."
+          },
+          "y_train": {
+            "type": "string",
+            "format": "binary",
+            "title": "Y Train",
+            "description": "CSV or Parquet file containing the training target."
+          },
+          "x_test": {
+            "type": "string",
+            "format": "binary",
+            "title": "X Test",
+            "description": "CSV or Parquet file containing the rows to predict."
+          },
+          "request": {
+            "description": "JSON string carrying the `task_config` (task type plus model and output options).",
+            "title": "Request",
+            "type": "string"
+          }
+        },
+        "required": ["x_train", "y_train", "x_test", "request"],
+        "title": "BodyPredictMultipart",
+        "type": "object"
+      },
+      "PredictResponseMetadata": {
+        "additionalProperties": false,
+        "description": "Details about the run.",
+        "properties": {
+          "task": {
+            "$ref": "#/components/schemas/TaskType",
+            "description": "The task that ran."
+          },
+          "test_set_num_rows": {
+            "description": "Number of rows predicted.",
+            "title": "Test Set Num Rows",
+            "type": "integer"
+          },
+          "test_set_num_cols": {
+            "description": "Number of feature columns after automatic preprocessing.",
+            "title": "Test Set Num Cols",
+            "type": "integer"
+          },
+          "tabpfn_config": {
+            "additionalProperties": true,
+            "description": "The fully resolved model options actually used, including any defaults filled in by the container.",
+            "title": "Tabpfn Config",
+            "type": "object"
+          }
+        },
+        "required": [
+          "task",
+          "test_set_num_rows",
+          "test_set_num_cols",
+          "tabpfn_config"
+        ],
+        "title": "PredictResponseMetadata",
+        "type": "object"
+      },
+      "RegressionFullPrediction": {
+        "additionalProperties": false,
+        "description": "Rich prediction object returned for regression `full` output. Max 400 test rows.",
+        "properties": {
+          "mean": {
+            "description": "Predicted mean for each test row.",
+            "items": {
+              "type": "number",
+              "nullable": true
+            },
+            "title": "Mean",
+            "type": "array"
+          },
+          "median": {
+            "description": "Predicted median for each test row.",
+            "items": {
+              "type": "number",
+              "nullable": true
+            },
+            "title": "Median",
+            "type": "array"
+          },
+          "mode": {
+            "description": "Predicted mode for each test row.",
+            "items": {
+              "type": "number",
+              "nullable": true
+            },
+            "title": "Mode",
+            "type": "array"
+          },
+          "quantiles": {
+            "description": "One value per requested quantile, for each test row.",
+            "items": {
+              "items": {
+                "type": "number",
+                "nullable": true
+              },
+              "type": "array"
+            },
+            "title": "Quantiles",
+            "type": "array"
+          },
+          "distribution": {
+            "additionalProperties": true,
+            "description": "The full predictive distribution.",
+            "title": "Distribution",
+            "type": "object"
+          }
+        },
+        "required": ["mean", "median", "mode", "quantiles", "distribution"],
+        "title": "RegressionFullPrediction",
+        "type": "object"
+      },
+      "Prediction": {
+        "description": "The predictions. Shape depends on the task and `output_type`.\n- classification / probas: list of rows; each row is a list of class probabilities.\n- classification / preds: flat list of predicted labels (one per test row).\n- regression / mean, median, mode: flat list of numbers (one per test row).\n- regression / quantiles: list of lists, one inner list per requested quantile.\n- regression / full: object keyed by mean, median, mode, quantiles, and distribution.",
+        "anyOf": [
+          {
+            "description": "classification / probas: list of rows of class probabilities.",
+            "items": {
+              "items": {
+                "type": "number",
+                "nullable": true
+              },
+              "type": "array"
+            },
+            "type": "array"
+          },
+          {
+            "description": "classification / preds or regression / mean, median, mode: flat list of values.",
+            "items": {
+              "$ref": "#/components/schemas/CellValue"
+            },
+            "type": "array"
+          },
+          {
+            "description": "regression / quantiles: list of lists, one inner list per requested quantile.",
+            "items": {
+              "items": {
+                "type": "number",
+                "nullable": true
+              },
+              "type": "array"
+            },
+            "type": "array"
+          },
+          {
+            "description": "regression / full: rich object with mean, median, mode, quantiles, and distribution.",
+            "$ref": "#/components/schemas/RegressionFullPrediction"
+          }
+        ],
+        "title": "Prediction"
+      },
+      "PredictResponsePayload": {
+        "additionalProperties": false,
+        "description": "Response payload for prediction requests. Contains the predictions and metadata about the run.",
+        "properties": {
+          "prediction": {
+            "$ref": "#/components/schemas/Prediction",
+            "description": "The predictions. Shape depends on the task and `output_type`. Non-finite values (infinities) are serialized as null."
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/PredictResponseMetadata",
+            "description": "Details about the run."
+          },
+          "class_labels": {
+            "description": "Classification only. Ordered list of class labels corresponding to each probability column in `prediction`.",
+            "items": { "type": "string" },
+            "type": "array"
+          }
+        },
+        "required": ["prediction", "metadata"],
+        "title": "PredictResponsePayload",
+        "type": "object"
+      }
+    }
+  },
+  "x-sap-cloud-sdk-api-name": "TabpfnApi"
+}
