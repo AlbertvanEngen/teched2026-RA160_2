@@ -19,6 +19,7 @@ import {
 } from './odata-tools.ts';
 import { runRptPredictionTool } from './rpt-tool.ts';
 import { runSqlTool } from './sql-tool.ts';
+import { runTabpfnPredictionTool } from './tabpfn-tool.ts';
 
 export type AgentDataMode = 'sql' | 'quickjs' | 'context';
 
@@ -34,6 +35,9 @@ Data integrity and units:
 
 Shared columns: companyCode, costCenter, profitCenter, glAccount, ledger, ledgerFiscalYear,
 fiscalPeriod (001–012), fiscalYearPeriod.
+Fiscal periods map to calendar quarters as follows: 001–003 = Q1, 004–006 = Q2,
+007–009 = Q3, and 010–012 = Q4. Aggregate by fiscalYearPeriod when a year-quarter
+grain is requested.
 
 Data sources:
 - Financial planning: fiscal years 2018–2028. Each category row is split into 1–2 line items.
@@ -51,6 +55,8 @@ Workspace mode: SQL.
 - run_rpt_prediction is SAP RPT, a tabular foundation model. It writes predicted values into an output
   table. Use mode="single" when data is in one table (predictionWhere selects rows to forecast; optional
   contextWhere selects known-truth rows). Use mode="dual" when actuals and planning live in separate tables.
+- run_tabpfn_prediction runs TabPFN on one session table and returns predictions as JSON. Use it for
+  in-context tabular prediction, especially when categorical or mixed-type features matter.
 - get_ground_truth compares an RPT prediction table to generated ground truth.
 - Session tables are append-only. A repeated fetch duplicates rows unless you deduplicate by id.
 
@@ -113,7 +119,7 @@ const checkpointer = new MemorySaver();
 
 function buildFinancialAgent() {
   const model = new OrchestrationClient([
-    { promptTemplating: { model: { name: 'gpt-5.6-luna' } } },
+    // { promptTemplating: { model: { name: 'gpt-5.6-luna' } } },
     { promptTemplating: { model: { name: 'gemini-3.5-flash' } } },
     {
       promptTemplating: {
@@ -131,6 +137,7 @@ function buildFinancialAgent() {
             queryJournalEntryTool,
             runSqlTool,
             runRptPredictionTool,
+            runTabpfnPredictionTool,
             getGroundTruthTool,
           ]
         : [];

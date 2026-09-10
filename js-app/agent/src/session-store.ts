@@ -4,7 +4,6 @@ import { dropObjects } from './db.ts';
 /** POC session lifetime — idle sessions expire after this duration. */
 export const SESSION_TTL_MS = 30 * 60 * 1000;
 
-
 interface Session {
   createdAt: number;
   lastAccessAt: number;

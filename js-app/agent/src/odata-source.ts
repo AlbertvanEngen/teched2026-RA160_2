@@ -7,7 +7,9 @@ const odata = (message: string) =>
   console.log(styleText('blue', '[OData] ') + message);
 
 const destination = {
-  url: process.env.MOCK_SERVER_URL ?? 'http://localhost:3141',
+  url:
+    process.env.MOCK_SERVER_URL ??
+    `http://localhost:${Number(process.env.port ?? 3142)}`,
   authentication: 'NoAuthentication' as const,
 };
 
