@@ -8,7 +8,7 @@
     "lint:fix": "biome check --write .",
     "lint:ci": "biome ci .",
     "typecheck": "pnpm -r typecheck",
-    "build": "pnpm -r build",
+    "build": "pnpm -r run --if-present -r build",
     "test": "pnpm -r test"
   },
   "keywords": [],

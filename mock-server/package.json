@@ -11,7 +11,6 @@
   "scripts": {
     "start": "node src/server.ts",
     "dev": "node --watch src/server.ts",
-    "build": "tsc",
     "generate-data": "node src/generation/generate-mock-data.ts",
     "test": "node --test 'test/*.test.ts'",
     "typecheck": "tsc --noEmit"
