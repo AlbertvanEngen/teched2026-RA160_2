@@ -42,8 +42,8 @@ pnpm --filter financial-mock-agent start -- "Show me the monthly cost for cost c
 Call the generated clients directly when isolating OData problems:
 
 ```bash
-pnpm --filter financial-mock-sdk-client start -- planning list --company-code 1010
-pnpm --filter financial-mock-sdk-client start -- journal list --company-code 1010
+pnpm --filter odata-cli start -- planning list --company-code 1010
+pnpm --filter odata-cli start -- journal list --company-code 1010
 ```
 
 ## Architecture

@@ -65,9 +65,9 @@ The server listens on `http://localhost:3141` by default. Set `PORT` to use anot
 In another terminal:
 
 ```sh
-pnpm --filter financial-mock-sdk-client start -- planning list
-pnpm --filter financial-mock-sdk-client start -- journal list --company-code 1010
-pnpm --filter financial-mock-sdk-client start -- planning get FP-0001
+pnpm --filter odata-cli start -- planning list
+pnpm --filter odata-cli start -- journal list --company-code 1010
+pnpm --filter odata-cli start -- planning get FP-0001
 ```
 
 The client uses `http://localhost:3141` by default. Set `MOCK_SERVER_URL` when the mock server runs elsewhere.
@@ -245,7 +245,7 @@ The clients are generated from the EDMX service specifications in `specs/`:
 pnpm --filter financial-mock-agent generate
 ```
 
-Generation runs the `postgenerate` script, which updates generated imports for ESM runtime compatibility. Generated source is checked into `agent/src/generated/`. The `financial-mock-sdk-client` package imports the generated clients from there.
+Generation runs the `postgenerate` script, which updates generated imports for ESM runtime compatibility. Generated source is checked into `agent/src/generated/`. The `odata-cli` package imports the generated clients from there.
 
 ## Tests and builds
 
@@ -314,6 +314,6 @@ pnpm --filter purchase-order-mock-server build
 | Package | Purpose |
 | --- | --- |
 | `purchase-order-mock-server` | Local Hono-based mock OData server |
-| `financial-mock-sdk-client` | Generated SDK client for direct service queries |
+| `odata-cli` | Generated SDK client for direct service queries |
 | `financial-mock-agent` | AI financial analysis agent |
 | `financial-agent-webui` | Browser UI for the financial agent |

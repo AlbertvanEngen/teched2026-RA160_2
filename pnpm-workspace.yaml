@@ -1,5 +1,5 @@
 packages:
-  - js-app/client
+  - js-app/odata-cli
   - js-app/agent
   - js-app/webui
   - js-app/tabpfn

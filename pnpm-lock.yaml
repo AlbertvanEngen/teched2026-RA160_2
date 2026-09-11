@@ -201,7 +201,7 @@ importers:
         specifier: 'catalog:'
         version: 7.0.2
 
-  js-app/client:
+  js-app/odata-cli:
     dependencies:
       '@sap-cloud-sdk/odata-v2':
         specifier: 'catalog:'
