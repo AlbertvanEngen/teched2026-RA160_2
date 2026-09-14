@@ -135,63 +135,47 @@ The Java agent reads SAP AI Core credentials from the `AICORE_SERVICE_KEY` envir
 AICORE_SERVICE_KEY={"clientid":"...","clientsecret":"...","url":"...","serviceurls":{"AI_API_URL":"..."}}
 ```
 
-### 1. Start the mock OData server
-
-```sh
-mise run mock-server
-```
-
-The mock server at `http://localhost:3141` is shared between the JavaScript and Java agents.
-
-### 2. Start the Java agent backend
+### Start everything with one command
 
 ```sh
 mise run java-agent
 ```
 
-Or run Maven directly:
+Or run Maven directly from the repo root:
 
 ```sh
 cd java-app/agent
 ./mvnw spring-boot:run
 ```
 
-The agent starts on `http://localhost:3143`. You should see:
+Spring Boot starts on `:3143` and then automatically launches the mock OData server (`:3141`) and the web UI (`:3142`) as child processes. Wait for the log line:
 
 ```
-Started Application in ... seconds
-S4ODataService initialised for http://localhost:3141
-DuckDB in-memory database initialised
+webui is ready on port 3142
 ```
 
-### 3. Start the web UI pointing at the Java backend
+Then open `http://localhost:3142`. The UI is identical to the JavaScript path — tool calls, results, and the final markdown answer all appear live in the activity rail.
 
-```sh
-mise run webui-java
-```
+Pressing Ctrl-C stops the Spring Boot process and shuts down the mock server and web UI with it.
 
-Or with the package script directly:
-
-```sh
-JAVA_AGENT_URL=http://localhost:3143 pnpm --filter financial-agent-webui dev
-```
-
-Open `http://localhost:3142` in your browser. The UI is identical to the JavaScript path — tool calls, results, and the final markdown answer all appear live in the activity rail.
+> **Already running something on those ports?**
+> Each child process is skipped if its port is already open, so you can still start the mock server or web UI manually beforehand and the Java agent will reuse them.
 
 ### How it works
 
 ```
 Browser (React UI at :3142)
-        │  POST /api/agent/run { prompt }
+        │  POST /api/agent/run { prompt, sessionId }
         ▼
-Hono webui backend
-        │  proxies to Java when JAVA_AGENT_URL is set
+Hono webui backend (child process, JAVA_AGENT_URL set)
+        │  proxies to Java
         ▼
 Spring Boot agent (:3143)
-  ├─ FinancialPlanningTool  →  OData :3141  →  DuckDB
-  ├─ JournalEntryTool       →  OData :3141  →  DuckDB
-  ├─ DuckDbTool             →  SQL SELECT against DuckDB
-  └─ ForecastTool           →  SAP RPT 1.5
+  ├─ FinancialPlanningTool  →  OData :3141  →  DuckDB (per-session)
+  ├─ JournalEntryTool       →  OData :3141  →  DuckDB (per-session)
+  ├─ LocalDbTool            →  SQL SELECT against DuckDB
+  ├─ ForecastFromSourcesTool / RptPredictionTool  →  SAP RPT 1.5
+  └─ GetGroundTruthTool     →  OData :3141  (for actuals comparison)
         │  SSE: tool_call / tool_result / delta / done
         ▼
 React UI renders live tool activity + markdown answer
@@ -215,12 +199,10 @@ java -jar target/teched2026-java-agent-1.0-SNAPSHOT.jar
 
 ### Switching between JavaScript and Java
 
-| Command | Agent used |
-|---|---|
-| `mise run webui` | JavaScript (LangChain, default) |
-| `mise run webui-java` | Java (Spring AI) |
-
-Both paths use the same mock OData server and the same React UI.
+| Command | Agent used | Starts mock server + UI automatically |
+|---|---|---|
+| `mise run webui` | JavaScript (LangChain) | No — run `mise run mock-server` separately |
+| `mise run java-agent` | Java (Spring AI) | Yes — one command starts everything |
 
 ## Mock OData services
 
