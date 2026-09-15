@@ -121,7 +121,7 @@ cd java-app && mvn spring-boot:run
 
 Ask the agent to produce a forecast:
 
-> "Forecast the planned spend for cost center 10101010 in fiscal year 2026, using the 2022–2024 ACTUAL history as context."
+> "Forecast the planned spend for cost center A1000 in fiscal year 2026, using the 2022–2024 ACTUAL history as context."
 
 Watch the agent trace panel. You should see a sequence like:
 1. `query_financial_planning` — loads `planningCategory = ACTUAL` rows for 2022–2024.
@@ -162,7 +162,7 @@ Step 6 is why you always call `query_local_db` _after_ `run_rpt_prediction` rath
 Experiment with these prompts:
 
 - **Next-quarter forecast:**
-  > "Predict period 007 of 2025 for cost center 10101010, using periods 001–006 of 2025 as context."
+  > "Predict period 007 of 2025 for cost center A1000, using periods 001–006 of 2025 as context."
   This exercises a within-year forecast — all data can come from a single `financial_planning_data` table.
 
 - **Confidence intervals:**
@@ -170,7 +170,7 @@ Experiment with these prompts:
   The agent should run `SELECT fiscalYearPeriod, predicted_amountInCompanyCodeCurrency, confidence_interval_lower_amountInCompanyCodeCurrency, confidence_interval_upper_amountInCompanyCodeCurrency FROM <outputTable>` to surface the uncertainty columns.
 
 - **Cross-year accuracy check:**
-  > "Forecast 2024 spend for cost center 10101010 using 2022–2023 actuals as context, then compare against actual 2024 journal entries."
+  > "Forecast 2024 spend for cost center A1000 using 2022–2023 actuals as context, then compare against actual 2024 journal entries."
   This is a rigorous backtest: you are predicting a year for which ground truth already exists.
 
 

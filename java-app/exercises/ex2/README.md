@@ -143,7 +143,7 @@ cd java-app && mvn spring-boot:run
 
 Navigate to the UI and ask a question that requires data:
 
-> "What was the total planned spend for cost center 10101010 in fiscal year 2024?"
+> "What was the total planned spend for cost center A1000 in fiscal year 2024?"
 
 Watch the agent trace panel on the right — you should see tool calls appear as the agent:
 
@@ -172,11 +172,11 @@ A few things worth noticing:
 Try the following prompts to explore the agent's tool-calling behaviour:
 
 - **Multi-step aggregation:**
-  > "Compare actual journal entry spend vs. planning ACTUAL for cost center 10101010 in 2023."
+  > "Compare actual journal entry spend vs. planning ACTUAL for cost center A1000 in 2023."
   The agent needs to load both OData tables and join them in DuckDB.
 
 - **Cross-year comparison:**
-  > "How did total planned spend for cost center 10101010 change between 2022 and 2024?"
+  > "How did total planned spend for cost center A1000 change between 2022 and 2024?"
   The agent should load multiple years of planning data and aggregate with `GROUP BY ledgerFiscalYear`.
 
 In each case, watch the trace panel to see exactly which tools are called and with what arguments.
