@@ -1,6 +1,6 @@
 # Exercise 3 - Forecasting with SAP RPT: Predicting Future Financial Data
 
-In this exercise, you will add the SAP RPT (Relational Prediction Tool) forecasting tools to the agent.
+In this exercise, you will add the SAP RPT (Relational Pretrained Transformer) forecasting tools to the agent.
 With these tools, the agent can predict future financial values and then evaluate its own predictions against real data — without you writing any machine learning code.
 
 In order to make this work, you will have to first conclude [Exercise 2](../ex2/README.md).
@@ -20,19 +20,21 @@ If you have any trouble solving the exercise, you can find the code to solve it 
 
 ## Background: What is SAP RPT?
 
-SAP RPT (Relational Prediction Tool, version 1.5) is a **tabular foundation model** — an AI model pre-trained on large volumes of SAP financial data.
-Unlike a general-purpose LLM, RPT's input is a table of rows with numeric and categorical columns, and its output is a predicted value for a designated target column.
+SAP RPT (Relational Pretrained Transformer) is a **table-native foundation model** built specifically for structured, relational enterprise data — think sales orders, invoices, HR records, cost centers.
+Unlike a general-purpose LLM that works primarily with unstructured text, RPT's input is a table of rows with numeric and categorical columns, and its output is a predicted value for a designated target column.
+The current version is SAP-RPT-1.5, and it is pronounced "rapid one" when speaking about SAP-RPT-1.
+The SAP Cloud SDK for AI provides an `RptClient` you can use directly from Java (and JavaScript), without any custom model training or deployment setup.
 
-The key insight is that RPT treats prediction as **table completion**: you give it rows where the target is known (context rows) and rows where the target is missing (prediction rows), and it fills in the blanks — just like a spreadsheet formula that understands business semantics.
+The key insight is that RPT uses **in-context learning on tabular data**: you give it rows where the target is known (context rows) and rows where the target is missing (prediction rows), and it fills in the blanks — learning the pattern entirely from the rows you provide, at inference time, with no fine-tuning step.
 
 Compare this to a hand-rolled SQL trend (moving average, LAG/LEAD):
 - A SQL trend extrapolates from pre-aggregated monthly totals.
-- RPT predicts at the individual line-item level, taking all numeric and categorical columns into account.
+- RPT predicts at the individual line-item level, taking all numeric and categorical columns into account simultaneously.
   The agent then aggregates RPT's output to whatever granularity the user asked for.
 
 This means RPT's forecasts are structurally fairer and more informative — and they come with confidence intervals out of the box.
 
-Think of it like a **VLOOKUP that understands patterns**: instead of looking up an exact key, RPT infers what the missing value should be based on all the other columns in the row and the patterns it has seen in training.
+Think of it like a **pivot table that can fill in missing cells**: instead of computing a formula over known values, RPT infers what the missing value should be based on all the other columns in the same row and the patterns visible across the context rows you supplied.
 
 
 ## Step 1: Get to know the RPT tools
@@ -177,7 +179,7 @@ Experiment with these prompts:
 You have added SAP RPT forecasting to the financial analyst agent.
 Your agent can now:
 
-- Predict future fiscal-period values using a foundation model pre-trained on SAP financial data.
+- Predict future fiscal-period values using a table-native foundation model for structured enterprise data.
 - Retrieve confidence intervals alongside its predictions.
 - Evaluate its own accuracy by fetching ground truth from OData and computing MAPE, MAE, and percentage metrics.
 
