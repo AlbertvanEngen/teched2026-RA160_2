@@ -146,11 +146,6 @@ public class AgentService {
         ABS() when evaluating against planning amounts.
       """;
 
-  private final ChatModel chatModel = new OrchestrationChatModel();
-  private final OrchestrationModuleConfig config =
-      new OrchestrationModuleConfig().withLlmConfig(GPT_4O);
-  private final ChatClient chatClient = ChatClient.builder(chatModel).build();
-
   private final FinancialPlanningTool financialPlanningTool;
   private final JournalEntryTool journalEntryTool;
   private final LocalDbTool duckDbTool;
@@ -174,23 +169,49 @@ public class AgentService {
     final AgentTrace trace = new AgentTrace(emitter, sessionId);
     AgentTrace.CURRENT.set(trace);
     try {
-      final OrchestrationChatOptions options = new OrchestrationChatOptions(config);
-      options.setToolCallbacks(
-          List.of(
-              ToolCallbacks.from(
-                  financialPlanningTool, journalEntryTool, duckDbTool, forecastTool,
-                  rptFromSourcesTool, rptPredictionTool, getGroundTruthTool,
-                  createViewTool, dropTableTool)));
-      options.setInternalToolExecutionEnabled(true);
-
-      final Prompt p =
-          new Prompt(
-              List.of(new SystemMessage(SYSTEM_PROMPT), new UserMessage(prompt)), options);
-
-      final String answer = chatClient.prompt(p).call().content();
+      final String answer = callChatClient(prompt);
       trace.emitDelta(answer != null ? answer : "");
     } finally {
       AgentTrace.CURRENT.remove();
     }
+  }
+
+  /**
+   * EXERCISE 1: Connect to AI Core using a chat client.
+   * The below method should enable the connection to an LLM accessed via SAP AI Core.
+   * Follow the steps in {@link exercise01.md} or uncomment the code here to make it work.
+   * We use the Spring AI integration of the SAP Cloud SDK for AI to do this.
+   * @param prompt the user prompt to send to the LLM
+   * @return the answer of the LLM as a String
+   */
+  private String callChatClient(final String prompt){
+    final ChatModel chatModel = new OrchestrationChatModel();
+    final OrchestrationModuleConfig config = new OrchestrationModuleConfig().withLlmConfig(GPT_4O);
+    final ChatClient chatClient = ChatClient.builder(chatModel).build();
+
+    final OrchestrationChatOptions options = new OrchestrationChatOptions(config);
+
+    final Prompt p =
+        new Prompt(
+            List.of(new SystemMessage(SYSTEM_PROMPT), new UserMessage(prompt)), options);
+    return chatClient.prompt(p).call().content();
+  }
+
+  /**
+   * Exercise 2: Add tool calls
+   * The below method should add the necessary tools to connect to the OData service etc.
+   * Follow the steps in {@link exercise02.md} or uncomment the code here to make it work.
+   * We use the Spring AI integration of the SAP Cloud SDK for AI to do this.
+   *
+   * @param options the OrchestrationChatOptions to which the tools are added
+   */
+  private void addToolCalls(final OrchestrationChatOptions options) {
+    options.setToolCallbacks(
+        List.of(
+            ToolCallbacks.from(
+                financialPlanningTool, journalEntryTool, duckDbTool,
+                rptPredictionTool, rptSinglePredictionTool, getGroundTruthTool,
+                createViewTool, dropTableTool)));
+    options.setInternalToolExecutionEnabled(true);
   }
 }
