@@ -50,7 +50,7 @@ public class GetGroundTruthTool {
               + "writes a comparison table with predicted vs ground-truth values plus percentage "
               + "metrics: pct_of_actual (forecast / |ground truth| × 100), "
               + "pct_below_actual (% under spend), pct_above_actual (% over spend), MAPE, MAE, RMSE. "
-              + "Use after run_rpt_prediction or forecast_from_sources. "
+              + "Use after run_rpt_prediction or run_rpt_prediction_single. "
               + "truthSource journal_entry = posted actuals; planning_actual = ACTUAL planning rows. "
               + "targetColumn must be the base column name (e.g. amountInGlobalCurrency), "
               + "not a predicted_* column — the tool derives predicted_<targetColumn>.")
@@ -132,7 +132,7 @@ public class GetGroundTruthTool {
         ? AgentTrace.CURRENT.get().getSessionId() : "default");
 
     // Verify predicted column exists
-    final List<String> predCols = RptPredictionTool.getColumns(conn,
+    final List<String> predCols = RptSinglePredictionTool.getColumns(conn,
         "SELECT * FROM " + predictionTable + " LIMIT 0");
     if (!predCols.contains(predictedCol)) {
       return "Error: Prediction table '" + predictionTable + "' has no column '" + predictedCol
