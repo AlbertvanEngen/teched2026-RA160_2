@@ -190,6 +190,8 @@ public class AgentService {
     final ChatClient chatClient = ChatClient.builder(chatModel).build();
 
     final OrchestrationChatOptions options = new OrchestrationChatOptions(config);
+    addToolCalls(options);
+    addFallbackConfigs(options);
 
     final Prompt p =
         new Prompt(
@@ -213,5 +215,10 @@ public class AgentService {
                 rptPredictionTool, rptSinglePredictionTool, getGroundTruthTool,
                 createViewTool, dropTableTool)));
     options.setInternalToolExecutionEnabled(true);
+  }
+
+  private void addFallbackConfigs(final OrchestrationChatOptions options) {
+    var workingConfig = new OrchestrationModuleConfig().withLlmConfig(GPT_4O);
+    options.setFallbackConfigs(List.of(workingConfig));
   }
 }

@@ -1,6 +1,6 @@
 # Exercise 2 - Equipping the Agent: Tool Calls and the Agentic Loop
 
-In this exercise, you will add tools to the agent so it can query real financial data, run SQL aggregations, and call a tabular AI forecasting model.
+In this exercise, you will add tools to the agent so it can query real financial data and run SQL aggregations.
 You'll learn how Spring AI's tool-calling mechanism works and how the SAP Cloud SDK for AI Orchestration service handles the back-and-forth between the LLM and your tools.
 
 In order to make this work, you will have to first conclude [Exercise 1](../ex1/README.md).
@@ -8,14 +8,17 @@ If you haven't done so, please finish that exercise first.
 
 ## Overview
 
-In this task we will implement `addToolCalls` in `AgentService` so the agent gains access to its full toolbox.
+In this task we will implement `addToolCalls` in `AgentService` so the agent gains access to its data tools.
 In order to do this, we will perform the following steps:
 - Understand what tools the agent has and what each one does.
-- Register all tools on the `OrchestrationChatOptions` object.
+- Register the data and SQL tools on the `OrchestrationChatOptions` object.
 - Enable the internal tool-execution loop so Spring AI automatically handles the agentic back-and-forth.
 - Wire `addToolCalls` into `callChatClient` so every request benefits from the tools.
 
 If you have any trouble solving the exercise, you can find the code to solve it in comments inside the `addToolCalls` method in `AgentService.java`.
+
+> **Note:** The RPT forecasting tools (`rptFromSourcesTool`, `rptPredictionTool`, `getGroundTruthTool`) are intentionally left out of this exercise.
+> We will add and explain them in [Exercise 3](../ex3/README.md).
 
 
 ## Background: How tool calling works
@@ -46,21 +49,20 @@ The SAP Cloud SDK for AI Orchestration service validates and proxies each tool c
 ## Step 1: Get to know the tools
 
 Open [agent/src/main/java/com/sap/teched/demo/agent/AgentService.java](../agent/src/main/java/com/sap/teched/demo/agent/AgentService.java) and read the field declarations at the top of the class.
-The agent has nine tools injected as Spring beans:
+In this exercise we will wire up six tools:
 
-| Field                  | Tool class                | What it does |
-|------------------------|---------------------------|--------------|
-| `financialPlanningTool`| `FinancialPlanningTool`   | Queries the Financial Planning OData service and **appends** rows into the `financial_planning_data` DuckDB table. |
-| `journalEntryTool`     | `JournalEntryTool`        | Queries the Journal Entry OData service and **appends** rows into the `journal_entry_data` DuckDB table. |
-| `duckDbTool`           | `LocalDbTool`             | Runs arbitrary SQL against the in-memory DuckDB workspace (SELECT, GROUP BY, joins, window functions…). |
-| `forecastTool`         | `ForecastTool`            | Tabular AI forecast for a small set of hand-picked historical rows (< 20 context points). |
-| `rptFromSourcesTool`   | `ForecastFromSourcesTool` | SAP RPT forecast when actuals and planning rows are in separate tables. |
-| `rptPredictionTool`    | `RptPredictionTool`       | SAP RPT forecast against a single already-loaded table; uses SQL `WHERE` clauses to separate context from prediction rows. |
-| `getGroundTruthTool`   | `GetGroundTruthTool`      | Joins an RPT prediction result against ground-truth OData data and computes accuracy metrics (MAPE, pct_of_actual, etc.). |
-| `createViewTool`       | `CreateViewTool`          | Saves a SQL expression as a named DuckDB view for reuse. |
-| `dropTableTool`        | `DropTableTool`           | Drops a DuckDB table or view to free memory or start fresh. |
+| Field                  | Tool class              | What it does |
+|------------------------|-------------------------|--------------|
+| `financialPlanningTool`| `FinancialPlanningTool` | Queries the Financial Planning OData service and **appends** rows into the `financial_planning_data` DuckDB table. |
+| `journalEntryTool`     | `JournalEntryTool`      | Queries the Journal Entry OData service and **appends** rows into the `journal_entry_data` DuckDB table. |
+| `duckDbTool`           | `LocalDbTool`           | Runs arbitrary SQL against the in-memory DuckDB workspace (SELECT, GROUP BY, joins, window functions…). |
+| `forecastTool`         | `ForecastTool`          | Tabular AI forecast for a small set of hand-picked historical rows (< 20 context points). |
+| `createViewTool`       | `CreateViewTool`        | Saves a SQL expression as a named DuckDB view for reuse. |
+| `dropTableTool`        | `DropTableTool`         | Drops a DuckDB table or view to free memory or start fresh. |
 
-Each tool class is annotated with `@Tool` (or contains `@Tool`-annotated methods) — the Spring AI convention that makes a method visible to the LLM as a callable function.
+The three RPT forecasting tools (`rptFromSourcesTool`, `rptPredictionTool`, `getGroundTruthTool`) will be added in Exercise 3.
+
+Each tool class contains `@Tool`-annotated methods — the Spring AI convention that makes a method visible to the LLM as a callable function.
 The method's Javadoc becomes part of the function description the model sees, so it knows _when_ and _how_ to call each tool.
 
 > **Tip:** Open one of the tool classes (e.g., `FinancialPlanningTool`) and read its `@Tool` method.
@@ -71,21 +73,20 @@ The method's Javadoc becomes part of the function description the model sees, so
 ## Step 2: Register the tools on `OrchestrationChatOptions`
 
 Find the `addToolCalls` method in `AgentService`.
-Its job is to attach all nine tools to the `options` object so the LLM knows they exist.
+Its job is to attach the tools to the `options` object so the LLM knows they exist.
 
 Spring AI provides `ToolCallbacks.from(...)` as a factory that inspects each object for `@Tool`-annotated methods and converts them into the `ToolCallback` descriptors that the underlying model API expects.
-Pass all nine tool beans to it:
+Pass the six data and SQL tools to it:
 
 ```java
 options.setToolCallbacks(
     List.of(
         ToolCallbacks.from(
             financialPlanningTool, journalEntryTool, duckDbTool, forecastTool,
-            rptFromSourcesTool, rptPredictionTool, getGroundTruthTool,
             createViewTool, dropTableTool)));
 ```
 
-If you add a new tool in the future, simply append it here — no other wiring is required.
+When you complete Exercise 3 you will append the RPT tools here.
 
 
 ## Step 3: Enable the internal execution loop
@@ -112,7 +113,6 @@ private void addToolCalls(final OrchestrationChatOptions options) {
         List.of(
             ToolCallbacks.from(
                 financialPlanningTool, journalEntryTool, duckDbTool, forecastTool,
-                rptFromSourcesTool, rptPredictionTool, getGroundTruthTool,
                 createViewTool, dropTableTool)));
     options.setInternalToolExecutionEnabled(true);
 }
@@ -159,15 +159,12 @@ The LLM never had direct access to the database — it issued _instructions_ (to
 
 A few things worth noticing:
 
-- **Append semantics:** `query_financial_planning` and `query_journal_entry` always _append_ to their tables.
-  If the model calls either tool twice with the same filters, rows are duplicated.
-  The system prompt instructs the model to deduplicate via SQL when computing totals — look for the `DISTINCT id` pattern in its generated queries.
-
 - **SQL as a universal adapter:** Instead of a dozen specialized read operations, the agent has one general-purpose SQL tool (`query_local_db`).
   This gives the model enormous flexibility: it can filter, join multiple tables, compute running totals, or pivot data entirely through SQL — skills it already knows well from its training data.
 
-- **Forecast as a first-class tool:** `forecast_from_sources` and `run_rpt_prediction` call SAP RPT, a tabular foundation model trained on SAP financial data.
-  When a question cannot be answered from existing data (e.g., "what will Q3 2026 spend look like?"), the model should reach for these tools rather than extrapolating manually.
+- **Append semantics:** `query_financial_planning` and `query_journal_entry` always _append_ to their tables.
+  If the model calls either tool twice with the same filters, rows are duplicated.
+  The system prompt instructs the model to deduplicate via SQL when computing totals — look for the `DISTINCT id` pattern in its generated queries.
 
 
 ## Step 7: Try more complex queries
@@ -178,13 +175,9 @@ Try the following prompts to explore the agent's tool-calling behaviour:
   > "Compare actual journal entry spend vs. planning ACTUAL for cost center 10101010 in 2023."
   The agent needs to load both OData tables and join them in DuckDB.
 
-- **Forecasting:**
-  > "Forecast the planned spend for cost center 10101010 in fiscal year 2026 based on the 2022–2024 ACTUAL history."
-  The agent should call `query_financial_planning` for context rows, then `forecast_from_sources` or `run_rpt_prediction` for the prediction.
-
-- **Ground-truth evaluation:**
-  > "How accurate was the RPT forecast you just made compared to the actual 2026 journal entries?"
-  The agent should call `get_ground_truth` to join the prediction table against real journal data and surface percentage metrics.
+- **Cross-year comparison:**
+  > "How did total planned spend for cost center 10101010 change between 2022 and 2024?"
+  The agent should load multiple years of planning data and aggregate with `GROUP BY ledgerFiscalYear`.
 
 In each case, watch the trace panel to see exactly which tools are called and with what arguments.
 This transparency is one of the key advantages of the agentic architecture over a black-box query engine.
@@ -202,13 +195,15 @@ Even without implementing the tool, reading the class gives you a clear template
 
 ## Summary
 
-You have successfully equipped the financial analyst agent with its full toolbox.
+You have equipped the financial analyst agent with its data and SQL tools.
 Your agent can now:
 
 - Fetch financial planning and journal entry data from SAP OData services into an in-memory DuckDB workspace.
 - Query, filter, join, and aggregate that data with SQL.
-- Request AI-driven forecasts from SAP RPT for fiscal periods where no actuals exist.
-- Evaluate forecast accuracy against ground-truth OData data.
 - Manage its own workspace by creating views and dropping tables.
 
 All of this is driven autonomously by the LLM through the agentic tool-calling loop — the only code you wrote was the wiring in `addToolCalls` and a single `addToolCalls(options)` call in `callChatClient`.
+
+In Exercise 3 we will add the SAP RPT forecasting tools so the agent can also predict future values and evaluate its own accuracy.
+
+Continue to [Exercise 3 - Forecasting with SAP RPT: Predicting Future Financial Data](../ex3/README.md).
