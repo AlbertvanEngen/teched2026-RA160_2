@@ -17,13 +17,10 @@ If you have any trouble solving the exercise, you can find the code to solve it 
 
 ## Background: What is SAP Orchestration?
 
-The SAP Cloud SDK for AI provides an _Orchestration_ layer that sits in front of multiple LLM providers (OpenAI, Anthropic, etc.) hosted on SAP AI Core.
-Instead of talking to a vendor API directly, your code talks to Orchestration — which handles routing, content filtering, data masking, and more.
+The SAP Cloud SDK for AI provides an _Orchestration_ layer that sits in front of multiple LLM providers (OpenAI, Anthropic, etc.) available through SAP AI Core's Generative AI Hub.
+Instead of talking to a vendor API directly, your code uses a single harmonized API — which handles content filtering, data masking, templating, grounding, and more.
 
 In Spring AI terms, this means we use `OrchestrationChatModel` (instead of, say, `OpenAiChatModel`) and we configure our model choice through `OrchestrationModuleConfig` (instead of an API key and model string).
-
-Think of it like a **JDBC DataSource**: you don't hardcode which database server to connect to in every query; you configure the data source once and inject it wherever you need it.
-Here, `OrchestrationChatModel` is the data source for your LLM calls.
 
 
 ## Step 1: Create an `OrchestrationModuleConfig`
@@ -113,8 +110,10 @@ In total, your `callChatClient` method should look like this:
 
 ```java
 private String callChatClient(final String prompt) {
-    final ChatModel chatModel = new OrchestrationChatModel();
     final OrchestrationModuleConfig config = new OrchestrationModuleConfig().withLlmConfig(GPT_4O);
+
+    final ChatModel chatModel = new OrchestrationChatModel();
+
     final ChatClient chatClient = ChatClient.builder(chatModel).build();
 
     final OrchestrationChatOptions options = new OrchestrationChatOptions(config);
@@ -122,6 +121,7 @@ private String callChatClient(final String prompt) {
     final Prompt p =
         new Prompt(
             List.of(new SystemMessage(SYSTEM_PROMPT), new UserMessage(prompt)), options);
+
     return chatClient.prompt(p).call().content();
 }
 ```
@@ -132,10 +132,10 @@ private String callChatClient(final String prompt) {
 Start the application with:
 
 ```bash
-cd java-app && mvn spring-boot:run
+mise run java-agent
 ```
 
-The application starts on port **3143**. Navigate to the UI (served by the mock server on port **3000**) and send a simple financial query, for example:
+Navigate to **http://localhost:3142/** in your browser to see the frontend of our application. You should see an input field for text. Try a query like the following:
 
 > "What financial planning data is available?"
 
@@ -149,11 +149,11 @@ We will fix that in Exercise 2.
 When you submitted the query, the following happened:
 
 1. The browser posted the prompt text to `AgentController`, which called `AgentService.run()`.
-2. `run()` created an `AgentTrace` (for SSE streaming) and then called `callChatClient(prompt)`.
+2. `run()` then called `callChatClient(prompt)`.
 3. `callChatClient` sent the system prompt + user message to GPT-4o via SAP Orchestration on AI Core.
-4. The LLM's response text was streamed back to the browser as an SSE `delta` event.
+4. The LLM's response text was streamed back to the browser.
 
-The entire setup — credentials, resource groups, deployment IDs — was read automatically from the environment by `OrchestrationChatModel`.
+The entire setup — credentials, resource groups, deployment IDs — was read automatically from the environment by `OrchestrationChatModel` thanks to the SAP Cloud SDK for AI.
 This is the same pattern you would use in a production BTP application: no secrets in code, just configuration in the environment.
 
 
@@ -161,9 +161,12 @@ This is the same pattern you would use in a production BTP application: no secre
 
 The only thing you need to change to switch models is the constant passed to `withLlmConfig(...)`.
 Try replacing `GPT_4O` with another constant, restart, and ask the same question again.
-Notice how the phrasing and verbosity of the answer changes — the system prompt is identical, only the model is different.
+Notice how the phrasing, response times, and verbosity of the answer changes — the system prompt is identical, only the model is different.
 
 Available constants are defined in `OrchestrationAiModel` (e.g., `CLAUDE_4_SONNET`, `GPT_4O_MINI`).
+
+To restart the application after your code changes, press `CTRL + c` while in your terminal and then run `mise run java-agent` again.
+Your application should be back up on the same address in your browser within seconds.
 
 
 ## Summary

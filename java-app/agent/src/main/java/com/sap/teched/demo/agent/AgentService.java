@@ -1,5 +1,6 @@
 package com.sap.teched.demo.agent;
 
+import static com.sap.ai.sdk.orchestration.OrchestrationAiModel.CLAUDE_4_SONNET;
 import static com.sap.ai.sdk.orchestration.OrchestrationAiModel.GPT_4O;
 
 import com.sap.ai.sdk.orchestration.OrchestrationModuleConfig;
@@ -185,18 +186,24 @@ public class AgentService {
    * @return the answer of the LLM as a String
    */
   private String callChatClient(final String prompt){
+    final OrchestrationModuleConfig config = new OrchestrationModuleConfig().withLlmConfig(CLAUDE_4_SONNET);
+
     final ChatModel chatModel = new OrchestrationChatModel();
-    final OrchestrationModuleConfig config = new OrchestrationModuleConfig().withLlmConfig(GPT_4O);
+
     final ChatClient chatClient = ChatClient.builder(chatModel).build();
 
     final OrchestrationChatOptions options = new OrchestrationChatOptions(config);
-    addToolCalls(options);
-    addFallbackConfigs(options);
+
+//    addToolCalls(options);
+//    addFallbackConfigs(options);
 
     final Prompt p =
         new Prompt(
             List.of(new SystemMessage(SYSTEM_PROMPT), new UserMessage(prompt)), options);
+
     return chatClient.prompt(p).call().content();
+
+//    return "This could be a chat client response.";
   }
 
   /**
