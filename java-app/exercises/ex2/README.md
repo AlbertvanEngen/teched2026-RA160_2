@@ -56,7 +56,6 @@ In this exercise we will wire up six tools:
 | `financialPlanningTool`| `FinancialPlanningTool` | Queries the Financial Planning OData service and **appends** rows into the `financial_planning_data` DuckDB table. |
 | `journalEntryTool`     | `JournalEntryTool`      | Queries the Journal Entry OData service and **appends** rows into the `journal_entry_data` DuckDB table. |
 | `duckDbTool`           | `LocalDbTool`           | Runs arbitrary SQL against the in-memory DuckDB workspace (SELECT, GROUP BY, joins, window functions…). |
-| `forecastTool`         | `ForecastTool`          | Tabular AI forecast for a small set of hand-picked historical rows (< 20 context points). |
 | `createViewTool`       | `CreateViewTool`        | Saves a SQL expression as a named DuckDB view for reuse. |
 | `dropTableTool`        | `DropTableTool`         | Drops a DuckDB table or view to free memory or start fresh. |
 
@@ -72,7 +71,7 @@ The method's Javadoc becomes part of the function description the model sees, so
 
 ## Step 2: Register the tools on `OrchestrationChatOptions`
 
-Find the `addToolCalls` method in `AgentService`.
+Find the `addToolCalls` method in the `AgentService` class.
 Its job is to attach the tools to the `options` object so the LLM knows they exist.
 
 Spring AI provides `ToolCallbacks.from(...)` as a factory that inspects each object for `@Tool`-annotated methods and converts them into the `ToolCallback` descriptors that the underlying model API expects.
@@ -82,11 +81,14 @@ Pass the six data and SQL tools to it:
 options.setToolCallbacks(
     List.of(
         ToolCallbacks.from(
-            financialPlanningTool, journalEntryTool, duckDbTool, forecastTool,
-            createViewTool, dropTableTool)));
+            financialPlanningTool,
+            journalEntryTool,
+            duckDbTool,
+            createViewTool,
+            dropTableTool)));
 ```
 
-When you complete Exercise 3 you will append the RPT tools here.
+When you complete Exercise 3 you will append the RPT tools here as well.
 
 
 ## Step 3: Enable the internal execution loop
@@ -121,7 +123,7 @@ private void addToolCalls(final OrchestrationChatOptions options) {
 
 ## Step 4: Call `addToolCalls` from `callChatClient`
 
-Now open `callChatClient` — the method you implemented in Exercise 1.
+Now go back to `callChatClient` — the method you implemented in Exercise 1.
 After creating the `OrchestrationChatOptions` object, add a call to the method you just finished:
 
 ```java
@@ -135,17 +137,13 @@ The tools are configured once per request on the `options` object, which is a va
 
 ## Step 5: Start the application and test it
 
-Restart the application:
-
-```bash
-cd java-app && mvn spring-boot:run
-```
+Restart the application: press `CTRL + c` while in your terminal and then run `mise run java-agent` again.
 
 Navigate to the UI and ask a question that requires data:
 
 > "What was the total planned spend for cost center A1000 in fiscal year 2024?"
 
-Watch the agent trace panel on the right — you should see tool calls appear as the agent:
+Watch the agent trace panel on the left — you should see tool calls appear as the agent:
 
 1. Calls `query_financial_planning` to fetch planning rows for that cost center and year.
 2. Calls `query_local_db` to aggregate the loaded rows with SQL (`SUM`, `GROUP BY`, etc.).
@@ -169,7 +167,7 @@ A few things worth noticing:
 
 ## Step 7: Try more complex queries
 
-Try the following prompts to explore the agent's tool-calling behaviour:
+Try the following prompts to explore the agent's tool-calling behaviour using its OData capabilities:
 
 - **Multi-step aggregation:**
   > "Compare actual journal entry spend vs. planning ACTUAL for cost center A1000 in 2023."
@@ -179,18 +177,8 @@ Try the following prompts to explore the agent's tool-calling behaviour:
   > "How did total planned spend for cost center A1000 change between 2022 and 2024?"
   The agent should load multiple years of planning data and aggregate with `GROUP BY ledgerFiscalYear`.
 
-In each case, watch the trace panel to see exactly which tools are called and with what arguments.
+In each case, watch the trace panel to the left to see exactly which tools are called and with what arguments.
 This transparency is one of the key advantages of the agentic architecture over a black-box query engine.
-
-
-## Step 8: Experiment — add or remove tools
-
-The toolbox is not fixed.
-Try temporarily removing `createViewTool` and `dropTableTool` from the `ToolCallbacks.from(...)` list, restart, and repeat the multi-step aggregation query.
-The agent will still work, but it will no longer be able to create reusable views — you may notice it re-fetches or re-computes things it could have stored.
-
-Now put them back and try adding a hypothetical new tool by looking at how the existing tool classes are structured.
-Even without implementing the tool, reading the class gives you a clear template for how a new data source would be integrated.
 
 
 ## Summary
@@ -198,7 +186,7 @@ Even without implementing the tool, reading the class gives you a clear template
 You have equipped the financial analyst agent with its data and SQL tools.
 Your agent can now:
 
-- Fetch financial planning and journal entry data from SAP OData services into an in-memory DuckDB workspace.
+- Fetch financial planning and journal entry data from SAP OData services like S4/HANA into an in-memory DuckDB workspace.
 - Query, filter, join, and aggregate that data with SQL.
 - Manage its own workspace by creating views and dropping tables.
 

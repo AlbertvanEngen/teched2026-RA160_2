@@ -194,7 +194,7 @@ public class AgentService {
 
     final OrchestrationChatOptions options = new OrchestrationChatOptions(config);
 
-//    addToolCalls(options);
+    addToolCalls(options);
 //    addFallbackConfigs(options);
 
     final Prompt p =
@@ -218,9 +218,11 @@ public class AgentService {
     options.setToolCallbacks(
         List.of(
             ToolCallbacks.from(
-                financialPlanningTool, journalEntryTool, duckDbTool,
-                rptPredictionTool, rptSinglePredictionTool, getGroundTruthTool,
-                createViewTool, dropTableTool)));
+                financialPlanningTool,
+                journalEntryTool,
+                duckDbTool,
+                createViewTool,
+                dropTableTool)));
     options.setInternalToolExecutionEnabled(true);
   }
 
