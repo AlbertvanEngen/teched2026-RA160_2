@@ -52,6 +52,7 @@
     "@sap-cloud-sdk/util": "catalog:"
   },
   "devDependencies": {
-    "@sap-cloud-sdk/openapi-generator": "catalog:"
+    "@sap-cloud-sdk/openapi-generator": "catalog:",
+    "typescript": "catalog:"
   }
 }
