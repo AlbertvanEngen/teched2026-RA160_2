@@ -69,7 +69,7 @@ public class RptPredictionTool {
       final String taskType) {
     // ---------------------------------------- EXERCISE 3 ----------------------------------------
     // YOUR CODE START
-
+    /*
     final var targetColConfig =
         TargetColumnConfig.create()
             .name(targetColumn)
@@ -88,10 +88,10 @@ public class RptPredictionTool {
             .parseDataTypes(true);
 
     return RptClient.forModel(SAP_RPT_1_5).tableCompletion(request);
-
+    */
     // YOUR CODE END
     // delete the following line
-//    throw new UnsupportedOperationException("callRpt not yet implemented — complete Exercise 3");
+    throw new UnsupportedOperationException("callRpt not yet implemented — complete Exercise 3");
     // ---------------------------------------- EXERCISE 3 ----------------------------------------
   }
 

@@ -192,7 +192,7 @@ public class AgentService {
   private String callChatClient(final String prompt) {
     // ---------------------------------------- EXERCISE 1 ----------------------------------------
     // YOUR CODE START
-
+    /*
     final OrchestrationModuleConfig config = new OrchestrationModuleConfig().withLlmConfig(GPT_4O);
     final ChatModel chatModel = new OrchestrationChatModel();
     final ChatClient chatClient = ChatClient.builder(chatModel).build();
@@ -206,8 +206,9 @@ public class AgentService {
     return chatClient.prompt(p).call().content();
 
     // YOUR CODE END
+    */
     // delete the following line
-//    return "This could be a chat client response.";
+    return "This could be a chat client response.";
     // ---------------------------------------- EXERCISE 1 ----------------------------------------
   }
 
@@ -222,7 +223,7 @@ public class AgentService {
   private void addToolCalls(final OrchestrationChatOptions options) {
     // ---------------------------------------- EXERCISE 2 ----------------------------------------
     // YOUR CODE START
-
+    /*
     options.setToolCallbacks(
         List.of(
             ToolCallbacks.from(
@@ -232,7 +233,7 @@ public class AgentService {
                 createViewTool,
                 dropTableTool)));
     options.setInternalToolExecutionEnabled(true);
-
+    */
     // YOUR CODE END
     // ---------------------------------------- EXERCISE 2 ----------------------------------------
   }
