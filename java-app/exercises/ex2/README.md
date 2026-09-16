@@ -72,6 +72,7 @@ The method's Javadoc becomes part of the function description the model sees, so
 ## Step 2: Register the tools on `OrchestrationChatOptions`
 
 Find the `addToolCalls` method in the `AgentService` class.
+The solution code is commented out inside the `/* */` block — your task in the steps below is to put it back in, one piece at a time.
 Its job is to attach the tools to the `options` object so the LLM knows they exist.
 
 Spring AI provides `ToolCallbacks.from(...)` as a factory that inspects each object for `@Tool`-annotated methods and converts them into the `ToolCallback` descriptors that the underlying model API expects.

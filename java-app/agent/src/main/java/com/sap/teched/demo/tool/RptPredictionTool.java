@@ -51,6 +51,50 @@ public class RptPredictionTool {
 
   private final DuckDbConnection duckDb;
 
+  /**
+   * EXERCISE 3: Build the RPT request and call SAP RPT 1.5.
+   *
+   * <p>Follow the steps in exercises/ex3/README.md or uncomment the code here to make it work.
+   *
+   * @param rptRows     combined list of context rows (source="actual") and prediction rows
+   *     (source="plan"), already assembled by {@link #execute}
+   * @param targetColumn the column RPT should predict, e.g. {@code amountInCompanyCodeCurrency}
+   * @param taskType    {@code "regression"} for numeric amounts, {@code "classification"} for
+   *     categories
+   * @return the RPT response payload containing predictions for every prediction row
+   */
+  private PredictResponsePayload callRpt(
+      final List<Map<String, RowsInnerValue>> rptRows,
+      final String targetColumn,
+      final String taskType) {
+    // ---------------------------------------- EXERCISE 3 ----------------------------------------
+    // YOUR CODE START
+
+    final var targetColConfig =
+        TargetColumnConfig.create()
+            .name(targetColumn)
+            .predictionPlaceholder(PredictionPlaceholder.create(RptSinglePredictionTool.PLACEHOLDER))
+            .taskType("classification".equalsIgnoreCase(taskType) ? CLASSIFICATION : REGRESSION);
+
+    final var predictionConfig =
+        PredictionConfig.create()
+            .targetColumns(List.of(targetColConfig))
+            .explanations(ExplanationConfig.create().topColumnScores(5));
+
+    final var request =
+        PredictRequestPayloadOneOf.create()
+            .predictionConfig(predictionConfig)
+            .rows(rptRows)
+            .parseDataTypes(true);
+
+    return RptClient.forModel(SAP_RPT_1_5).tableCompletion(request);
+
+    // YOUR CODE END
+    // delete the following line
+//    throw new UnsupportedOperationException("callRpt not yet implemented — complete Exercise 3");
+    // ---------------------------------------- EXERCISE 3 ----------------------------------------
+  }
+
   @Tool(
       name = "run_rpt_prediction",
       description =
@@ -165,27 +209,10 @@ public class RptPredictionTool {
       rptRows.add(rptRow);
     }
 
-    final var targetColConfig =
-        TargetColumnConfig.create()
-            .name(targetColumn)
-            .predictionPlaceholder(PredictionPlaceholder.create(RptSinglePredictionTool.PLACEHOLDER))
-            .taskType("classification".equalsIgnoreCase(taskType) ? CLASSIFICATION : REGRESSION);
-
-    final var predictionConfig =
-        PredictionConfig.create()
-            .targetColumns(List.of(targetColConfig))
-            .explanations(ExplanationConfig.create().topColumnScores(5));
-
-    final var request =
-        PredictRequestPayloadOneOf.create()
-            .predictionConfig(predictionConfig)
-            .rows(rptRows)
-            .parseDataTypes(true);
-
     log.info("Calling SAP RPT 1.5 with {} total rows ({} context + {} prediction)",
         rptRows.size(), contextRows.size(), predRows.size());
 
-    final PredictResponsePayload response = RptClient.forModel(SAP_RPT_1_5).tableCompletion(request);
+    final PredictResponsePayload response = callRpt(rptRows, targetColumn, taskType);
 
     final List<Map<String, PredictionsInnerValue>> predictions = response.getPredictions();
     if (predictions == null || predictions.isEmpty()) {

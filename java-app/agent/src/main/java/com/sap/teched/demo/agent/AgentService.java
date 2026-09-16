@@ -180,41 +180,46 @@ public class AgentService {
   /**
    * EXERCISE 1: Connect to AI Core using a chat client.
    * The below method should enable the connection to an LLM accessed via SAP AI Core.
-   * Follow the steps in {@link exercise01.md} or uncomment the code here to make it work.
+   * Follow the steps in exercises/ex1/README.md or uncomment the code here to make it work.
    * We use the Spring AI integration of the SAP Cloud SDK for AI to do this.
+   *
    * @param prompt the user prompt to send to the LLM
    * @return the answer of the LLM as a String
    */
-  private String callChatClient(final String prompt){
-    final OrchestrationModuleConfig config = new OrchestrationModuleConfig().withLlmConfig(CLAUDE_4_SONNET);
+  private String callChatClient(final String prompt) {
+    // ---------------------------------------- EXERCISE 1 ----------------------------------------
+    // YOUR CODE START
 
+    final OrchestrationModuleConfig config = new OrchestrationModuleConfig().withLlmConfig(GPT_4O);
     final ChatModel chatModel = new OrchestrationChatModel();
-
     final ChatClient chatClient = ChatClient.builder(chatModel).build();
 
     final OrchestrationChatOptions options = new OrchestrationChatOptions(config);
-
     addToolCalls(options);
-//    addFallbackConfigs(options);
 
     final Prompt p =
         new Prompt(
             List.of(new SystemMessage(SYSTEM_PROMPT), new UserMessage(prompt)), options);
-
     return chatClient.prompt(p).call().content();
 
+    // YOUR CODE END
+    // delete the following line
 //    return "This could be a chat client response.";
+    // ---------------------------------------- EXERCISE 1 ----------------------------------------
   }
 
   /**
-   * Exercise 2: Add tool calls
+   * EXERCISE 2: Add tool calls.
    * The below method should add the necessary tools to connect to the OData service etc.
-   * Follow the steps in {@link exercise02.md} or uncomment the code here to make it work.
+   * Follow the steps in exercises/ex2/README.md or uncomment the code here to make it work.
    * We use the Spring AI integration of the SAP Cloud SDK for AI to do this.
    *
    * @param options the OrchestrationChatOptions to which the tools are added
    */
   private void addToolCalls(final OrchestrationChatOptions options) {
+    // ---------------------------------------- EXERCISE 2 ----------------------------------------
+    // YOUR CODE START
+
     options.setToolCallbacks(
         List.of(
             ToolCallbacks.from(
@@ -224,6 +229,9 @@ public class AgentService {
                 createViewTool,
                 dropTableTool)));
     options.setInternalToolExecutionEnabled(true);
+
+    // YOUR CODE END
+    // ---------------------------------------- EXERCISE 2 ----------------------------------------
   }
 
   private void addFallbackConfigs(final OrchestrationChatOptions options) {

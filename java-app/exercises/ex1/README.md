@@ -26,6 +26,7 @@ In Spring AI terms, this means we use `OrchestrationChatModel` (instead of, say,
 ## Step 1: Create an `OrchestrationModuleConfig`
 
 Open [agent/src/main/java/com/sap/teched/demo/agent/AgentService.java](../agent/src/main/java/com/sap/teched/demo/agent/AgentService.java) and find the `callChatClient` method.
+The solution code is commented out inside the `/* */` block — your task in the steps below is to put it back in, one piece at a time.
 
 The `OrchestrationModuleConfig` holds the configuration for your Orchestration call — most importantly, which LLM to route to.
 Create one and set GPT-4o as the model:
