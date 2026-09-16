@@ -34,7 +34,6 @@
   ],
   "scripts": {
     "build": "tsc",
-    "postinstall": "pnpm build",
     "test": "node --test 'src/*.test.ts'",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
