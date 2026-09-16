@@ -34,6 +34,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "postinstall": "pnpm build",
     "test": "node --test 'src/*.test.ts'",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
@@ -51,6 +52,7 @@
     "@sap-cloud-sdk/util": "catalog:"
   },
   "devDependencies": {
-    "@sap-cloud-sdk/openapi-generator": "catalog:"
+    "@sap-cloud-sdk/openapi-generator": "catalog:",
+    "typescript": "catalog:"
   }
 }
