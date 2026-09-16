@@ -3,6 +3,7 @@ package com.sap.teched.demo.agent;
 import static com.sap.ai.sdk.orchestration.OrchestrationAiModel.CLAUDE_4_SONNET;
 import static com.sap.ai.sdk.orchestration.OrchestrationAiModel.GPT_4O;
 
+import com.sap.ai.sdk.orchestration.OrchestrationAiModel;
 import com.sap.ai.sdk.orchestration.OrchestrationModuleConfig;
 import com.sap.ai.sdk.orchestration.spring.OrchestrationChatModel;
 import com.sap.ai.sdk.orchestration.spring.OrchestrationChatOptions;
@@ -15,6 +16,8 @@ import com.sap.teched.demo.tool.LocalDbTool;
 import com.sap.teched.demo.tool.RptPredictionTool;
 import com.sap.teched.demo.tool.RptSinglePredictionTool;
 import java.util.List;
+import java.util.Map;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
