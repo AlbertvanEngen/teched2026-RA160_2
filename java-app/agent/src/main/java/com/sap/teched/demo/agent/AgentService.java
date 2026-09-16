@@ -14,7 +14,6 @@ import com.sap.teched.demo.tool.GetGroundTruthTool;
 import com.sap.teched.demo.tool.JournalEntryTool;
 import com.sap.teched.demo.tool.LocalDbTool;
 import com.sap.teched.demo.tool.RptPredictionTool;
-import com.sap.teched.demo.tool.RptSinglePredictionTool;
 import java.util.List;
 import java.util.Map;
 
@@ -154,7 +153,6 @@ public class AgentService {
   private final JournalEntryTool journalEntryTool;
   private final LocalDbTool duckDbTool;
   private final RptPredictionTool rptPredictionTool;
-  private final RptSinglePredictionTool rptSinglePredictionTool;
   private final GetGroundTruthTool getGroundTruthTool;
   private final CreateViewTool createViewTool;
   private final DropTableTool dropTableTool;

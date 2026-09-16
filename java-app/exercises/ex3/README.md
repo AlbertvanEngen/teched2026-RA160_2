@@ -116,13 +116,13 @@ Remove the `throw new UnsupportedOperationException(...)` stub and implement the
 final var targetColConfig =
     TargetColumnConfig.create()
         .name(targetColumn)
-        .predictionPlaceholder(PredictionPlaceholder.create(RptSinglePredictionTool.PLACEHOLDER))
+        .predictionPlaceholder(PredictionPlaceholder.create("[PREDICT]"))
         .taskType("classification".equalsIgnoreCase(taskType) ? CLASSIFICATION : REGRESSION);
 ```
 
 - `.name(targetColumn)` — the column RPT should write predictions into.
 - `.predictionPlaceholder(...)` — the sentinel string used in the rows to mark cells that need filling.
-  `RptSinglePredictionTool.PLACEHOLDER` is the shared constant already used when the rows were assembled.
+  `"[PREDICT]"` is the placeholder value the rows were already assembled with — any cell containing this string will be filled in by RPT.
 - `.taskType(...)` — `REGRESSION` for continuous numeric values (monetary amounts); `CLASSIFICATION` for discrete labels.
   Both constants are statically imported at the top of the file.
 
@@ -185,7 +185,7 @@ private PredictResponsePayload callRpt(
     final var targetColConfig =
         TargetColumnConfig.create()
             .name(targetColumn)
-            .predictionPlaceholder(PredictionPlaceholder.create(RptSinglePredictionTool.PLACEHOLDER))
+            .predictionPlaceholder(PredictionPlaceholder.create("[PREDICT]"))
             .taskType("classification".equalsIgnoreCase(taskType) ? CLASSIFICATION : REGRESSION);
 
     final var predictionConfig =
