@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "TabPFN Tabular Prediction",
-    "description": "A REST API for in-context tabular prediction with the TabPFN foundation model. Send labeled training rows and the rows to predict in a single request; the model returns predictions immediately without a separate training step.",
-    "version": "0.1.0",
+    "description": "A REST API for in-context tabular prediction with the TabPFN foundation model (Prior Labs TabPFN 3.5 family). Send labeled training rows and the rows to predict in a single request; the model returns predictions immediately without a separate training step.",
+    "version": "0.2.0",
     "x-logo": {
       "url": "https://www.sap.com/favicon.ico"
     }
@@ -17,7 +17,7 @@
     "/predict": {
       "post": {
         "summary": "Make in-context tabular predictions for the provided test rows based on the provided training rows.",
-        "description": "Make in-context tabular predictions with TabPFN. The labeled training data (`x_train`, `y_train`) and the rows to predict (`x_test`) are sent in a single request. Two request encodings are supported: inline JSON (`application/json`) and multipart file upload (`multipart/form-data`).",
+        "description": "Make in-context tabular predictions with TabPFN. The labeled training data (`x_train`, `y_train`) and the rows to predict (`x_test`) are sent in a single request. Two request encodings are supported: inline JSON (`application/json`) and multipart file upload (`multipart/form-data`).\n\nData limits: up to 1,000,000 context rows and 2,000 columns; context and prediction data together are limited to 200,000,000 cells. Classification supports up to 160 distinct classes. Prediction rows are capped at 1,000,000 (250,000 when the context has 1,000,000 rows). Responses are capped at 32,000,000 output values (e.g. returning probabilities for all 160 classes permits at most 200,000 prediction rows). Full regression-distribution output is limited to 400 prediction rows.",
         "operationId": "predict",
         "requestBody": {
           "content": {
@@ -28,24 +28,37 @@
               "examples": {
                 "classification_example": {
                   "summary": "Classification (column-oriented JSON)",
-                  "description": "Predict a binary churn label using in-context learning with column-oriented data.",
+                  "description": "Predict a spend category from line-item data using in-context learning.",
                   "value": {
                     "task_config": {
                       "task": "classification",
+                      "tabpfn_config": {
+                        "n_estimators": 8,
+                        "softmax_temperature": 0.9,
+                        "average_before_softmax": false,
+                        "balance_probabilities": true,
+                        "categorical_features_indices": [0, 2],
+                        "random_state": 0,
+                        "inference_precision": "auto",
+                        "fit_mode": "fit_preprocessors",
+                        "memory_saving_mode": false
+                      },
                       "predict_params": {
-                        "output_type": "probas"
+                        "output_type": "preds"
                       }
                     },
                     "x_train": {
-                      "age": [42, 51, 29],
-                      "tenure": [3, 9, 1]
+                      "PRODUCT": ["Office Chair", "Server Rack"],
+                      "PRICE": [150.8, 2200],
+                      "ORDERDATE": ["10-1-2025", "12-1-2025"]
                     },
                     "y_train": {
-                      "churn": [0, 1, 0]
+                      "COSTCENTER": ["Office Furniture", "Data Infrastructure"]
                     },
                     "x_test": {
-                      "age": [37],
-                      "tenure": [5]
+                      "PRODUCT": ["Couch"],
+                      "PRICE": [999.99],
+                      "ORDERDATE": ["10-2-2025"]
                     }
                   }
                 },
@@ -116,15 +129,50 @@
                 },
                 "examples": {
                   "classification_example": {
-                    "summary": "Classification response (probas)",
+                    "summary": "Classification response (preds)",
                     "value": {
-                      "prediction": [[0.83, 0.17]],
+                      "prediction": ["Office Furniture"],
+                      "class_labels": [
+                        "Data Infrastructure",
+                        "Office Furniture"
+                      ],
                       "metadata": {
                         "task": "classification",
                         "test_set_num_rows": 1,
-                        "test_set_num_cols": 2,
-                        "tabpfn_config": {}
-                      }
+                        "test_set_num_cols": 11,
+                        "tabpfn_config": {
+                          "n_estimators": 8,
+                          "average_before_softmax": false,
+                          "balance_probabilities": true,
+                          "categorical_features_indices": [0, 2],
+                          "fit_mode": "fit_preprocessors",
+                          "inference_precision": "auto",
+                          "memory_saving_mode": false,
+                          "random_state": 0,
+                          "softmax_temperature": 0.9
+                        }
+                      },
+                      "usage": {
+                        "X_train": {
+                          "num_rows": 2,
+                          "num_cols": 3,
+                          "num_cells": 6
+                        },
+                        "y_train": {
+                          "num_rows": 2,
+                          "num_cols": 1,
+                          "num_cells": 2
+                        },
+                        "X_test": {
+                          "num_rows": 1,
+                          "num_cols": 3,
+                          "num_cells": 3
+                        },
+                        "num_cells": 11,
+                        "num_predictions": 1,
+                        "n_estimators": 8
+                      },
+                      "model_id": null
                     }
                   },
                   "regression_quantiles_example": {
@@ -140,7 +188,28 @@
                           "random_state": 42,
                           "memory_saving_mode": true
                         }
-                      }
+                      },
+                      "usage": {
+                        "X_train": {
+                          "num_rows": 4,
+                          "num_cols": 2,
+                          "num_cells": 8
+                        },
+                        "y_train": {
+                          "num_rows": 4,
+                          "num_cols": 1,
+                          "num_cells": 4
+                        },
+                        "X_test": {
+                          "num_rows": 2,
+                          "num_cols": 2,
+                          "num_cells": 4
+                        },
+                        "num_cells": 16,
+                        "num_predictions": 2,
+                        "n_estimators": 4
+                      },
+                      "model_id": null
                     }
                   },
                   "regression_full_example": {
@@ -158,7 +227,28 @@
                         "test_set_num_rows": 2,
                         "test_set_num_cols": 2,
                         "tabpfn_config": {}
-                      }
+                      },
+                      "usage": {
+                        "X_train": {
+                          "num_rows": 4,
+                          "num_cols": 2,
+                          "num_cells": 8
+                        },
+                        "y_train": {
+                          "num_rows": 4,
+                          "num_cols": 1,
+                          "num_cells": 4
+                        },
+                        "X_test": {
+                          "num_rows": 2,
+                          "num_cols": 2,
+                          "num_cells": 4
+                        },
+                        "num_cells": 16,
+                        "num_predictions": 2,
+                        "n_estimators": 8
+                      },
+                      "model_id": null
                     }
                   }
                 }
@@ -224,16 +314,16 @@
         "description": "The type of prediction task."
       },
       "ClassificationOutputType": {
-        "enum": ["probas", "preds"],
+        "enum": ["probas", "preds", "top_k"],
         "title": "ClassificationOutputType",
         "type": "string",
-        "description": "Output type for classification tasks."
+        "description": "Output type for classification tasks. `probas` (default): per-class probabilities. `preds`: predicted class label. `top_k`: top-k class positions — requires the `top_k` parameter."
       },
       "RegressionOutputType": {
-        "enum": ["mean", "median", "mode", "quantiles", "full"],
+        "enum": ["mean", "median", "mode", "quantiles", "main", "full"],
         "title": "RegressionOutputType",
         "type": "string",
-        "description": "Output type for regression tasks."
+        "description": "Output type for regression tasks. `mean` (default): predicted mean. `median`: predicted median. `mode`: predicted mode. `quantiles`: one value per requested quantile — requires the `quantiles` parameter. `main`: point estimates plus quantiles. `full`: mean, median, mode, quantiles, and full predictive distribution — max 400 prediction rows."
       },
       "FitMode": {
         "enum": [
@@ -244,7 +334,7 @@
         ],
         "title": "FitMode",
         "type": "string",
-        "description": "Preprocessing/caching strategy used by the model."
+        "description": "Preprocessing/caching strategy used by the model. Default: `fit_preprocessors`."
       },
       "InferencePrecision": {
         "enum": ["autocast", "auto"],
@@ -277,20 +367,22 @@
           },
           "type": "array"
         },
+        "maxProperties": 2000,
         "type": "object",
         "title": "ColumnOrientedData",
-        "description": "Column-oriented tabular data: a mapping of column names to their list of values."
+        "description": "Column-oriented tabular data: a mapping of column names to their list of values. Maximum 2,000 columns."
       },
       "RowOrientedData": {
         "items": {
           "items": {
             "$ref": "#/components/schemas/CellValue"
           },
+          "maxItems": 2000,
           "type": "array"
         },
         "type": "array",
         "title": "RowOrientedData",
-        "description": "Row-oriented tabular data: a list of rows, where each row is a list of cell values."
+        "description": "Row-oriented tabular data: a list of rows, where each row is a list of cell values. Maximum 2,000 values per row."
       },
       "TrainingFeatures": {
         "anyOf": [
@@ -302,7 +394,7 @@
           }
         ],
         "title": "TrainingFeatures",
-        "description": "Training or test features. Either column-oriented (object of column name to list of values) or row-oriented (list of rows). `x_test` must have the same columns as `x_train`."
+        "description": "Training or test features. Either column-oriented (object of column name to list of values) or row-oriented (list of rows). `x_test` must have the same columns as `x_train`. Up to 1,000,000 rows and 2,000 columns; context and prediction data together are limited to 200,000,000 cells."
       },
       "TrainingTarget": {
         "anyOf": [
@@ -317,7 +409,7 @@
           }
         ],
         "title": "TrainingTarget",
-        "description": "Training target. Exactly one column, aligned row-for-row with `x_train`. May be column-oriented (object with a single key) or a flat list of values. For regression the target must be numeric."
+        "description": "Training target. Exactly one column, aligned row-for-row with `x_train`. May be column-oriented (object with a single key) or a flat list of values. For regression the target must be numeric. For classification, up to 160 distinct classes are supported."
       },
       "PredictParams": {
         "additionalProperties": false,
@@ -343,6 +435,12 @@
             },
             "title": "Quantiles",
             "type": "array"
+          },
+          "top_k": {
+            "description": "Number of top classes to return. Required when `output_type` is `top_k` (classification only).",
+            "title": "Top K",
+            "type": "integer",
+            "minimum": 1
           }
         },
         "title": "PredictParams",
@@ -353,7 +451,7 @@
         "description": "Model options for TabPFN. All options are optional and nested under `task_config.tabpfn_config`.",
         "properties": {
           "n_estimators": {
-            "description": "Number of ensemble members. Higher can improve accuracy at the cost of latency.",
+            "description": "Ensemble members per prediction; latency scales linearly. Package default is 8 and may increase for very wide tables.",
             "title": "N Estimators",
             "type": "integer",
             "minimum": 1,
@@ -375,7 +473,7 @@
             "type": "boolean"
           },
           "categorical_features_indices": {
-            "description": "Column indices to force to categorical. By default column types are inferred.",
+            "description": "Column positions to force to categorical. Column types are inferred by default.",
             "items": {
               "type": "integer",
               "minimum": 0
@@ -394,10 +492,10 @@
           },
           "fit_mode": {
             "$ref": "#/components/schemas/FitMode",
-            "description": "Preprocessing/caching strategy."
+            "description": "Preprocessing/caching strategy. Default: `fit_preprocessors`."
           },
           "memory_saving_mode": {
-            "description": "Trades speed for lower memory use. Selected automatically by dataset size when unset.",
+            "description": "Trades speed for lower memory use. Auto-selected by dataset size when unset (enabled from 10,000 training rows).",
             "title": "Memory Saving Mode",
             "type": "boolean"
           },
@@ -450,7 +548,7 @@
           },
           "x_test": {
             "$ref": "#/components/schemas/TrainingFeatures",
-            "description": "The rows to predict. Must have the same columns as `x_train`."
+            "description": "The rows to predict. Must have the same columns as `x_train`. Up to 1,000,000 prediction rows (250,000 when `x_train` has 1,000,000 rows)."
           }
         },
         "required": ["task_config", "x_train", "y_train", "x_test"],
@@ -501,7 +599,7 @@
             "type": "integer"
           },
           "test_set_num_cols": {
-            "description": "Number of feature columns after automatic preprocessing.",
+            "description": "Number of feature columns after automatic preprocessing. May differ from the request when text columns are encoded and expanded.",
             "title": "Test Set Num Cols",
             "type": "integer"
           },
@@ -521,9 +619,76 @@
         "title": "PredictResponseMetadata",
         "type": "object"
       },
+      "DatasetUsage": {
+        "additionalProperties": false,
+        "description": "Row, column, and cell counts for one dataset as submitted (before preprocessing).",
+        "properties": {
+          "num_rows": {
+            "description": "Number of rows.",
+            "title": "Num Rows",
+            "type": "integer"
+          },
+          "num_cols": {
+            "description": "Number of columns.",
+            "title": "Num Cols",
+            "type": "integer"
+          },
+          "num_cells": {
+            "description": "Total number of cells (num_rows × num_cols).",
+            "title": "Num Cells",
+            "type": "integer"
+          }
+        },
+        "required": ["num_rows", "num_cols", "num_cells"],
+        "title": "DatasetUsage",
+        "type": "object"
+      },
+      "Usage": {
+        "additionalProperties": false,
+        "description": "Counts the x_train, y_train, and x_test rows/columns/cells as submitted (before preprocessing), plus the ensemble size used.",
+        "properties": {
+          "X_train": {
+            "$ref": "#/components/schemas/DatasetUsage",
+            "description": "Row, column, and cell counts for the training features."
+          },
+          "y_train": {
+            "$ref": "#/components/schemas/DatasetUsage",
+            "description": "Row, column, and cell counts for the training target."
+          },
+          "X_test": {
+            "$ref": "#/components/schemas/DatasetUsage",
+            "description": "Row, column, and cell counts for the prediction features."
+          },
+          "num_cells": {
+            "description": "Total cells across all three datasets.",
+            "title": "Num Cells",
+            "type": "integer"
+          },
+          "num_predictions": {
+            "description": "Number of rows predicted (equals X_test.num_rows).",
+            "title": "Num Predictions",
+            "type": "integer"
+          },
+          "n_estimators": {
+            "description": "Ensemble size actually used.",
+            "title": "N Estimators",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "X_train",
+          "y_train",
+          "X_test",
+          "num_cells",
+          "num_predictions",
+          "n_estimators"
+        ],
+        "title": "Usage",
+        "type": "object"
+      },
       "RegressionFullPrediction": {
         "additionalProperties": false,
-        "description": "Rich prediction object returned for regression `full` output. Max 400 test rows.",
+        "description": "Rich prediction object returned for regression `full` output. Limited to 400 prediction rows.",
         "properties": {
           "mean": {
             "description": "Predicted mean for each test row.",
@@ -575,8 +740,40 @@
         "title": "RegressionFullPrediction",
         "type": "object"
       },
+      "ClassificationTopKPrediction": {
+        "additionalProperties": false,
+        "description": "Prediction object returned for classification `top_k` output. `classes` lists the class labels in descending probability order; `values` contains the corresponding position of each class within the full sorted `class_labels` list.",
+        "properties": {
+          "classes": {
+            "description": "Top-k class labels for each test row, ordered most probable first.",
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Classes",
+            "type": "array"
+          },
+          "values": {
+            "description": "Positions of the top-k classes within the sorted `class_labels` list, for each test row.",
+            "items": {
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "type": "array"
+            },
+            "title": "Values",
+            "type": "array"
+          }
+        },
+        "required": ["classes", "values"],
+        "title": "ClassificationTopKPrediction",
+        "type": "object"
+      },
       "Prediction": {
-        "description": "The predictions. Shape depends on the task and `output_type`.\n- classification / probas: list of rows; each row is a list of class probabilities.\n- classification / preds: flat list of predicted labels (one per test row).\n- regression / mean, median, mode: flat list of numbers (one per test row).\n- regression / quantiles: list of lists, one inner list per requested quantile.\n- regression / full: object keyed by mean, median, mode, quantiles, and distribution.",
+        "description": "The predictions. Shape depends on the task and `output_type`.\n- classification / probas: list of rows; each row is a list of class probabilities.\n- classification / preds: flat list of predicted labels (one per test row).\n- classification / top_k: object with `classes` and `values` arrays (one inner list per test row).\n- regression / mean, median, mode: flat list of numbers (one per test row).\n- regression / quantiles: list of lists, one inner list per requested quantile.\n- regression / main: object with point estimates and quantiles.\n- regression / full: object keyed by mean, median, mode, quantiles, and distribution.",
         "anyOf": [
           {
             "description": "classification / probas: list of rows of class probabilities.",
@@ -608,6 +805,15 @@
             "type": "array"
           },
           {
+            "description": "classification / top_k: object with classes and values arrays.",
+            "$ref": "#/components/schemas/ClassificationTopKPrediction"
+          },
+          {
+            "description": "regression / main: point estimates plus quantiles.",
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
             "description": "regression / full: rich object with mean, median, mode, quantiles, and distribution.",
             "$ref": "#/components/schemas/RegressionFullPrediction"
           }
@@ -626,13 +832,23 @@
             "$ref": "#/components/schemas/PredictResponseMetadata",
             "description": "Details about the run."
           },
+          "usage": {
+            "$ref": "#/components/schemas/Usage",
+            "description": "Row, column, and cell counts of x_train, y_train, and x_test as submitted (before preprocessing), plus the ensemble size."
+          },
           "class_labels": {
-            "description": "Classification only. Ordered list of class labels corresponding to each probability column in `prediction`.",
+            "description": "Classification only. Sorted list of all class labels seen during training.",
             "items": { "type": "string" },
             "type": "array"
+          },
+          "model_id": {
+            "description": "Model identifier, or null.",
+            "title": "Model Id",
+            "type": "string",
+            "nullable": true
           }
         },
-        "required": ["prediction", "metadata"],
+        "required": ["prediction", "metadata", "usage"],
         "title": "PredictResponsePayload",
         "type": "object"
       }

@@ -3,6 +3,7 @@
  *
  * This is a generated file powered by the SAP Cloud SDK for JavaScript.
  */
+
 import type { ClassificationOutputType } from './classification-output-type.js';
 import type { RegressionOutputType } from './regression-output-type.js';
 /**
@@ -17,4 +18,9 @@ export type PredictParams = {
    * A list of floats between 0 and 1 (e.g. [0.1, 0.5, 0.9]). Required when `output_type` is `quantiles`.
    */
   quantiles?: number[];
+  /**
+   * Number of top classes to return. Required when `output_type` is `top_k` (classification only).
+   * Minimum: 1.
+   */
+  top_k?: number;
 };

@@ -5,6 +5,6 @@
  */
 
 /**
- * Output type for classification tasks.
+ * Output type for classification tasks. `probas` (default): per-class probabilities. `preds`: predicted class label. `top_k`: top-k class positions — requires the `top_k` parameter.
  */
-export type ClassificationOutputType = 'probas' | 'preds';
+export type ClassificationOutputType = 'probas' | 'preds' | 'top_k';

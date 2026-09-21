@@ -11,7 +11,16 @@ import type { TaskType } from './task-type.js';
  * Task type plus model and output options.
  */
 export type TaskConfig = {
+  /**
+   * The type of prediction task.
+   */
   task: TaskType;
+  /**
+   * Controls what the prediction contains.
+   */
   predict_params?: PredictParams;
+  /**
+   * Model options for TabPFN.
+   */
   tabpfn_config?: TabpfnConfig;
 };

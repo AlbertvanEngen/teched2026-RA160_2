@@ -3,8 +3,9 @@
  *
  * This is a generated file powered by the SAP Cloud SDK for JavaScript.
  */
+
 import type { CellValue } from './cell-value.js';
 /**
- * Column-oriented tabular data: a mapping of column names to their list of values.
+ * Column-oriented tabular data: a mapping of column names to their list of values. Maximum 2,000 columns.
  */
 export type ColumnOrientedData = Record<string, CellValue[]>;

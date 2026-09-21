@@ -11,7 +11,7 @@ import type { InferencePrecision } from './inference-precision.js';
  */
 export type TabpfnConfig = {
   /**
-   * Number of ensemble members. Higher can improve accuracy at the cost of latency.
+   * Ensemble members per prediction; latency scales linearly. Package default is 8 and may increase for very wide tables.
    * Maximum: 8.
    * Minimum: 1.
    */
@@ -29,21 +29,27 @@ export type TabpfnConfig = {
    */
   balance_probabilities?: boolean;
   /**
-   * Column indices to force to categorical. By default column types are inferred.
+   * Column positions to force to categorical. Column types are inferred by default.
    */
   categorical_features_indices?: number[];
   /**
    * Seed for reproducible predictions.
    */
   random_state?: number;
+  /**
+   * Numeric precision used during inference.
+   */
   inference_precision?: InferencePrecision;
+  /**
+   * Preprocessing/caching strategy. Default: `fit_preprocessors`.
+   */
   fit_mode?: FitMode;
   /**
-   * Trades speed for lower memory use. Selected automatically by dataset size when unset.
+   * Trades speed for lower memory use. Auto-selected by dataset size when unset (enabled from 10,000 training rows).
    */
   memory_saving_mode?: boolean;
   /**
    * Advanced, fine-grained inference overrides. For expert use.
    */
-  inference_config?: Record<string, unknown>;
+  inference_config?: Record<string, any>;
 };

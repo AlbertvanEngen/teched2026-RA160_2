@@ -791,12 +791,12 @@
   const total = 5;
 
   function changeSlide(dir) {
-    const prev = document.getElementById('slide-' + current);
+    const prev = document.getElementById(`slide-${current}`);
     current = Math.max(1, Math.min(total, current + dir));
-    const next = document.getElementById('slide-' + current);
+    const next = document.getElementById(`slide-${current}`);
     prev.classList.remove('active');
     next.classList.add('active');
-    document.getElementById('counter').textContent = current + ' / ' + total;
+    document.getElementById('counter').textContent = `${current} / ${total}`;
     document.getElementById('prevBtn').disabled = current === 1;
     document.getElementById('nextBtn').disabled = current === total;
   }

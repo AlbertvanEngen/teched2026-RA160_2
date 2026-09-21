@@ -7,7 +7,9 @@
 export * from './body-predict-multipart.js';
 export * from './cell-value.js';
 export * from './classification-output-type.js';
+export * from './classification-top-k-prediction.js';
 export * from './column-oriented-data.js';
+export * from './dataset-usage.js';
 export * from './fit-mode.js';
 export * from './inference-precision.js';
 export * from './predict-params.js';
@@ -23,3 +25,4 @@ export * from './task-config.js';
 export * from './task-type.js';
 export * from './training-features.js';
 export * from './training-target.js';
+export * from './usage.js';

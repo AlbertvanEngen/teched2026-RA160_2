@@ -5,7 +5,7 @@
  */
 
 /**
- * Rich prediction object returned for regression `full` output. Max 400 test rows.
+ * Rich prediction object returned for regression `full` output. Limited to 400 prediction rows.
  */
 export type RegressionFullPrediction = {
   /**
@@ -27,5 +27,5 @@ export type RegressionFullPrediction = {
   /**
    * The full predictive distribution.
    */
-  distribution: Record<string, unknown>;
+  distribution: Record<string, any>;
 };

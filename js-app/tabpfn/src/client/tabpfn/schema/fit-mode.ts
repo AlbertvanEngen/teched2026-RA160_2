@@ -5,7 +5,7 @@
  */
 
 /**
- * Preprocessing/caching strategy used by the model.
+ * Preprocessing/caching strategy used by the model. Default: `fit_preprocessors`.
  */
 export type FitMode =
   | 'low_memory'

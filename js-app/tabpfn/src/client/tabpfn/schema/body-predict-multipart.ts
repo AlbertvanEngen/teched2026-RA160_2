@@ -27,4 +27,4 @@ export type BodyPredictMultipart = {
    * JSON string carrying the `task_config` (task type plus model and output options).
    */
   request: string;
-} & Record<string, unknown>;
+} & Record<string, any>;
