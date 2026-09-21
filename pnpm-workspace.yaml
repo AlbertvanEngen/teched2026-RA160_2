@@ -7,15 +7,15 @@ packages:
   - mock-server
 
 catalog:
-  '@biomejs/biome': ^2.5.11
-  '@langchain/core': ^1.2.9
+  '@biomejs/biome': ^2.5.14
+  '@langchain/core': ^1.2.11
   '@sap-cloud-sdk/connectivity': ^4.9.1
   '@sap-cloud-sdk/http-client': ^4.9.1
   '@sap-cloud-sdk/generator': ^4.9.1
   '@sap-cloud-sdk/odata-v2': ^4.9.1
   '@sap-cloud-sdk/openapi-generator': ^4.9.1
   '@sap-cloud-sdk/util': ^4.9.1
-  tsx: ^4.23.12
+  tsx: ^4.23.13
   typescript: ^7.0.2
 
 

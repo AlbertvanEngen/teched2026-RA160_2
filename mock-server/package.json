@@ -22,7 +22,7 @@
     "@hono/node-server": "^2.1.1",
     "@sap-cloud-sdk/util": "catalog:",
     "d3-random": "^3.0.1",
-    "hono": "^4.13.5"
+    "hono": "^4.13.8"
   },
   "devDependencies": {
     "@types/d3-random": "^3.0.4",
