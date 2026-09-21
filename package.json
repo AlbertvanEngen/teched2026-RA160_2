@@ -9,7 +9,8 @@
     "lint:ci": "biome ci .",
     "typecheck": "pnpm -r typecheck",
     "build": "pnpm -r run --if-present -r build",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "setup": "tsx --env-file-if-exists=.env scripts/setup.ts"
   },
   "keywords": [],
   "author": "",
@@ -24,6 +25,8 @@
   "type": "module",
   "devDependencies": {
     "@biomejs/biome": "catalog:",
-    "@types/node": "^24.13.5"
+    "@sap-ai-sdk/ai-api": "^2.16.0",
+    "@types/node": "^24.13.5",
+    "tsx": "catalog:"
   }
 }

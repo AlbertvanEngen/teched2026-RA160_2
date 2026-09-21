@@ -145,9 +145,15 @@ importers:
       '@biomejs/biome':
         specifier: 'catalog:'
         version: 2.5.14
+      '@sap-ai-sdk/ai-api':
+        specifier: ^2.16.0
+        version: 2.16.0(debug@4.4.3)
       '@types/node':
         specifier: ^24.13.5
         version: 24.13.5
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.13
 
   js-app/agent:
     dependencies:
