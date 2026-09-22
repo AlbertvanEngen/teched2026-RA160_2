@@ -238,6 +238,6 @@ public class AgentService {
 
   private void addFallbackConfigs(final OrchestrationChatOptions options) {
     var workingConfig = new OrchestrationModuleConfig().withLlmConfig(GPT_4O);
-    options.setFallbackConfigs(List.of(workingConfig));
+    options.mutate().fallbackConfigs(List.of(workingConfig));
   }
 }
