@@ -160,7 +160,7 @@ test('tabular models transfer peer patterns with one A1000 context year', {
   });
   const sqlMape = mape(sqlPred, actuals2026);
 
-  const tabpfnResponse = await new TabpfnClient('tabpfn-3-plus').predict({
+  const tabpfnResponse = await new TabpfnClient('tabpfn-3.5-plus').predict({
     task_config: {
       task: 'regression',
       predict_params: { output_type: 'mean' },

@@ -27,7 +27,7 @@ export class TabpfnClient {
    * @param destination - The destination to use for the request.
    */
   constructor(
-    modelDeployment: ModelDeployment = 'tabPFN',
+    modelDeployment: ModelDeployment = 'tabpfn-3.5-plus',
     destination?: HttpDestinationOrFetchOptions,
   ) {
     this.modelDeployment = modelDeployment;
@@ -93,7 +93,7 @@ export class TabpfnClient {
    * @returns Object containing resource group and deployment ID.
    */
   private async getResourceGroupAndDeploymentId() {
-    const executableId = getTabpfnExecutableId(this.modelDeployment);
+    const executableId = 'prior-labs';
     const deploymentId = await getFoundationModelDeploymentId(
       this.modelDeployment,
       executableId,
@@ -129,18 +129,4 @@ function toFile(data: File | Blob, name: string): File {
  */
 function isParquet(mimeType: string): boolean {
   return mimeType.toLowerCase() === 'application/vnd.apache.parquet';
-}
-
-/**
- * Returns the executableId for the given TabPFN model deployment.
- * `tabpfn-3-plus` is hosted under the `prior-labs` executable; all other models use `aicore-sap`.
- */
-function getTabpfnExecutableId(modelDeployment: ModelDeployment): string {
-  const name =
-    typeof modelDeployment === 'string'
-      ? modelDeployment
-      : 'modelName' in modelDeployment
-        ? modelDeployment.modelName
-        : undefined;
-  return name === 'tabpfn-3-plus' ? 'prior-labs' : 'aicore-sap';
 }
