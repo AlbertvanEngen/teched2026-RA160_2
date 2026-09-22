@@ -2,6 +2,7 @@ import { styleText } from 'node:util';
 import { tool } from '@langchain/core/tools';
 import type { TaskConfig } from '@sap-ai-sdk/tabpfn';
 import { TabpfnClient } from '@sap-ai-sdk/tabpfn';
+import { resilience } from '@sap-cloud-sdk/resilience';
 import { z } from 'zod';
 import { isValidIdentifier, runQuery } from './db.ts';
 import { featureColumns } from './parquet.ts';
@@ -107,18 +108,23 @@ export const runTabpfnPredictionTool = tool(
           : {}),
       };
 
-      const response = await new TabpfnClient(input.modelName).predict({
-        task_config: taskConfig,
-        x_train: contextRows.map((row) =>
-          features.map((column) => toTabpfnValue(row[column])),
-        ),
-        y_train: contextRows.map((row) =>
-          toTabpfnValue(row[input.targetColumn]),
-        ),
-        x_test: predictionRows.map((row) =>
-          features.map((column) => toTabpfnValue(row[column])),
-        ),
-      });
+      const response = await new TabpfnClient(input.modelName).predict(
+        {
+          task_config: taskConfig,
+          x_train: contextRows.map((row) =>
+            features.map((column) => toTabpfnValue(row[column])),
+          ),
+          y_train: contextRows.map((row) =>
+            toTabpfnValue(row[input.targetColumn]),
+          ),
+          x_test: predictionRows.map((row) =>
+            features.map((column) => toTabpfnValue(row[column])),
+          ),
+        },
+        {
+          middlewares: [resilience()],
+        },
+      );
 
       const predictions = predictionValues(response.prediction);
       const results = predictionRows.map((row, index) => ({

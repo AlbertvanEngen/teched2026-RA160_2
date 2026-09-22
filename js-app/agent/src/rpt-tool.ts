@@ -1,6 +1,7 @@
 import { styleText } from 'node:util';
 import { tool } from '@langchain/core/tools';
 import { RptClient } from '@sap-ai-sdk/rpt';
+import { resilience } from '@sap-cloud-sdk/resilience';
 import { z } from 'zod';
 import { isValidIdentifier, runQuery } from './db.ts';
 import { featureColumns, ROW_ID_COLUMN, withParquetBlob } from './parquet.ts';
@@ -298,21 +299,26 @@ async function callRpt(
 
   const rptClient = new RptClient({ modelName: RPT_MODEL });
   return withParquetBlob(selectSql, features, (file) =>
-    rptClient.predictParquet({
-      file,
-      index_column: ROW_ID_COLUMN,
-      parse_data_types: false,
-      prediction_config: {
-        target_columns: [
-          {
-            name: targetColumn,
-            prediction_placeholder: null,
-            task_type: taskType,
-          },
-        ],
-        explanations: { top_column_scores: 5 },
+    rptClient.predictParquet(
+      {
+        file,
+        index_column: ROW_ID_COLUMN,
+        parse_data_types: false,
+        prediction_config: {
+          target_columns: [
+            {
+              name: targetColumn,
+              prediction_placeholder: null,
+              task_type: taskType,
+            },
+          ],
+          explanations: { top_column_scores: 5 },
+        },
       },
-    }),
+      {
+        middlewares: [resilience()],
+      },
+    ),
   );
 }
 

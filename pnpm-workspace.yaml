@@ -14,6 +14,7 @@ catalog:
   '@sap-cloud-sdk/generator': ^4.9.1
   '@sap-cloud-sdk/odata-v2': ^4.9.1
   '@sap-cloud-sdk/openapi-generator': ^4.9.1
+  '@sap-cloud-sdk/resilience': ^4.9.1
   '@sap-cloud-sdk/util': ^4.9.1
   tsx: ^4.23.13
   typescript: ^7.0.2

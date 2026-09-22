@@ -34,6 +34,7 @@
     "@sap-ai-sdk/rpt": "canary",
     "@sap-ai-sdk/tabpfn": "workspace:*",
     "@sap-cloud-sdk/odata-v2": "catalog:",
+    "@sap-cloud-sdk/resilience": "catalog:",
     "@sap-cloud-sdk/util": "catalog:",
     "bignumber.js": "^11.1.5",
     "langchain": "^1.5.11",
