@@ -23,9 +23,14 @@
     <properties>
         <java.version>21</java.version>
         <ai-sdk.version>2.0.0-M1</ai-sdk.version>
-        <spring-ai.version>1.1.8</spring-ai.version>
+        <spring-ai.version>2.0.1</spring-ai.version>
         <cloud-sdk.version>5.34.0</cloud-sdk.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- ai-sdk 2.0.0-M1 uses tools.jackson.core:jackson-databind:3.2.3 which requires
+             com.fasterxml.jackson.annotation.JsonSerializeAs (added in jackson-annotations 2.21).
+             Spring Boot 3.5 BOM pins jackson-annotations to 2.19.x, so we override it here.
+             Spring AI 2.0.1 also aligns with jsonschema-generator:5.0.0 that ai-sdk 2.0.0-M1 uses. -->
+        <jackson-bom.version>2.22.3</jackson-bom.version>
     </properties>
 
     <dependencyManagement>

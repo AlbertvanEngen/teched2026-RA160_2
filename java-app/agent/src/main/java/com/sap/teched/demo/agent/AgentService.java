@@ -1,11 +1,16 @@
 package com.sap.teched.demo.agent;
 
+import static com.sap.ai.sdk.orchestration.OrchestrationAiModel.GEMINI_2_5_FLASH;
+import static com.sap.ai.sdk.orchestration.OrchestrationAiModel.GEMINI_3_5_FLASH;
+import static com.sap.ai.sdk.orchestration.OrchestrationAiModel.GPT_41;
 import static com.sap.ai.sdk.orchestration.OrchestrationAiModel.GPT_4O;
 
 import com.sap.ai.sdk.orchestration.OrchestrationAiModel;
 import com.sap.ai.sdk.orchestration.OrchestrationModuleConfig;
 import com.sap.ai.sdk.orchestration.spring.OrchestrationChatModel;
 import com.sap.ai.sdk.orchestration.spring.OrchestrationChatOptions;
+import org.springframework.ai.model.tool.ToolCallingManager;
+import org.springframework.ai.model.tool.ToolExecutionResult;
 import com.sap.teched.demo.tool.CreateViewTool;
 import com.sap.teched.demo.tool.DropTableTool;
 import com.sap.teched.demo.tool.FinancialPlanningTool;
@@ -18,10 +23,11 @@ import java.util.Map;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.stereotype.Service;
@@ -192,15 +198,21 @@ public class AgentService {
     /*
     final OrchestrationModuleConfig config = new OrchestrationModuleConfig(GPT_4O);
     final ChatModel chatModel = new OrchestrationChatModel();
-    final ChatClient chatClient = ChatClient.builder(chatModel).build();
+    final OrchestrationChatOptions options = addToolCalls(new OrchestrationChatOptions(config));
+    final ToolCallingManager toolCallingManager = ToolCallingManager.builder().build();
 
-    final OrchestrationChatOptions options = new OrchestrationChatOptions(config);
-    addToolCalls(options);
+    List<Message> messages = new java.util.ArrayList<>(
+        List.of(new SystemMessage(SYSTEM_PROMPT), new UserMessage(prompt)));
 
-    final Prompt p =
-        new Prompt(
-            List.of(new SystemMessage(SYSTEM_PROMPT), new UserMessage(prompt)), options);
-    return chatClient.prompt(p).call().content();
+    while (true) {
+      final ChatResponse response = chatModel.call(new Prompt(messages, options));
+      if (!response.hasToolCalls()) {
+        return response.getResult().getOutput().getText();
+      }
+      final ToolExecutionResult result = toolCallingManager.executeToolCalls(
+          new Prompt(messages, options), response);
+      messages = result.conversationHistory();
+    }
 
     // YOUR CODE END
     */
@@ -217,21 +229,21 @@ public class AgentService {
    *
    * @param options the OrchestrationChatOptions to which the tools are added
    */
-  private void addToolCalls(final OrchestrationChatOptions options) {
+  private OrchestrationChatOptions addToolCalls(final OrchestrationChatOptions options) {
     // ---------------------------------------- EXERCISE 2 ----------------------------------------
     // YOUR CODE START
     /*
-    options.setToolCallbacks(
+    return options.mutate().toolCallbacks(
         List.of(
             ToolCallbacks.from(
                 financialPlanningTool,
                 journalEntryTool,
                 duckDbTool,
                 createViewTool,
-                dropTableTool)));
-    options.setInternalToolExecutionEnabled(true);
+                dropTableTool))).build();
     */
     // YOUR CODE END
+    return options;
     // ---------------------------------------- EXERCISE 2 ----------------------------------------
   }
 

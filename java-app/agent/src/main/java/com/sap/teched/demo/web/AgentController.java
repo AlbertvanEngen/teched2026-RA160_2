@@ -96,13 +96,13 @@ public class AgentController {
         agentService.run(request.prompt(), sessionId, emitter);
         emitter.send(SseEmitter.event().name("done").data("{}"));
         emitter.complete();
-      } catch (final Exception e) {
+      } catch (final Throwable e) {
         log.error("Agent run failed", e);
         try {
           emitter.send(
               SseEmitter.event()
                   .name("error")
-                  .data(json(Map.of("message", e.getMessage() != null ? e.getMessage() : "Unknown error"))));
+                  .data(json(Map.of("message", e.getMessage() != null ? e.getMessage() : e.getClass().getName()))));
           emitter.send(SseEmitter.event().name("done").data("{}"));
         } catch (final IOException ignored) {
           // client already gone
