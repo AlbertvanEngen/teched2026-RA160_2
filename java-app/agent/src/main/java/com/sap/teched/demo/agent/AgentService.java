@@ -1,6 +1,5 @@
 package com.sap.teched.demo.agent;
 
-import static com.sap.ai.sdk.orchestration.OrchestrationAiModel.CLAUDE_4_SONNET;
 import static com.sap.ai.sdk.orchestration.OrchestrationAiModel.GPT_4O;
 
 import com.sap.ai.sdk.orchestration.OrchestrationAiModel;
@@ -191,7 +190,7 @@ public class AgentService {
     // ---------------------------------------- EXERCISE 1 ----------------------------------------
     // YOUR CODE START
     /*
-    final OrchestrationModuleConfig config = new OrchestrationModuleConfig().withLlmConfig(GPT_4O);
+    final OrchestrationModuleConfig config = new OrchestrationModuleConfig(GPT_4O);
     final ChatModel chatModel = new OrchestrationChatModel();
     final ChatClient chatClient = ChatClient.builder(chatModel).build();
 
@@ -237,7 +236,7 @@ public class AgentService {
   }
 
   private void addFallbackConfigs(final OrchestrationChatOptions options) {
-    var workingConfig = new OrchestrationModuleConfig().withLlmConfig(GPT_4O);
+    var workingConfig = new OrchestrationModuleConfig(GPT_4O);
     options.mutate().fallbackConfigs(List.of(workingConfig));
   }
 }
