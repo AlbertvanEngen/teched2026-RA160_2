@@ -151,7 +151,6 @@ export const runTabpfnPredictionTool = tool(
         input.outputType,
         input.categoricalFeatureColumns,
       );
-
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`${styleText('red', '[TabPFN] ')}Error: ${message}`);

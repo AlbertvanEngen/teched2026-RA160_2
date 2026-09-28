@@ -1,7 +1,6 @@
 import { styleText } from 'node:util';
 import { AIMessage, ToolMessage } from '@langchain/core/messages';
 import {
-  AGENT_DATA_MODE,
   createFinancialAgent,
   createSession,
   sessionContext,
@@ -17,7 +16,6 @@ const sessionId = createSession();
 
 console.log(styleText('cyan', `\nPrompt: ${userPrompt}\n`));
 console.log(styleText('dim', `Session: ${sessionId}\n`));
-console.log(styleText('dim', `Data mode: ${AGENT_DATA_MODE}\n`));
 
 const agent = createFinancialAgent();
 
