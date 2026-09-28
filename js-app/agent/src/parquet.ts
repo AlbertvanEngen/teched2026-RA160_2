@@ -1,5 +1,5 @@
 import { openAsBlob } from 'node:fs';
-import { rm } from 'node:fs/promises';
+import { mkdtempDisposable } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runQuery } from './db.ts';
@@ -48,28 +48,22 @@ function projectColumn(col: string): string {
 /**
  * Writes a typed Parquet file for `selectSql` and hands it to `fn` as a Blob.
  * Parquet carries declared column types to RPT, so nothing depends on JS runtime
- * type inference or service-side string parsing. The temp file is always removed.
+ * type inference or service-side string parsing. The temp directory is always removed.
  */
 export async function withParquetBlob<T>(
   selectSql: string,
   columns: string[],
   fn: (blob: Blob) => Promise<T>,
 ): Promise<T> {
-  const path = join(
-    tmpdir(),
-    `rpt-${process.pid}-${performance.now().toString(36).replace('.', '')}.parquet`,
-  );
+  await using dir = await mkdtempDisposable(join(tmpdir(), 'rpt-'));
+  const path = join(dir.path, 'data.parquet');
   const projection = columns.map(projectColumn).join(', ');
-  try {
-    await runQuery(
-      `COPY (SELECT ${projection}, row_number() OVER () AS ${ROW_ID_COLUMN} FROM (${selectSql})) ` +
-        `TO '${path}' (FORMAT PARQUET)`,
-    );
-    const blob = await openAsBlob(path, {
-      type: 'application/vnd.apache.parquet',
-    });
-    return await fn(blob);
-  } finally {
-    await rm(path, { force: true });
-  }
+  await runQuery(
+    `COPY (SELECT ${projection}, row_number() OVER () AS ${ROW_ID_COLUMN} FROM (${selectSql})) ` +
+      `TO '${path}' (FORMAT PARQUET)`,
+  );
+  const blob = await openAsBlob(path, {
+    type: 'application/vnd.apache.parquet',
+  });
+  return await fn(blob);
 }

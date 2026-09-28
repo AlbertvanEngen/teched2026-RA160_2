@@ -32,6 +32,23 @@ async function openConnection(): Promise<DuckDBConnection> {
 
 const QUERY_TIMEOUT_MS = 15_000;
 
+/** DuckDB returns DECIMAL columns as {width, scale, value} — convert to a plain JS number. */
+function normalizeDecimal(val: unknown): unknown {
+  if (
+    val !== null &&
+    typeof val === 'object' &&
+    !Array.isArray(val) &&
+    'width' in val &&
+    'scale' in val &&
+    'value' in val
+  ) {
+    const { value, scale } = val as { value: unknown; scale: number };
+    const n = typeof value === 'bigint' ? Number(value) : Number(value);
+    return scale === 0 ? n : n / 10 ** scale;
+  }
+  return val;
+}
+
 export async function runQuery(
   sql: string,
 ): Promise<Record<string, unknown>[]> {
@@ -47,7 +64,11 @@ export async function runQuery(
     });
     try {
       const reader = await Promise.race([conn.runAndReadAll(sql), timer]);
-      return reader.getRowObjects() as Record<string, unknown>[];
+      return (reader.getRowObjects() as Record<string, unknown>[]).map((row) =>
+        Object.fromEntries(
+          Object.entries(row).map(([k, v]) => [k, normalizeDecimal(v)]),
+        ),
+      );
     } finally {
       if (handle) clearTimeout(handle);
       conn.closeSync();

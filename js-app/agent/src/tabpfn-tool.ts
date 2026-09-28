@@ -38,6 +38,85 @@ function predictionValues(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [value];
 }
 
+async function tabpfnFromRows(
+  contextRows: Record<string, unknown>[],
+  predictionRows: Record<string, unknown>[],
+  targetColumn: string,
+  taskType: 'classification' | 'regression',
+  outputType: string | undefined,
+  categoricalFeatureColumns: string[],
+): Promise<string> {
+  if (contextRows.length === 0) {
+    return 'Error: contextRows is empty.';
+  }
+  if (predictionRows.length === 0) {
+    return 'Error: predictionRows is empty.';
+  }
+
+  const columns = Object.keys(contextRows[0]);
+  if (!columns.includes(targetColumn)) {
+    return `Error: Target column '${targetColumn}' was not found in contextRows.`;
+  }
+  const features = featureColumns(columns, targetColumn).filter(
+    (column) => column !== targetColumn,
+  );
+  if (features.length === 0) {
+    return 'Error: No feature columns remain after excluding the target.';
+  }
+
+  const categoricalColumns = new Set(categoricalFeatureColumns);
+  const categoricalFeatures = features.flatMap((column, index) =>
+    categoricalColumns.has(column) ? [index] : [],
+  );
+  const taskConfig: TaskConfig = {
+    task: taskType,
+    predict_params:
+      taskType === 'classification'
+        ? { output_type: outputType === 'probas' ? 'probas' : 'preds' }
+        : { output_type: outputType === 'quantiles' ? 'quantiles' : 'mean' },
+    ...(categoricalFeatures.length > 0
+      ? {
+          tabpfn_config: {
+            categorical_features_indices: categoricalFeatures,
+          },
+        }
+      : {}),
+  };
+
+  const response = await new TabpfnClient('tabpfn-3.5-plus').predict(
+    {
+      task_config: taskConfig,
+      x_train: contextRows.map((row) =>
+        features.map((column) => toTabpfnValue(row[column])),
+      ),
+      y_train: contextRows.map((row) => toTabpfnValue(row[targetColumn])),
+      x_test: predictionRows.map((row) =>
+        features.map((column) => toTabpfnValue(row[column])),
+      ),
+    },
+    {
+      middlewares: [resilience()],
+    },
+  );
+  const predictions = predictionValues(response.prediction);
+  const results = predictionRows.map((row, index) => ({
+    ...row,
+    prediction: predictions[index] ?? null,
+  }));
+  tabpfn(
+    `Predicted ${results.length} rows with tabpfn-3.5-plus using ${contextRows.length} context rows.`,
+  );
+  return JSON.stringify({
+    model: 'tabpfn-3.5-plus',
+    task: taskType,
+    targetColumn,
+    contextRows: contextRows.length,
+    predictionRows: results.length,
+    features,
+    results,
+  });
+}
+
 export const runTabpfnPredictionTool = tool(
   async (input) => {
     try {
@@ -56,7 +135,6 @@ export const runTabpfnPredictionTool = tool(
         );
         if (contextError) return contextError;
       }
-
       const contextSql = input.contextWhere
         ? `SELECT * FROM ${input.tableName} WHERE ${input.contextWhere}`
         : `SELECT * FROM ${input.tableName} WHERE NOT (${input.predictionWhere})`;
@@ -65,84 +143,14 @@ export const runTabpfnPredictionTool = tool(
         runQuery(contextSql),
         runQuery(predictionSql),
       ]);
-
-      if (contextRows.length === 0) {
-        return `Error: No context rows matched. Broaden contextWhere or load more historical data.`;
-      }
-      if (predictionRows.length === 0) {
-        return `Error: No prediction rows matched predictionWhere (${input.predictionWhere}).`;
-      }
-
-      const columns = Object.keys(contextRows[0]);
-      if (!columns.includes(input.targetColumn)) {
-        return `Error: Target column '${input.targetColumn}' was not found in '${input.tableName}'.`;
-      }
-      const features = featureColumns(columns, input.targetColumn).filter(
-        (column) => column !== input.targetColumn,
+      return await tabpfnFromRows(
+        contextRows,
+        predictionRows,
+        input.targetColumn,
+        input.taskType,
+        input.outputType,
+        input.categoricalFeatureColumns,
       );
-      if (features.length === 0) {
-        return 'Error: No feature columns remain after excluding the target.';
-      }
-
-      const categoricalColumns = new Set(input.categoricalFeatureColumns);
-      const categoricalFeatures = features.flatMap((column, index) =>
-        categoricalColumns.has(column) ? [index] : [],
-      );
-      const taskConfig: TaskConfig = {
-        task: input.taskType,
-        predict_params:
-          input.taskType === 'classification'
-            ? {
-                output_type: input.outputType === 'probas' ? 'probas' : 'preds',
-              }
-            : {
-                output_type:
-                  input.outputType === 'quantiles' ? 'quantiles' : 'mean',
-              },
-        ...(categoricalFeatures.length > 0
-          ? {
-              tabpfn_config: {
-                categorical_features_indices: categoricalFeatures,
-              },
-            }
-          : {}),
-      };
-
-      const response = await new TabpfnClient(input.modelName).predict(
-        {
-          task_config: taskConfig,
-          x_train: contextRows.map((row) =>
-            features.map((column) => toTabpfnValue(row[column])),
-          ),
-          y_train: contextRows.map((row) =>
-            toTabpfnValue(row[input.targetColumn]),
-          ),
-          x_test: predictionRows.map((row) =>
-            features.map((column) => toTabpfnValue(row[column])),
-          ),
-        },
-        {
-          middlewares: [resilience()],
-        },
-      );
-
-      const predictions = predictionValues(response.prediction);
-      const results = predictionRows.map((row, index) => ({
-        ...row,
-        prediction: predictions[index] ?? null,
-      }));
-      tabpfn(
-        `Predicted ${results.length} rows with ${input.modelName} using ${contextRows.length} context rows.`,
-      );
-      return JSON.stringify({
-        model: input.modelName,
-        task: input.taskType,
-        targetColumn: input.targetColumn,
-        contextRows: contextRows.length,
-        predictionRows: results.length,
-        features,
-        results,
-      });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`${styleText('red', '[TabPFN] ')}Error: ${message}`);
@@ -152,11 +160,11 @@ export const runTabpfnPredictionTool = tool(
   {
     name: 'run_tabpfn_prediction',
     description:
-      'Run a TabPFN tabular prediction from a session table and return predicted rows as JSON. ' +
-      'Use predictionWhere to select future or unknown-target rows and contextWhere for known training rows. ' +
-      'TabPFN learns feature relationships from the context rows; use tabpfn-3-plus for string or categorical features. ' +
-      'Load source data first with query_financial_planning or query_journal_entry. ' +
-      'For aggregate reporting, use SQL to group the returned predictions by the requested dimensions.',
+      'Run a TabPFN in-context tabular prediction on a session table or view. Returns predicted rows as JSON.\n' +
+      'Required: tableName (session table or view), targetColumn (column to predict), taskType. ' +
+      'predictionWhere selects rows to predict; contextWhere selects training rows. ' +
+      'Never aggregate before calling — TabPFN learns from raw row variance. ' +
+      'Set categoricalFeatureColumns for string or enum features.',
     schema: z.object({
       tableName: z
         .string()
@@ -167,28 +175,65 @@ export const runTabpfnPredictionTool = tool(
       contextWhere: z
         .string()
         .optional()
-        .describe(
-          'Optional SQL predicate without WHERE selecting training rows',
-        ),
+        .describe('Optional SQL predicate selecting training rows'),
       targetColumn: z.string().describe('Column to predict'),
       taskType: z.enum(['classification', 'regression']),
-      modelName: z
-        .string()
-        .default('tabpfn-3-plus')
-        .describe('TabPFN model name, usually tabpfn-3-plus'),
       outputType: z
         .enum([...OUTPUT_TYPES, ...CLASSIFICATION_OUTPUT_TYPES] as [
           string,
           ...string[],
         ])
-        .optional()
-        .describe(
-          'Output type: mean for regression or preds/probas for classification',
-        ),
+        .optional(),
       categoricalFeatureColumns: z
         .array(z.string())
         .default([])
-        .describe('Feature columns that should be treated as categorical'),
+        .describe('Feature columns treated as categorical'),
+    }),
+  },
+);
+
+export const runTabpfnFromRowsTool = tool(
+  async (input) => {
+    try {
+      return await tabpfnFromRows(
+        input.contextRows as Record<string, unknown>[],
+        input.predictionRows as Record<string, unknown>[],
+        input.targetColumn,
+        input.taskType,
+        input.outputType,
+        input.categoricalFeatureColumns,
+      );
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`${styleText('red', '[TabPFN] ')}Error: ${message}`);
+      return `Error: ${message}`;
+    }
+  },
+  {
+    name: 'run_tabpfn_prediction_from_rows',
+    description:
+      'Run TabPFN from in-memory contextRows and predictionRows; use in QuickJS or context mode. ' +
+      'Pass raw individual rows, targetColumn, taskType, and categoricalFeatureColumns. ' +
+      'predictionRows must contain only features known at the forecast cutoff. Returns results[] with prediction values.',
+    schema: z.object({
+      contextRows: z
+        .array(z.record(z.string(), z.unknown()))
+        .describe('Known-truth raw training rows'),
+      predictionRows: z
+        .array(z.record(z.string(), z.unknown()))
+        .describe('Raw rows to predict'),
+      targetColumn: z.string().describe('Column to predict'),
+      taskType: z.enum(['classification', 'regression']),
+      outputType: z
+        .enum([...OUTPUT_TYPES, ...CLASSIFICATION_OUTPUT_TYPES] as [
+          string,
+          ...string[],
+        ])
+        .optional(),
+      categoricalFeatureColumns: z
+        .array(z.string())
+        .default([])
+        .describe('Feature columns treated as categorical'),
     }),
   },
 );

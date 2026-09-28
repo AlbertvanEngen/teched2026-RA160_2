@@ -41,14 +41,6 @@ const quickJsJournalSchema = journalEntryFilterSchema.extend({
   top: z.number().int().positive().max(5000).default(1000),
 });
 
-const contextPlanningSchema = financialPlanningFilterSchema.extend({
-  top: z.number().int().positive().max(500).default(200),
-});
-
-const contextJournalSchema = journalEntryFilterSchema.extend({
-  top: z.number().int().positive().max(500).default(200),
-});
-
 function errorResult(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   return `Error: ${message}`;
@@ -145,9 +137,9 @@ export const contextFinancialPlanningTool = tool(
   {
     name: 'query_financial_planning',
     description:
-      'Fetch filtered financial planning entries from OData and return the JSON rows directly. ' +
-      `Keep the result set small and always push filters server-side. Columns: ${FINANCIAL_COLUMNS}`,
-    schema: contextPlanningSchema,
+      'Fetch financial planning entries from OData and return the JSON rows directly. ' +
+      `Columns: ${FINANCIAL_COLUMNS}`,
+    schema: financialPlanningFilterSchema,
   },
 );
 
@@ -162,8 +154,8 @@ export const contextJournalEntryTool = tool(
   {
     name: 'query_journal_entry',
     description:
-      'Fetch filtered journal entries from OData and return the JSON rows directly. ' +
-      `Keep the result set small and always push filters server-side. Columns: ${JOURNAL_COLUMNS}`,
-    schema: contextJournalSchema,
+      'Fetch journal entries from OData and return the JSON rows directly. ' +
+      `Columns: ${JOURNAL_COLUMNS}`,
+    schema: journalEntryFilterSchema,
   },
 );

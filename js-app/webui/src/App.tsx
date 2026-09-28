@@ -39,9 +39,13 @@ const TOOL_LABELS: Record<string, string> = {
   js_eval: 'Analyzing JSON with JavaScript',
   run_rpt_prediction: 'Running RPT prediction',
   run_rpt_prediction_from_sources: 'Running RPT prediction',
+  run_tabpfn_prediction: 'Running TabPFN prediction',
   get_ground_truth: 'Comparing against ground truth',
   drop_table: 'Cleaning up tables',
   create_view: 'Creating session view',
+  read_file: 'Reading session file',
+  write_file: 'Writing session file',
+  list_files: 'Listing session files',
 };
 
 function toolLabel(name: string): string {

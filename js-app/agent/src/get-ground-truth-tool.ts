@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { styleText } from 'node:util';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
@@ -195,9 +196,10 @@ export const getGroundTruthTool = tool(
 
       const predictedCol = `predicted_${targetColumn}`;
       const groundTruthCol = `ground_truth_${targetColumn}`;
-      const stagingTable = `_gt_staging_${Date.now()}`;
-      const predAggTable = `_gt_pred_${Date.now()}`;
-      const truthAggTable = `_gt_truth_${Date.now()}`;
+      const callId = randomUUID().replaceAll('-', '_');
+      const stagingTable = `_gt_staging_${callId}`;
+      const predAggTable = `_gt_pred_${callId}`;
+      const truthAggTable = `_gt_truth_${callId}`;
 
       const predictionCols = await runQuery(
         `SELECT column_name FROM information_schema.columns WHERE table_name = '${predictionTable}'`,

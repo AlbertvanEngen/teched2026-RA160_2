@@ -331,6 +331,98 @@ function assertSafeWhereClause(where: string, label: string): string | null {
   return null;
 }
 
+async function rptFromRowArrays(
+  contextRows: Record<string, unknown>[],
+  predictionRows: Record<string, unknown>[],
+  targetColumn: string,
+  taskType: TaskType,
+): Promise<string> {
+  if (contextRows.length === 0) return 'Error: contextRows is empty.';
+  if (predictionRows.length === 0) return 'Error: predictionRows is empty.';
+  if (!Object.hasOwn(contextRows[0], targetColumn))
+    return `Error: targetColumn '${targetColumn}' not found in contextRows.`;
+
+  const usedCols = featureColumns(Object.keys(contextRows[0]), targetColumn);
+  type RptRow = Record<string, string | number | null>;
+
+  function toRptRow(raw: Record<string, unknown>, nullTarget: boolean): RptRow {
+    const r: RptRow = {};
+    for (const col of usedCols) {
+      if (nullTarget && col === targetColumn) {
+        r[col] = null;
+      } else {
+        const v = raw[col];
+        r[col] = v == null ? null : typeof v === 'number' ? v : String(v);
+      }
+    }
+    return r;
+  }
+
+  let rowId = 0;
+  const combinedRows = [
+    ...contextRows.map((row) => ({
+      ...toRptRow(row, false),
+      [ROW_ID_COLUMN]: ++rowId,
+    })),
+    ...predictionRows.map((row) => ({
+      ...toRptRow(row, true),
+      [ROW_ID_COLUMN]: ++rowId,
+    })),
+  ];
+
+  const rptClient = new RptClient({ modelName: RPT_MODEL });
+  const response = await rptClient.predictWithoutSchema({
+    prediction_config: {
+      target_columns: [
+        {
+          name: targetColumn,
+          prediction_placeholder: null,
+          task_type: taskType,
+        },
+      ],
+      explanations: { top_column_scores: 5 },
+    },
+    index_column: ROW_ID_COLUMN,
+    parse_data_types: true,
+    rows: combinedRows,
+  });
+
+  const predictions = extractPredictions(
+    response,
+    targetColumn,
+    contextRows.length,
+  );
+  const explanation = formatExplanations(response);
+  if (explanation) rpt(explanation);
+
+  const results = predictionRows.map((row, i) => {
+    const p = predictions.get(contextRows.length + i + 1);
+    const out: Record<string, unknown> = { ...row };
+    out[`predicted_${targetColumn}`] = p?.predicted ?? null;
+    out[`confidence_${targetColumn}`] = p?.confidence ?? null;
+    if (taskType === 'regression') {
+      out[`confidence_interval_lower_${targetColumn}`] =
+        p?.confidenceIntervalLower ?? null;
+      out[`confidence_interval_upper_${targetColumn}`] =
+        p?.confidenceIntervalUpper ?? null;
+    }
+    return out;
+  });
+
+  rpt(
+    ` rptFromRowArrays: ${results.length} predictions from ${contextRows.length} context rows`,
+  );
+  return JSON.stringify(
+    {
+      targetColumn,
+      contextRowCount: contextRows.length,
+      predictionRowCount: results.length,
+      results,
+    },
+    (_k, v) => (typeof v === 'bigint' ? Number(v) : v),
+  );
+}
+
 export const runRptPredictionTool = tool(
   async (input) => {
     try {
@@ -467,17 +559,22 @@ export const runRptPredictionTool = tool(
   {
     name: 'run_rpt_prediction',
     description:
-      'Run an SAP RPT prediction and write results to a session table. ' +
-      'Two modes:\n' +
-      '• mode="single": one session table, select context vs prediction rows with SQL WHERE predicates. ' +
-      'Use predictionWhere for rows to forecast (e.g. future periods or NULL targets); ' +
-      'optionally contextWhere for known-truth rows (default: NOT predictionWhere).\n' +
-      '• mode="dual": two separate tables — contextTable (actuals/journal entries) provides context, ' +
-      'predictionTable (planning/budget entries) provides rows to predict. ' +
-      'Only shared columns are used; a source column (actual/plan) is added automatically.\n' +
-      'Predictions are written into outputTable as predicted_<targetColumn> plus ' +
-      'confidence_<targetColumn> and confidence_interval_lower/upper_<targetColumn>. ' +
-      'Aggregate the output table with run_sql to the granularity the user asked for.',
+      'Run an SAP RPT prediction on a session table or view and write results into a named output table.\n' +
+      'Required for both modes: outputTable (name to write into, replaced if it exists), ' +
+      'targetColumn (column to predict), taskType ("regression" for numeric amounts, "classification" for categories).\n' +
+      '• mode="single": tableName — a session table or view containing both context and prediction rows. ' +
+      'predictionWhere selects rows to forecast (SQL predicate, no WHERE keyword, e.g. "ledgerFiscalYear = \'2026\'"); ' +
+      'contextWhere selects known-truth rows (default: NOT predictionWhere). ' +
+      'Pass a view name to avoid repeating complex queries. ' +
+      'Never aggregate before calling — RPT learns from raw row variance. ' +
+      'If rows exceed 2048, pass a view defined with USING SAMPLE 2048.\n' +
+      '• mode="dual": contextTable supplies known-truth rows (actuals / journal entries), ' +
+      'predictionTable supplies rows whose target will be predicted (planning / budget entries). ' +
+      'Only columns shared by both tables are used; a source column (actual/plan) is added automatically. ' +
+      'Both accept table or view names.\n' +
+      'Predictions land in outputTable as predicted_<targetColumn> plus confidence_<targetColumn> ' +
+      'and confidence_interval_lower/upper_<targetColumn> (regression only). ' +
+      'Aggregate outputTable with run_sql to the granularity the user asked for.',
     schema: z.discriminatedUnion('mode', [
       z.object({
         mode: z.literal('single'),
@@ -499,7 +596,11 @@ export const runRptPredictionTool = tool(
             'Session table to write predictions into (replaced if exists)',
           ),
         targetColumn: z.string().describe('Column name to predict'),
-        taskType: z.enum(['classification', 'regression']),
+        taskType: z
+          .enum(['classification', 'regression'])
+          .describe(
+            '"regression" for numeric amounts, "classification" for categories',
+          ),
       }),
       z.object({
         mode: z.literal('dual'),
@@ -521,8 +622,57 @@ export const runRptPredictionTool = tool(
         targetColumn: z
           .string()
           .describe('Column to predict — must exist in both tables'),
-        taskType: z.enum(['classification', 'regression']),
+        taskType: z
+          .enum(['classification', 'regression'])
+          .describe(
+            '"regression" for numeric amounts, "classification" for categories',
+          ),
       }),
     ]),
+  },
+);
+
+export const runRptFromRowsTool = tool(
+  async (input) => {
+    try {
+      return await rptFromRowArrays(
+        input.contextRows as Record<string, unknown>[],
+        input.predictionRows as Record<string, unknown>[],
+        input.targetColumn,
+        input.taskType,
+      );
+    } catch (e: unknown) {
+      logRptError(e);
+      return formatRptError(e);
+    }
+  },
+  {
+    name: 'run_rpt_prediction',
+    description:
+      'Run an SAP RPT prediction from in-memory row arrays and return results as JSON. ' +
+      'Use in context or quickjs mode where rows are already in memory — no table names needed.\n' +
+      'contextRows: known-truth rows with targetColumn populated. ' +
+      'predictionRows: rows to predict — must include targetColumn (may be null or zero). ' +
+      'taskType: "regression" for numeric amounts, "classification" for categories.\n' +
+      'Never aggregate rows before calling — RPT learns from raw row variance. ' +
+      'Keep each array under 2048 rows; sub-sample if needed.\n' +
+      'Returns JSON with results[] — each prediction row enriched with predicted_<targetColumn>, ' +
+      'confidence_<targetColumn>, and (regression) confidence_interval_lower/upper_<targetColumn>.',
+    schema: z.object({
+      contextRows: z
+        .array(z.record(z.string(), z.unknown()))
+        .describe('Known-truth rows with the target column populated'),
+      predictionRows: z
+        .array(z.record(z.string(), z.unknown()))
+        .describe(
+          'Rows to predict — include the target column even if null or zero',
+        ),
+      targetColumn: z.string().describe('Column to predict'),
+      taskType: z
+        .enum(['classification', 'regression'])
+        .describe(
+          '"regression" for numeric amounts, "classification" for categories',
+        ),
+    }),
   },
 );
