@@ -4,13 +4,30 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "lint": "biome check .",
-    "lint:fix": "biome check --write .",
-    "lint:ci": "biome ci .",
+    "lint": "biome check . && pnpm lint:exercise-states && pnpm lint:markdown && pnpm lint:markdown-links && pnpm lint:typos",
+    "lint:fix": "biome check --write . && tsx scripts/check-markdown.ts --fix",
+    "lint:ci": "biome ci . && pnpm lint:exercise-states && pnpm lint:markdown && pnpm lint:markdown-links && pnpm lint:typos",
+    "lint:markdown": "tsx scripts/check-markdown.ts",
+    "lint:markdown:all": "tsx scripts/check-markdown.ts --all",
+    "lint:markdown-links": "tsx scripts/check-markdown-links.ts",
+    "lint:typos": "tsx scripts/check-typos.ts",
+    "lint:exercise-states": "tsx scripts/check-exercise-states.ts",
+    "lint:markdown-links:all": "tsx scripts/check-markdown-links.ts --all",
     "typecheck": "pnpm -r typecheck",
     "build": "pnpm -r run --if-present -r build",
     "test": "pnpm -r test",
-    "setup": "tsx --env-file-if-exists=.env scripts/setup.ts"
+    "setup-ai-core-deployments": "tsx --env-file-if-exists=.env scripts/setup-ai-core-deployments.ts",
+    "mock-server": "pnpm --filter purchase-order-mock-server dev",
+    "webui": "MOCK_SERVER_URL=http://localhost:3142 pnpm --filter financial-agent-webui dev",
+    "webui-java": "JAVA_AGENT_URL=http://localhost:3143 pnpm --filter financial-agent-webui dev",
+    "java-agent": "cd java-app/agent && ./mvnw spring-boot:run",
+    "java-build": "cd java-app/agent && ./mvnw package -DskipTests",
+    "debug:exercise-state": "tsx scripts/js-exercise-state.ts",
+    "debug:exercise:1": "tsx scripts/js-exercise-state.ts 1",
+    "debug:exercise:2": "tsx scripts/js-exercise-state.ts 2",
+    "debug:exercise:3": "tsx scripts/js-exercise-state.ts 3",
+    "debug:exercise:4": "tsx scripts/js-exercise-state.ts 4",
+    "debug:exercise:solution": "tsx scripts/js-exercise-state.ts solution"
   },
   "keywords": [],
   "author": "",
@@ -25,8 +42,10 @@
   "type": "module",
   "devDependencies": {
     "@biomejs/biome": "catalog:",
+    "markdownlint-cli2": "catalog:",
     "@sap-ai-sdk/ai-api": "^2.16.0",
     "@types/node": "^24.13.5",
+    "tinyexec": "catalog:",
     "tsx": "catalog:"
   }
 }

@@ -1,15 +1,17 @@
+import { AIMessage } from '@langchain/core/messages';
+import { FakeStreamingChatModel } from '@langchain/core/utils/testing';
 import { MemorySaver } from '@langchain/langgraph-checkpoint';
 import { OrchestrationClient } from '@sap-ai-sdk/langchain';
 import { orchestrationPromptCachingMiddleware } from '@sap-ai-sdk/langchain/orchestration/prompt-caching-middleware';
-import { createAgent } from 'langchain';
-import { getGroundTruthTool } from './get-ground-truth-tool.ts';
+import { createAgent, type ReactAgent } from 'langchain';
+import { getGroundTruthTool } from './tools/get-ground-truth-tool.ts';
 import {
   queryFinancialPlanningTool,
   queryJournalEntryTool,
-} from './odata-tools.ts';
-import { runRptPredictionTool } from './rpt-tool.ts';
-import { runSqlTool } from './sql-tool.ts';
-import { runTabpfnPredictionTool } from './tabpfn-tool.ts';
+} from './tools/odata-tools.ts';
+import { runRptPredictionTool } from './tools/rpt-tool.ts';
+import { runSqlTool } from './tools/sql-tool.ts';
+import { runTabpfnPredictionTool } from './tools/tabpfn-tool.ts';
 
 export const AGENT_RECURSION_LIMIT = 64;
 
@@ -58,25 +60,28 @@ Workspace mode: SQL.
   sub-sample with USING SAMPLE 2048 rather than grouping.
 - When the target cost center has little history, include peer cost centers that share its
   G/L accounts; retain companyCode, costCenter, and profitCenter as model features.
-- get_ground_truth compares an RPT prediction table to generated ground truth.
 - Session tables are append-only. A repeated fetch duplicates rows unless you deduplicate by id.
 
 Presentation:
-- When comparing forecasts to ground truth, lead with percentages — not raw currency variances.
-  Use pct_of_actual (forecast as % of |ground truth|), pct_below_actual (% under spend), and
-  pct_above_actual (% over spend). Each is positive or null — never quote a negative "% below".
-- Journal-entry ground truth is signed: expenses are negative. Compare magnitudes with ABS(ground_truth),
-  and say e.g. "forecast is 15% of actual spend", "85% below actual", or "109% above actual".
-- Tables should show period, forecast, actual magnitude, pct_of_actual, pct_below_actual, and
-  pct_above_actual. When RPT confidence columns are present, also show a compact uncertainty view:
-  confidence_<targetColumn> for classification and confidence_interval_lower/upper_<targetColumn>
-  for regression. Put currency totals in a one-line summary; do not make variance columns the headline.
-- Ground truth exists for fiscal years 2018-2028 (same range as planning and journal entries).
-  Only say ground truth is unavailable if the tool actually returns no rows. Do not substitute
-  a prior year's actuals and call it ground truth unless the user explicitly asked for a
-  year-over-year benchmark — label that clearly as YoY, not validation.
 
 Use SQL for deterministic reporting. Use RPT only when the requested answer does not exist in source data and is genuinely predictive. Query prediction output after RPT to present the requested aggregate.`;
+function systemPromptForTools(tools: readonly { name: string }[]): string {
+  const availableTools = tools.map((tool) => tool.name).join(', ') || 'none';
+  const hasGroundTruth = tools.some((tool) => tool.name === 'get_ground_truth');
+  const evaluationBoundary = hasGroundTruth
+    ? 'Use get_ground_truth only when the user explicitly requests validation, accuracy, or comparison against actuals, and only after a prediction tool has produced an output table.'
+    : 'Ground-truth evaluation is unavailable. Do not fetch target-period actuals solely to validate an ex-ante forecast, and do not claim validation, accuracy, actual comparisons, or ground-truth metrics.';
+
+  return `${SYSTEM_PROMPT}
+
+Tool boundary:
+- Available tools in this run: ${availableTools}.
+- Use only the available tools listed above.
+- Never claim that an unavailable tool was called.
+- If the request requires an unavailable capability, say so explicitly.
+- Never fabricate tool results, tables, predictions, or evaluation metrics.
+- ${evaluationBoundary}`;
+}
 
 const checkpointer = new MemorySaver();
 
@@ -100,18 +105,40 @@ function buildFinancialAgent() {
     getGroundTruthTool,
   ];
 
+  const systemPrompt = systemPromptForTools(tools);
+
   const middleware = [orchestrationPromptCachingMiddleware()];
 
   return createAgent({
     model,
-    systemPrompt: SYSTEM_PROMPT,
+    systemPrompt,
     checkpointer,
     tools,
     middleware,
-  }).withConfig({ recursionLimit: AGENT_RECURSION_LIMIT });
+  });
 }
 
-const agentInstance = buildFinancialAgent();
+// Wraps buildFinancialAgent so that exercise starter states (where the model is not
+// yet configured) produce a stub response instead of crashing the server.
+function buildAgentWithStubFallback(): ReactAgent {
+  const agent = buildFinancialAgent();
+  if (!(agent.options.model instanceof OrchestrationClient)) {
+    return createAgent({
+      model: new FakeStreamingChatModel({
+        responses: [new AIMessage('This could be a chat client response.')],
+      }),
+      systemPrompt: '',
+      checkpointer,
+      tools: [],
+      middleware: [],
+    }).withConfig({ recursionLimit: AGENT_RECURSION_LIMIT }) as ReactAgent;
+  }
+  return agent.withConfig({
+    recursionLimit: AGENT_RECURSION_LIMIT,
+  }) as ReactAgent;
+}
+
+const agentInstance = buildAgentWithStubFallback();
 
 export function getFinancialAgent() {
   return agentInstance;

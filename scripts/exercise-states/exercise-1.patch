@@ -1,0 +1,44 @@
+--- a/js-app/agent/src/agent.ts
++++ b/js-app/agent/src/agent.ts
+@@ -86,32 +86,28 @@
+ const checkpointer = new MemorySaver();
+ 
+ function buildFinancialAgent() {
++  /*
+   const model = new OrchestrationClient([
+     // { promptTemplating: { model: { name: 'gpt-5.6-luna' } } },
+     { promptTemplating: { model: { name: 'gemini-3.5-flash' } } },
+-    {
+-      promptTemplating: {
+-        model: { name: 'anthropic--claude-4.6-sonnet' },
+-      },
+-    },
+   ]);
++  */
+ 
+-  const tools = [
+-    queryFinancialPlanningTool,
+-    queryJournalEntryTool,
+-    runSqlTool,
+-    runRptPredictionTool,
+-    runTabpfnPredictionTool,
+-    getGroundTruthTool,
+-  ];
++  const tools: never[] = [];
+ 
+   const systemPrompt = systemPromptForTools(tools);
+ 
+   const middleware = [orchestrationPromptCachingMiddleware()];
+ 
+   return createAgent({
++    // YOUR CODE START
++    /*
+     model,
+     systemPrompt,
++    */
++    model: {} as never,
++    systemPrompt: 'TODO',
++    // YOUR CODE END
+     checkpointer,
+     tools,
+     middleware,

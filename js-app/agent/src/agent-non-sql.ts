@@ -11,10 +11,9 @@ import {
   quickJsJournalEntryTool,
   readFileTool,
   writeFileTool,
-} from './json-data-tools.ts';
-import { runRptFromRowsTool } from './rpt-tool.ts';
-import { runTabpfnFromRowsTool } from './tabpfn-tool.ts';
-
+} from './tools/json-data-tools.ts';
+import { runRptFromRowsTool } from './tools/rpt-tool.ts';
+import { runTabpfnFromRowsTool } from './tools/tabpfn-tool.ts';
 export type AgentDataMode = 'sql' | 'quickjs' | 'context';
 
 const COMMON_PROMPT = `You are a financial data analyst agent with access to two SAP OData services.

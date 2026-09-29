@@ -1,8 +1,8 @@
 import { styleText } from 'node:util';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { runQuery } from './db.ts';
-import { registerSessionObject } from './session-store.ts';
+import { runQuery } from '../db.ts';
+import { registerSessionObject } from '../session-store.ts';
 
 export const runSqlTool = tool(
   async ({ sql }) => {

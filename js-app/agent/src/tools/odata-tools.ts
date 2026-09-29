@@ -1,14 +1,14 @@
 import { styleText } from 'node:util';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { runQuery, withConnection } from './db.ts';
+import { runQuery, withConnection } from '../db.ts';
 import {
   fetchFinancialPlanningRows,
   fetchJournalEntryRows,
   financialPlanningFilterSchema,
   journalEntryFilterSchema,
-} from './odata-source.ts';
-import { registerSessionObject } from './session-store.ts';
+} from '../odata-source.ts';
+import { registerSessionObject } from '../session-store.ts';
 
 const db = (message: string) =>
   console.log(styleText('magenta', '[Session] ') + message);

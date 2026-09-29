@@ -7,8 +7,8 @@
  *  - SAP RPT 1.6    (JS agent, env RPT_MODEL default)
  *
  * Usage:
- *   pnpm setup                  # reads credentials from .env
- *   AICORE_RESOURCE_GROUP=myRG pnpm setup
+ *   pnpm setup-ai-core-deployments
+ *   AICORE_RESOURCE_GROUP=myRG pnpm setup-ai-core-deployments
  */
 
 import type {

@@ -4,8 +4,8 @@ import type { TaskConfig } from '@sap-ai-sdk/tabpfn';
 import { TabpfnClient } from '@sap-ai-sdk/tabpfn';
 import { resilience } from '@sap-cloud-sdk/resilience';
 import { z } from 'zod';
-import { isValidIdentifier, runQuery } from './db.ts';
-import { featureColumns } from './parquet.ts';
+import { isValidIdentifier, runQuery } from '../db.ts';
+import { featureColumns } from '../parquet.ts';
 
 const tabpfn = (message: string) =>
   console.log(styleText('cyan', '[TabPFN] ') + message);
@@ -94,9 +94,7 @@ async function tabpfnFromRows(
         features.map((column) => toTabpfnValue(row[column])),
       ),
     },
-    {
-      middlewares: [resilience()],
-    },
+    { middlewares: [resilience()] },
   );
   const predictions = predictionValues(response.prediction);
   const results = predictionRows.map((row, index) => ({
@@ -143,6 +141,14 @@ export const runTabpfnPredictionTool = tool(
         runQuery(contextSql),
         runQuery(predictionSql),
       ]);
+
+      if (contextRows.length === 0) {
+        return `Error: No context rows matched. Broaden contextWhere or load more historical data.`;
+      }
+      if (predictionRows.length === 0) {
+        return `Error: No prediction rows matched predictionWhere (${input.predictionWhere}).`;
+      }
+
       return await tabpfnFromRows(
         contextRows,
         predictionRows,

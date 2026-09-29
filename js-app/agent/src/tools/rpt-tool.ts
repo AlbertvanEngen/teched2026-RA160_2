@@ -3,9 +3,9 @@ import { tool } from '@langchain/core/tools';
 import { RptClient } from '@sap-ai-sdk/rpt';
 import { resilience } from '@sap-cloud-sdk/resilience';
 import { z } from 'zod';
-import { isValidIdentifier, runQuery } from './db.ts';
-import { featureColumns, ROW_ID_COLUMN, withParquetBlob } from './parquet.ts';
-import { registerSessionObject } from './session-store.ts';
+import { isValidIdentifier, runQuery } from '../db.ts';
+import { featureColumns, ROW_ID_COLUMN, withParquetBlob } from '../parquet.ts';
+import { registerSessionObject } from '../session-store.ts';
 
 const rpt = (msg: string) => console.log(styleText('cyan', '[RPT] ') + msg);
 

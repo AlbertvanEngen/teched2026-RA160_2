@@ -1,0 +1,23 @@
+--- a/js-app/agent/src/agent.ts
++++ b/js-app/agent/src/agent.ts
+@@ -87,20 +87,12 @@
+   const model = new OrchestrationClient([
+     // { promptTemplating: { model: { name: 'gpt-5.6-luna' } } },
+     { promptTemplating: { model: { name: 'gemini-3.5-flash' } } },
+-    {
+-      promptTemplating: {
+-        model: { name: 'anthropic--claude-4.6-sonnet' },
+-      },
+-    },
+   ]);
+ 
+   const tools = [
+     queryFinancialPlanningTool,
+     queryJournalEntryTool,
+     runSqlTool,
+-    runRptPredictionTool,
+-    runTabpfnPredictionTool,
+-    getGroundTruthTool,
+   ];
+ 
+   const systemPrompt = systemPromptForTools(tools);

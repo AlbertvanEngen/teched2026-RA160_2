@@ -1,0 +1,49 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start mock-server (only needed for Java ☕)",
+      "type": "process",
+      "command": "pnpm",
+      "args": ["run", "mock-server"],
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated", "reveal": "always" }
+    },
+    {
+      "label": "Start webui & agent (for JS)",
+      "type": "process",
+      "command": "pnpm",
+      "args": ["run", "webui"],
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated", "reveal": "always" }
+    },
+    {
+      "label": "Start webui-java (for Java ☕)",
+      "type": "process",
+      "command": "pnpm",
+      "args": ["run", "webui-java"],
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated", "reveal": "always" }
+    },
+    {
+      "label": "Start java-agent (for Java ☕)",
+      "type": "process",
+      "command": "pnpm",
+      "args": ["run", "java-agent"],
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated", "reveal": "always" }
+    },
+    {
+      "label": "Start java-build (for Java ☕)",
+      "type": "process",
+      "command": "pnpm",
+      "args": ["run", "java-build"],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    }
+  ]
+}

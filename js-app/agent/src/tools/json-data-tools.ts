@@ -5,12 +5,12 @@ import {
   fetchJournalEntryRows,
   financialPlanningFilterSchema,
   journalEntryFilterSchema,
-} from './odata-source.ts';
+} from '../odata-source.ts';
 import {
   listSessionFiles,
   readSessionFile,
   writeSessionFile,
-} from './session-store.ts';
+} from '../session-store.ts';
 
 const FINANCIAL_COLUMNS =
   'id, ledger, ledgerName, planningCategory, ledgerFiscalYear, fiscalPeriod (001–012), fiscalYearPeriod, ' +
