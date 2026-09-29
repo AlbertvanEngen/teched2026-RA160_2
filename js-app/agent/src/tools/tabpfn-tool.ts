@@ -6,6 +6,7 @@ import { resilience } from '@sap-cloud-sdk/resilience';
 import { z } from 'zod';
 import { isValidIdentifier, runQuery } from '../db.ts';
 import { featureColumns } from '../parquet.ts';
+import { registerSessionObject } from '../session-store.ts';
 
 const tabpfn = (message: string) =>
   console.log(styleText('cyan', '[TabPFN] ') + message);
@@ -38,6 +39,15 @@ function predictionValues(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [value];
 }
 
+type TabpfnResult = {
+  model: string;
+  task: 'classification' | 'regression';
+  targetColumn: string;
+  contextRows: number;
+  features: string[];
+  results: Record<string, unknown>[];
+};
+
 async function tabpfnFromRows(
   contextRows: Record<string, unknown>[],
   predictionRows: Record<string, unknown>[],
@@ -45,7 +55,7 @@ async function tabpfnFromRows(
   taskType: 'classification' | 'regression',
   outputType: string | undefined,
   categoricalFeatureColumns: string[],
-): Promise<string> {
+): Promise<TabpfnResult | string> {
   if (contextRows.length === 0) {
     return 'Error: contextRows is empty.';
   }
@@ -104,15 +114,62 @@ async function tabpfnFromRows(
   tabpfn(
     `Predicted ${results.length} rows with tabpfn-3.5-plus using ${contextRows.length} context rows.`,
   );
-  return JSON.stringify({
+  return {
     model: 'tabpfn-3.5-plus',
     task: taskType,
     targetColumn,
     contextRows: contextRows.length,
-    predictionRows: results.length,
     features,
     results,
-  });
+  };
+}
+
+function sqlLiteral(value: unknown, taskType: 'classification' | 'regression') {
+  if (value == null) return 'NULL';
+  if (taskType === 'regression' && typeof value === 'number') {
+    return Number.isFinite(value) ? String(value) : 'NULL';
+  }
+  const serialized =
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean'
+      ? String(value)
+      : JSON.stringify(value);
+  return `'${serialized.replaceAll("'", "''")}'`;
+}
+
+async function writeTabpfnPredictionTable(
+  outputTable: string,
+  predictionSql: string,
+  results: Record<string, unknown>[],
+  targetColumn: string,
+  taskType: 'classification' | 'regression',
+): Promise<string> {
+  const predictedColumn = `predicted_${targetColumn}`;
+  const values = results
+    .map(
+      (row, index) => `(${index + 1}, ${sqlLiteral(row.prediction, taskType)})`,
+    )
+    .join(', ');
+
+  await runQuery(
+    `CREATE OR REPLACE TABLE ${outputTable} AS
+     WITH source AS (
+       SELECT *, row_number() OVER () AS tabpfn_row_id
+       FROM (${predictionSql})
+     ),
+     predicted(tabpfn_row_id, "${predictedColumn}") AS (VALUES ${values})
+     SELECT source.* EXCLUDE (tabpfn_row_id), predicted."${predictedColumn}"
+     FROM source
+     JOIN predicted USING (tabpfn_row_id)`,
+  );
+  registerSessionObject(outputTable);
+
+  return (
+    `Wrote ${results.length} predicted rows into table '${outputTable}'. ` +
+    `Predicted column: ${predictedColumn}. ` +
+    `Aggregate this table with run_sql to build the answer.`
+  );
 }
 
 export const runTabpfnPredictionTool = tool(
@@ -120,6 +177,9 @@ export const runTabpfnPredictionTool = tool(
     try {
       if (!isValidIdentifier(input.tableName)) {
         return `Error: '${input.tableName}' is not a valid table name.`;
+      }
+      if (!isValidIdentifier(input.outputTable)) {
+        return `Error: '${input.outputTable}' is not a valid table name.`;
       }
       const predictionError = assertSafeWhereClause(
         input.predictionWhere,
@@ -149,13 +209,21 @@ export const runTabpfnPredictionTool = tool(
         return `Error: No prediction rows matched predictionWhere (${input.predictionWhere}).`;
       }
 
-      return await tabpfnFromRows(
+      const result = await tabpfnFromRows(
         contextRows,
         predictionRows,
         input.targetColumn,
         input.taskType,
         input.outputType,
         input.categoricalFeatureColumns,
+      );
+      if (typeof result === 'string') return result;
+      return await writeTabpfnPredictionTable(
+        input.outputTable,
+        predictionSql,
+        result.results,
+        input.targetColumn,
+        input.taskType,
       );
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -166,8 +234,8 @@ export const runTabpfnPredictionTool = tool(
   {
     name: 'run_tabpfn_prediction',
     description:
-      'Run a TabPFN in-context tabular prediction on a session table or view. Returns predicted rows as JSON.\n' +
-      'Required: tableName (session table or view), targetColumn (column to predict), taskType. ' +
+      'Run a TabPFN in-context tabular prediction on a session table or view and write results into a named output table.\n' +
+      'Required: tableName, outputTable (replaced if it exists), targetColumn, and taskType. ' +
       'predictionWhere selects rows to predict; contextWhere selects training rows. ' +
       'Never aggregate before calling — TabPFN learns from raw row variance. ' +
       'Set categoricalFeatureColumns for string or enum features.',
@@ -175,6 +243,11 @@ export const runTabpfnPredictionTool = tool(
       tableName: z
         .string()
         .describe('Session table containing context and prediction rows'),
+      outputTable: z
+        .string()
+        .describe(
+          'Session table to write predictions into (replaced if it exists)',
+        ),
       predictionWhere: z
         .string()
         .describe('SQL predicate without WHERE selecting rows to predict'),
@@ -201,7 +274,7 @@ export const runTabpfnPredictionTool = tool(
 export const runTabpfnFromRowsTool = tool(
   async (input) => {
     try {
-      return await tabpfnFromRows(
+      const result = await tabpfnFromRows(
         input.contextRows as Record<string, unknown>[],
         input.predictionRows as Record<string, unknown>[],
         input.targetColumn,
@@ -209,6 +282,7 @@ export const runTabpfnFromRowsTool = tool(
         input.outputType,
         input.categoricalFeatureColumns,
       );
+      return typeof result === 'string' ? result : JSON.stringify(result);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`${styleText('red', '[TabPFN] ')}Error: ${message}`);

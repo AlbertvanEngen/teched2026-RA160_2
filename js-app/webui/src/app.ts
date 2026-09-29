@@ -52,6 +52,41 @@ app.post('/api/agent/run', async (c) => {
   // Dynamic imports so LangChain packages are not loaded when using the Java proxy.
   const { AIMessage, ToolMessage } = await import('@langchain/core/messages');
 
+  function extractReasoning(
+    message: import('@langchain/core/messages').AIMessage,
+  ): string[] {
+    if (!Array.isArray(message.content)) return [];
+    const thoughts: string[] = [];
+    for (const block of message.content as Array<{
+      type: string;
+      reasoning?: string;
+      thinking?: string;
+    }>) {
+      if (block.type === 'reasoning' && block.reasoning) {
+        thoughts.push(block.reasoning);
+      } else if (block.type === 'thinking' && block.thinking) {
+        thoughts.push(block.thinking);
+      }
+    }
+    return thoughts;
+  }
+
+  function extractTextContent(
+    message: import('@langchain/core/messages').AIMessage,
+  ): string {
+    if (typeof message.content === 'string') {
+      return message.content.trim();
+    }
+    if (Array.isArray(message.content)) {
+      return (message.content as Array<{ type: string; text?: string }>)
+        .filter((b) => b.type === 'text' && b.text)
+        .map((b) => b.text as string)
+        .join('\n')
+        .trim();
+    }
+    return '';
+  }
+
   return streamSSE(c, (s) =>
     sessionContext.run(sessionId, async () => {
       const send = async (event: string, data: unknown) => {
@@ -59,6 +94,20 @@ app.post('/api/agent/run', async (c) => {
       };
 
       try {
+        const historicalState = (await agent.getState({
+          configurable: { thread_id: sessionId },
+        })) as unknown as {
+          values: {
+            messages?: import('@langchain/core/messages').BaseMessage[];
+          };
+        };
+        const historicalAiMessageIds = new Set(
+          (historicalState.values.messages ?? [])
+            .filter(AIMessage.isInstance)
+            .flatMap((message) =>
+              typeof message.id === 'string' ? [message.id] : [],
+            ),
+        );
         const agentStream = await agent.stream(
           {
             messages: [{ role: 'user', content: prompt }],
@@ -70,6 +119,8 @@ app.post('/api/agent/run', async (c) => {
         );
         const emittedToolCallIds = new Set<string>();
         const emittedToolResultIds = new Set<string>();
+        const emittedThinking = new Map<string, string>();
+        let emittedDelta = '';
 
         for await (const chunk of agentStream) {
           const messages = (
@@ -80,8 +131,68 @@ app.post('/api/agent/run', async (c) => {
           const last = messages.at(-1);
           if (!last) continue;
 
-          if (AIMessage.isInstance(last)) {
-            const toolCalls = last.tool_calls ?? [];
+          for (const [messageIndex, message] of messages.entries()) {
+            if (
+              !AIMessage.isInstance(message) ||
+              (typeof message.id === 'string' &&
+                historicalAiMessageIds.has(message.id))
+            ) {
+              continue;
+            }
+
+            const reasoningTokens =
+              (
+                message as {
+                  usage_metadata?: {
+                    output_token_details?: { reasoning?: number };
+                  };
+                }
+              ).usage_metadata?.output_token_details?.reasoning ??
+              (
+                message as {
+                  response_metadata?: {
+                    tokenUsage?: { reasoningTokens?: number };
+                  };
+                }
+              ).response_metadata?.tokenUsage?.reasoningTokens ??
+              (
+                message as {
+                  response_metadata?: {
+                    usage?: {
+                      completion_tokens_details?: { reasoning_tokens?: number };
+                    };
+                  };
+                }
+              ).response_metadata?.usage?.completion_tokens_details
+                ?.reasoning_tokens;
+
+            // Reasoning content in `values` snapshots is cumulative. Compare
+            // each model message and block with its prior snapshot so clients
+            // receive only newly appended reasoning.
+            const thoughts = extractReasoning(message);
+            for (const [blockIndex, thought] of thoughts.entries()) {
+              const reasoningKey = `${message.id ?? messageIndex}:${blockIndex}`;
+              const previousThought = emittedThinking.get(reasoningKey);
+              const incrementalThought =
+                previousThought && thought.startsWith(previousThought)
+                  ? thought.slice(previousThought.length)
+                  : thought;
+              emittedThinking.set(reasoningKey, thought);
+
+              const trimmed = incrementalThought.trim();
+              if (trimmed) {
+                await send('thinking', {
+                  text: trimmed,
+                  tokens:
+                    typeof reasoningTokens === 'number'
+                      ? reasoningTokens
+                      : undefined,
+                });
+              }
+            }
+
+            // Emit any tool calls
+            const toolCalls = message.tool_calls ?? [];
             for (const tc of toolCalls) {
               if (!tc.id || emittedToolCallIds.has(tc.id)) continue;
               emittedToolCallIds.add(tc.id);
@@ -91,21 +202,18 @@ app.post('/api/agent/run', async (c) => {
                 id: tc.id,
               });
             }
-            if (!toolCalls.length && last.content) {
-              if (Array.isArray(last.content)) {
-                for (const block of last.content as Array<{
-                  type: string;
-                  text?: string;
-                  thinking?: string;
-                }>) {
-                  if (block.type === 'thinking' && block.thinking) {
-                    await send('thinking', { text: block.thinking });
-                  } else if (block.type === 'text' && block.text) {
-                    await send('delta', { text: block.text });
-                  }
-                }
-              } else {
-                await send('delta', { text: last.content });
+          }
+
+          // Emit response text from the latest AIMessage once it has no pending tool calls
+          if (AIMessage.isInstance(last) && !last.tool_calls?.length) {
+            const text = extractTextContent(last);
+            if (text && text !== emittedDelta) {
+              const chunk = text.startsWith(emittedDelta)
+                ? text.slice(emittedDelta.length)
+                : text;
+              emittedDelta = text;
+              if (chunk) {
+                await send('delta', { text: chunk });
               }
             }
           }

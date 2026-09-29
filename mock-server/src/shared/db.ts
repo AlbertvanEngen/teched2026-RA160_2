@@ -116,36 +116,124 @@ const OP_MAP: Record<string, string> = {
 
 type SqlFilter = { clause: string; params: SQLInputValue[] };
 
+function stripWrappingParentheses(expression: string): string {
+  let result = expression.trim();
+
+  while (result.startsWith('(') && result.endsWith(')')) {
+    let depth = 0;
+    let quoted = false;
+    let wrapsWholeExpression = true;
+
+    for (let index = 0; index < result.length; index += 1) {
+      const character = result[index];
+      if (character === "'") {
+        if (quoted && result[index + 1] === "'") {
+          index += 1;
+        } else {
+          quoted = !quoted;
+        }
+      } else if (!quoted && character === '(') {
+        depth += 1;
+      } else if (!quoted && character === ')') {
+        depth -= 1;
+        if (depth === 0 && index < result.length - 1) {
+          wrapsWholeExpression = false;
+          break;
+        }
+      }
+    }
+
+    if (!wrapsWholeExpression || depth !== 0 || quoted) break;
+    result = result.slice(1, -1).trim();
+  }
+
+  return result;
+}
+
+function splitTopLevel(
+  expression: string,
+  separator: ' and ' | ' or ',
+): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let quoted = false;
+  let partStart = 0;
+
+  for (let index = 0; index < expression.length; index += 1) {
+    const character = expression[index];
+    if (character === "'") {
+      if (quoted && expression[index + 1] === "'") {
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (!quoted && character === '(') {
+      depth += 1;
+    } else if (!quoted && character === ')') {
+      depth -= 1;
+    } else if (
+      !quoted &&
+      depth === 0 &&
+      expression.startsWith(separator, index)
+    ) {
+      parts.push(expression.slice(partStart, index).trim());
+      index += separator.length - 1;
+      partStart = index + 1;
+    }
+  }
+
+  parts.push(expression.slice(partStart).trim());
+  return parts;
+}
+
+function parseSqlFilter(
+  expression: string,
+  validColumns: Set<string>,
+): SqlFilter | undefined {
+  const normalized = stripWrappingParentheses(expression);
+
+  for (const [separator, sqlOperator] of [
+    [' or ', 'OR'],
+    [' and ', 'AND'],
+  ] as const) {
+    const parts = splitTopLevel(normalized, separator);
+    if (parts.length === 1) continue;
+
+    const parsedParts = parts.map((part) => parseSqlFilter(part, validColumns));
+    if (parsedParts.some((part) => part === undefined)) return undefined;
+    const validParts = parsedParts.filter(
+      (part): part is SqlFilter => part !== undefined,
+    );
+    return {
+      clause: `(${validParts.map((part) => part.clause).join(` ${sqlOperator} `)})`,
+      params: validParts.flatMap((part) => part.params),
+    };
+  }
+
+  const match = /^([\w/]+)\s+(eq|ne|lt|gt|le|ge)\s+(.+)$/.exec(normalized);
+  if (!match) return undefined;
+  const [, column, operator, rawValue] = match;
+  if (!validColumns.has(column)) return undefined;
+
+  const value = rawValue
+    .replace(/^'(.*)'$/, '$1')
+    .replace(/^datetime'(.*)'$/, '$1')
+    .replaceAll("''", "'");
+  return {
+    clause: `${column} ${OP_MAP[operator]} ?`,
+    params: [value],
+  };
+}
+
 function buildSqlWhere(
   filterQuery: string | undefined,
   validColumns: Set<string>,
 ): SqlFilter {
   if (!filterQuery) return { clause: '', params: [] };
 
-  const normalized =
-    filterQuery.startsWith('(') && filterQuery.endsWith(')')
-      ? filterQuery.slice(1, -1)
-      : filterQuery;
-
-  const clauses: string[] = [];
-  const params: SQLInputValue[] = [];
-
-  for (const part of normalized.split(' and ')) {
-    const match = /^\(?([\w/]+)\s+(eq|ne|lt|gt|le|ge)\s+(.+?)\)?$/.exec(
-      part.trim(),
-    );
-    if (!match) continue;
-    const [, col, op, rawVal] = match;
-    if (!validColumns.has(col)) continue;
-    const val = rawVal
-      .replace(/^'(.*)'$/, '$1')
-      .replace(/^datetime'(.*)'$/, '$1');
-    clauses.push(`${col} ${OP_MAP[op]} ?`);
-    params.push(val);
-  }
-
-  return clauses.length > 0
-    ? { clause: `WHERE ${clauses.join(' AND ')}`, params }
+  const parsed = parseSqlFilter(filterQuery, validColumns);
+  return parsed
+    ? { clause: `WHERE ${parsed.clause}`, params: parsed.params }
     : { clause: '', params: [] };
 }
 

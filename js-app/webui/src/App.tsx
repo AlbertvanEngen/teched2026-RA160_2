@@ -294,9 +294,62 @@ function SanitizedMarkdown({ content }: { content: string }) {
   return <div ref={contentRef} className="msg-bubble msg-bubble--assistant" />;
 }
 
-function MessageBubble({ msg }: { msg: Message }) {
-  const [thinkingOpen, setThinkingOpen] = useState(false);
+function SanitizedThinking({ content }: { content: string }) {
+  const contentRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    contentRef.current?.replaceChildren(parseMarkdown(content));
+  }, [content]);
+
+  return <div ref={contentRef} className="thinking-markdown" />;
+}
+
+function ReasoningGroup({
+  messages,
+  isLive,
+}: {
+  messages: Message[];
+  isLive: boolean;
+}) {
+  const [open, setOpen] = useState(isLive);
+
+  useEffect(() => {
+    setOpen(isLive);
+  }, [isLive]);
+
+  const updateLabel = `${messages.length} ${messages.length === 1 ? 'update' : 'updates'}`;
+
+  return (
+    <div className={`reasoning-group${isLive ? ' is-live' : ''}`}>
+      <button
+        type="button"
+        className="reasoning-group__toggle"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+      >
+        <span className="reasoning-group__marker" aria-hidden="true" />
+        <span className="reasoning-group__label">
+          {isLive ? 'Reasoning in progress' : 'Reasoning'}
+        </span>
+        <span className="reasoning-group__meta">{updateLabel}</span>
+        <span className="reasoning-group__chevron" aria-hidden="true">
+          {open ? '▾' : '▸'}
+        </span>
+      </button>
+      {open && (
+        <div className="reasoning-group__body">
+          {messages.map((message) => (
+            <div key={message.id} className="reasoning-group__entry">
+              <SanitizedThinking content={message.content} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MessageBubble({ msg }: { msg: Message }) {
   if (msg.role === 'user') {
     return (
       <div className="msg-row msg-row--user">
@@ -304,27 +357,12 @@ function MessageBubble({ msg }: { msg: Message }) {
       </div>
     );
   }
+
+  if (msg.role === 'reasoning') return null;
+
   return (
     <div className="msg-row msg-row--assistant">
-      <div className="msg-col">
-        {msg.thinking && (
-          <button
-            type="button"
-            className="thinking-toggle"
-            onClick={() => setThinkingOpen((o) => !o)}
-            aria-expanded={thinkingOpen}
-          >
-            <span className="thinking-toggle__icon">
-              {thinkingOpen ? '▾' : '▸'}
-            </span>
-            Reasoning
-          </button>
-        )}
-        {msg.thinking && thinkingOpen && (
-          <div className="thinking-block">{msg.thinking}</div>
-        )}
-        <SanitizedMarkdown content={msg.content} />
-      </div>
+      <SanitizedMarkdown content={msg.content} />
     </div>
   );
 }
@@ -360,11 +398,22 @@ export default function App() {
     void ensureSession();
   }, [ensureSession]);
 
+  const activeTurnHasResponse =
+    activeTurnId !== null &&
+    messages.some(
+      (message) =>
+        message.turnId === activeTurnId &&
+        (message.role === 'reasoning' ||
+          (message.role === 'assistant' && Boolean(message.content.trim()))),
+    );
+  const showActivity =
+    running && (Boolean(activeToolName) || !activeTurnHasResponse);
+
   useEffect(() => {
-    if (chatRef.current && (messages.length > 0 || activeToolName !== null)) {
+    if (chatRef.current && (messages.length > 0 || showActivity)) {
       chatRef.current.scrollTop = chatRef.current.scrollHeight;
     }
-  }, [messages.length, activeToolName]);
+  }, [messages.length, showActivity]);
 
   const runPrompt = useCallback(
     async (prompt: string) => {
@@ -374,12 +423,11 @@ export default function App() {
       setRunning(true);
       setActiveToolName('');
 
+      const turnId = nextId();
       setMessages((prev) => [
         ...prev,
-        { id: nextId(), role: 'user', content: prompt, toolIds: [] },
+        { id: nextId(), turnId, role: 'user', content: prompt },
       ]);
-
-      const turnId = nextId();
       setActiveTurnId(turnId);
       setTurns((prev) => [
         ...prev,
@@ -436,51 +484,48 @@ export default function App() {
 
             if (eventLine === 'thinking') {
               const text = payload.text as string;
-              if (!assistantId) {
-                const newAssistantId = nextId();
-                assistantId = newAssistantId;
-                setActiveToolName(null);
-                setActiveToolIds(new Set());
-                setMessages((prev) => [
-                  ...prev,
-                  {
-                    id: newAssistantId,
-                    role: 'assistant',
-                    content: '',
-                    thinking: text,
-                    toolIds: [],
-                  },
-                ]);
-              } else {
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId
-                      ? { ...m, thinking: (m.thinking ?? '') + text }
-                      : m,
-                  ),
-                );
-              }
+              const tokens =
+                typeof payload.tokens === 'number' ? payload.tokens : undefined;
+              console.log(
+                '%c[Agent Thinking]',
+                'color: #0066cc; font-weight: bold; font-size: 11px;',
+                text,
+                tokens !== undefined ? `(${tokens} tokens)` : '',
+              );
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: nextId(),
+                  turnId,
+                  role: 'reasoning',
+                  content: text,
+                },
+              ]);
             } else if (eventLine === 'delta') {
               const text = payload.text as string;
+              console.log(
+                '%c[Agent Response]',
+                'color: #1a7c4c; font-weight: bold; font-size: 11px;',
+                text,
+              );
+              setActiveToolName(null);
               if (!assistantId) {
                 const newAssistantId = nextId();
                 assistantId = newAssistantId;
-                setActiveToolName(null);
-                setActiveToolIds(new Set());
                 setMessages((prev) => [
                   ...prev,
                   {
                     id: newAssistantId,
+                    turnId,
                     role: 'assistant',
                     content: text,
-                    toolIds: [],
                   },
                 ]);
               } else {
                 setMessages((prev) =>
                   prev.map((m) =>
                     m.id === assistantId
-                      ? { ...m, content: m.content + text }
+                      ? { ...m, content: m.content ? m.content + text : text }
                       : m,
                   ),
                 );
@@ -492,6 +537,12 @@ export default function App() {
                 args: payload.args as Record<string, unknown>,
                 startedAt: Date.now(),
               };
+              console.log(
+                '%c[Agent Tool Call]',
+                'color: #b85c00; font-weight: bold; font-size: 11px;',
+                entry.name,
+                entry.args,
+              );
               setTurns((prev) =>
                 prev.map((t) =>
                   t.turnId === turnId
@@ -505,20 +556,17 @@ export default function App() {
                 next.add(entry.id);
                 return next;
               });
-              if (assistantId) {
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId
-                      ? { ...m, toolIds: [...m.toolIds, entry.id] }
-                      : m,
-                  ),
-                );
-              }
             } else if (eventLine === 'tool_result') {
               const tid = payload.id as string;
               const raw = payload.result;
               const result =
                 typeof raw === 'string' ? raw : JSON.stringify(raw);
+              console.log(
+                '%c[Agent Tool Result]',
+                'color: #6e7a8a; font-size: 11px;',
+                tid,
+                result,
+              );
               const completedAt = Date.now();
               setTurns((prev) =>
                 prev.map((t) =>
@@ -638,7 +686,6 @@ export default function App() {
   }, [running, ensureSession]);
 
   const isEmpty = messages.length === 0;
-  const showActivity = running && activeToolName !== null;
 
   return (
     <>
@@ -728,9 +775,39 @@ export default function App() {
               </div>
             )}
 
-            {messages.map((msg) => (
-              <MessageBubble key={msg.id} msg={msg} />
-            ))}
+            {messages.map((msg, index) => {
+              if (msg.role === 'reasoning') {
+                const previous = messages[index - 1];
+                if (
+                  previous?.role === 'reasoning' &&
+                  previous.turnId === msg.turnId
+                ) {
+                  return null;
+                }
+
+                const end = messages.findIndex(
+                  (candidate, candidateIndex) =>
+                    candidateIndex > index &&
+                    (candidate.role !== 'reasoning' ||
+                      candidate.turnId !== msg.turnId),
+                );
+                const reasoningMessages = messages.slice(
+                  index,
+                  end === -1 ? undefined : end,
+                );
+
+                return (
+                  <div className="msg-row msg-row--assistant" key={msg.id}>
+                    <ReasoningGroup
+                      messages={reasoningMessages}
+                      isLive={running && msg.turnId === activeTurnId}
+                    />
+                  </div>
+                );
+              }
+
+              return <MessageBubble key={msg.id} msg={msg} />;
+            })}
 
             {showActivity && <ActivityIndicator toolName={activeToolName} />}
           </div>

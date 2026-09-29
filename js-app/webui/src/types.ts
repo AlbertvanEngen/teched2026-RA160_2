@@ -16,10 +16,17 @@ export type DeltaEvent = {
   text: string;
 };
 
+export type ThinkingEvent = {
+  type: 'thinking';
+  text: string;
+  tokens?: number;
+};
+
 export type AgentEvent =
   | ToolCallEvent
   | ToolResultEvent
   | DeltaEvent
+  | ThinkingEvent
   | { type: 'done' }
   | { type: 'error'; message: string };
 
@@ -40,8 +47,7 @@ export type TurnGroup = {
 
 export type Message = {
   id: string;
-  role: 'user' | 'assistant';
+  turnId: string;
+  role: 'user' | 'assistant' | 'reasoning';
   content: string;
-  thinking?: string;
-  toolIds: string[];
 };

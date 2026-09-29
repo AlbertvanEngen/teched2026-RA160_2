@@ -30,7 +30,7 @@
     "@duckdb/node-api": "1.5.5-r.5",
     "@langchain/langgraph-checkpoint": "^1.1.5",
     "@langchain/quickjs": "^0.6.4",
-    "@sap-ai-sdk/langchain": "^2.16.0",
+    "@sap-ai-sdk/langchain": "2.16.1-20260922111303.0",
     "@sap-ai-sdk/rpt": "canary",
     "@sap-ai-sdk/tabpfn": "workspace:*",
     "@sap-cloud-sdk/odata-v2": "catalog:",

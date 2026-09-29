@@ -137,6 +137,39 @@ test('filters journal entry items by company code', async () => {
   );
 });
 
+test('combines OData AND filters with multi-value OR filters', async () => {
+  const filter = encodeURIComponent(
+    "(CompanyCode eq '1010' and (LedgerFiscalYear eq '2024' or LedgerFiscalYear eq '2025'))",
+  );
+
+  for (const [servicePath, entitySet] of [
+    [financialPlanningServicePath, 'A_FinPlanningEntryItem'],
+    [journalEntryServicePath, 'A_JournalEntryItemBasic'],
+  ]) {
+    const response = await app.request(
+      `http://localhost:3141${servicePath}${entitySet}?$filter=${filter}`,
+    );
+
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(
+      [
+        ...new Set(
+          body.d.results.map(
+            (item: { LedgerFiscalYear: string }) => item.LedgerFiscalYear,
+          ),
+        ),
+      ].sort(),
+      ['2024', '2025'],
+    );
+    assert.ok(
+      body.d.results.every(
+        (item: { CompanyCode: string }) => item.CompanyCode === '1010',
+      ),
+    );
+  }
+});
+
 test('generates concentrated entity histories across a decade', async () => {
   for (const entries of await Promise.all([
     getFinancialPlanningEntries(),

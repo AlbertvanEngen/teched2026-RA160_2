@@ -1,4 +1,5 @@
 import { styleText } from 'node:util';
+import { or } from '@sap-cloud-sdk/odata-v2';
 import { z } from 'zod';
 import { apiFinplanningentryitemSrv } from './generated/API_FINPLANNINGENTRYITEM_SRV/index.ts';
 import { apiJournalentryitembasicSrv } from './generated/API_JOURNALENTRYITEMBASIC_SRV/index.ts';
@@ -12,20 +13,21 @@ const destination = {
     `http://localhost:${Number(process.env.port ?? 3142)}`,
   authentication: 'NoAuthentication' as const,
 };
+const oneOrManyStrings = (description: string) =>
+  z
+    .union([z.string(), z.array(z.string()).min(1)])
+    .optional()
+    .describe(`${description}. Pass an array to match any of several values`);
 
 export const financialPlanningFilterSchema = z.object({
-  companyCode: z.string().optional().describe('Filter by company code'),
-  costCenter: z.string().optional().describe('Filter by cost center'),
-  profitCenter: z.string().optional().describe('Filter by profit center'),
-  ledgerFiscalYear: z.string().optional().describe('Filter by fiscal year'),
-  fiscalPeriod: z
-    .string()
-    .optional()
-    .describe('Filter by fiscal period (001–012)'),
-  planningCategory: z
-    .string()
-    .optional()
-    .describe('Filter by planning category (BUDGET, FORECAST, ACTUAL, PLAN)'),
+  companyCode: oneOrManyStrings('Filter by company code'),
+  costCenter: oneOrManyStrings('Filter by cost center'),
+  profitCenter: oneOrManyStrings('Filter by profit center'),
+  ledgerFiscalYear: oneOrManyStrings('Filter by fiscal year'),
+  fiscalPeriod: oneOrManyStrings('Filter by fiscal period (001–012)'),
+  planningCategory: oneOrManyStrings(
+    'Filter by planning category (BUDGET, FORECAST, ACTUAL, PLAN)',
+  ),
   top: z
     .number()
     .int()
@@ -35,18 +37,14 @@ export const financialPlanningFilterSchema = z.object({
 });
 
 export const journalEntryFilterSchema = z.object({
-  companyCode: z.string().optional().describe('Filter by company code'),
-  costCenter: z.string().optional().describe('Filter by cost center'),
-  profitCenter: z.string().optional().describe('Filter by profit center'),
-  ledgerFiscalYear: z.string().optional().describe('Filter by fiscal year'),
-  fiscalPeriod: z
-    .string()
-    .optional()
-    .describe('Filter by fiscal period (001–012)'),
-  businessTransactionCategory: z
-    .string()
-    .optional()
-    .describe('Filter by transaction category (RFBU, RMVL, COIN, PRFI)'),
+  companyCode: oneOrManyStrings('Filter by company code'),
+  costCenter: oneOrManyStrings('Filter by cost center'),
+  profitCenter: oneOrManyStrings('Filter by profit center'),
+  ledgerFiscalYear: oneOrManyStrings('Filter by fiscal year'),
+  fiscalPeriod: oneOrManyStrings('Filter by fiscal period (001–012)'),
+  businessTransactionCategory: oneOrManyStrings(
+    'Filter by transaction category (RFBU, RMVL, COIN, PRFI)',
+  ),
   top: z
     .number()
     .int()
@@ -109,6 +107,12 @@ export interface JournalEntryRow {
   globalCurrency: string;
   amountInGlobalCurrency: number;
 }
+type OneOrManyStrings = string | string[];
+
+function filterValues(value: OneOrManyStrings | undefined): string[] {
+  if (value === undefined) return [];
+  return [...new Set(Array.isArray(value) ? value : [value])];
+}
 
 function describeFilters(filters: Record<string, unknown>): string {
   const labels: Record<string, string> = {
@@ -123,7 +127,12 @@ function describeFilters(filters: Record<string, unknown>): string {
   };
   const description = Object.entries(filters)
     .filter(([, value]) => value !== undefined)
-    .map(([key, value]) => `${labels[key] ?? key}=${value}`)
+    .map(([key, value]) => {
+      const renderedValue = Array.isArray(value)
+        ? `[${value.join(', ')}]`
+        : value;
+      return `${labels[key] ?? key}=${renderedValue}`;
+    })
     .join(' ');
   return description || '(no filter)';
 }
@@ -134,22 +143,34 @@ export async function fetchFinancialPlanningRows(
   const service = apiFinplanningentryitemSrv();
   const api = service.finPlanningEntryItemApi;
   const fields = api.schema;
+  const companyCodes = filterValues(filters.companyCode);
+  const costCenters = filterValues(filters.costCenter);
+  const profitCenters = filterValues(filters.profitCenter);
+  const fiscalYears = filterValues(filters.ledgerFiscalYear);
+  const fiscalPeriods = filterValues(filters.fiscalPeriod);
+  const planningCategories = filterValues(filters.planningCategory);
   const predicates = [
-    filters.companyCode
-      ? fields.COMPANY_CODE.equals(filters.companyCode)
+    companyCodes.length
+      ? or(companyCodes.map((value) => fields.COMPANY_CODE.equals(value)))
       : null,
-    filters.costCenter ? fields.COST_CENTER.equals(filters.costCenter) : null,
-    filters.profitCenter
-      ? fields.PROFIT_CENTER.equals(filters.profitCenter)
+    costCenters.length
+      ? or(costCenters.map((value) => fields.COST_CENTER.equals(value)))
       : null,
-    filters.ledgerFiscalYear
-      ? fields.LEDGER_FISCAL_YEAR.equals(filters.ledgerFiscalYear)
+    profitCenters.length
+      ? or(profitCenters.map((value) => fields.PROFIT_CENTER.equals(value)))
       : null,
-    filters.fiscalPeriod
-      ? fields.FISCAL_PERIOD.equals(filters.fiscalPeriod)
+    fiscalYears.length
+      ? or(fiscalYears.map((value) => fields.LEDGER_FISCAL_YEAR.equals(value)))
       : null,
-    filters.planningCategory
-      ? fields.PLANNING_CATEGORY.equals(filters.planningCategory)
+    fiscalPeriods.length
+      ? or(fiscalPeriods.map((value) => fields.FISCAL_PERIOD.equals(value)))
+      : null,
+    planningCategories.length
+      ? or(
+          planningCategories.map((value) =>
+            fields.PLANNING_CATEGORY.equals(value),
+          ),
+        )
       : null,
   ].filter(
     (predicate): predicate is NonNullable<typeof predicate> =>
@@ -195,23 +216,35 @@ export async function fetchJournalEntryRows(
   const service = apiJournalentryitembasicSrv();
   const api = service.journalEntryItemBasicApi;
   const fields = api.schema;
+  const companyCodes = filterValues(filters.companyCode);
+  const costCenters = filterValues(filters.costCenter);
+  const profitCenters = filterValues(filters.profitCenter);
+  const fiscalYears = filterValues(filters.ledgerFiscalYear);
+  const fiscalPeriods = filterValues(filters.fiscalPeriod);
+  const transactionCategories = filterValues(
+    filters.businessTransactionCategory,
+  );
   const predicates = [
-    filters.companyCode
-      ? fields.COMPANY_CODE.equals(filters.companyCode)
+    companyCodes.length
+      ? or(companyCodes.map((value) => fields.COMPANY_CODE.equals(value)))
       : null,
-    filters.costCenter ? fields.COST_CENTER.equals(filters.costCenter) : null,
-    filters.profitCenter
-      ? fields.PROFIT_CENTER.equals(filters.profitCenter)
+    costCenters.length
+      ? or(costCenters.map((value) => fields.COST_CENTER.equals(value)))
       : null,
-    filters.ledgerFiscalYear
-      ? fields.LEDGER_FISCAL_YEAR.equals(filters.ledgerFiscalYear)
+    profitCenters.length
+      ? or(profitCenters.map((value) => fields.PROFIT_CENTER.equals(value)))
       : null,
-    filters.fiscalPeriod
-      ? fields.FISCAL_PERIOD.equals(filters.fiscalPeriod)
+    fiscalYears.length
+      ? or(fiscalYears.map((value) => fields.LEDGER_FISCAL_YEAR.equals(value)))
       : null,
-    filters.businessTransactionCategory
-      ? fields.BUSINESS_TRANSACTION_CATEGORY.equals(
-          filters.businessTransactionCategory,
+    fiscalPeriods.length
+      ? or(fiscalPeriods.map((value) => fields.FISCAL_PERIOD.equals(value)))
+      : null,
+    transactionCategories.length
+      ? or(
+          transactionCategories.map((value) =>
+            fields.BUSINESS_TRANSACTION_CATEGORY.equals(value),
+          ),
         )
       : null,
   ].filter(

@@ -20,7 +20,8 @@ const SYSTEM_PROMPT = `You are a financial data analyst agent with access to two
 
 Data integrity and units:
 - Look at source data before answering. Never invent rows, totals, currencies, or units.
-- Use server-side filters whenever the requested scope provides them. Deduplicate repeated source rows by id before aggregating.
+- Use server-side filters whenever the requested scope provides them.
+- Each OData filter accepts one value or an array of accepted values. Put all requested values in one filtered load instead of issuing one load per value.
 - Never relabel a value as USD, EUR, or another unit without evidence from the matching currency column.
 - Financial planning has BUDGET, FORECAST, ACTUAL, and PLAN rows. Loading multiple categories can multiply totals, so filter planningCategory unless the question compares categories.
 - Journal expense rows are negative. Use absolute values only when explicitly presenting spend magnitude, and say that you did so.
@@ -40,7 +41,7 @@ Data sources:
 Prediction integrity for every tabular model:
 - Construct prediction rows only from row identities and feature values known at the forecast cutoff. Never fetch actual target-period rows and zero or null the target: row counts, dimensions, categories, and timestamps leak future information.
 - When future transactions are unknown, use future-period financial-planning rows in the relevant PLAN or BUDGET category as the preferred prediction-row grain, because those dimensions are known at the cutoff. Preserve each known planning amount under a distinct feature name such as plannedAmount, then set the model target column to null. Otherwise construct an explicit ex-ante scenario grain using only pre-cutoff dimensions. Label results as a scenario forecast when the future rows are not already known.
-- Preserve the model's native row grain. RPT and TabPFN must receive individual source line items; deduplicate only repeated IDs, never collapse distinct rows into period totals before prediction. Aggregate predicted values only after the model returns results, to produce the requested reporting grain.
+- Preserve the model's native row grain. RPT and TabPFN must receive every distinct source line item; never collapse rows into period totals before prediction. Aggregate predicted values only after the model returns results, to produce the requested reporting grain.
 - Apply the same cutoff in a historical backtest. Do not use a holdout period's observed row identities or feature values to construct its prediction rows.
 Present the requested grain, show the currency, and state material filters or result limits.
 
@@ -54,13 +55,14 @@ Workspace mode: SQL.
 - run_rpt_prediction is SAP RPT, a tabular foundation model. It writes predicted values into an output
   table. Use mode="single" when data is in one table (predictionWhere selects rows to forecast; optional
   contextWhere selects known-truth rows). Use mode="dual" when actuals and planning live in separate tables.
-- run_tabpfn_prediction runs TabPFN on one session table and returns predictions as JSON. Use it for
+- run_tabpfn_prediction runs TabPFN on one session table, writes predictions into the requested output table,
+  and returns a confirmation with the predicted column. Use it for
   in-context tabular prediction, especially when categorical or mixed-type features matter.
 - Never aggregate rows before passing them to RPT or TabPFN — both learn from individual-row variance. If context or prediction rows exceed 2048,
   sub-sample with USING SAMPLE 2048 rather than grouping.
 - When the target cost center has little history, include peer cost centers that share its
   G/L accounts; retain companyCode, costCenter, and profitCenter as model features.
-- Session tables are append-only. A repeated fetch duplicates rows unless you deduplicate by id.
+- query_financial_planning and query_journal_entry append to their target tables. Repeated or overlapping appends may require deduplication by id before downstream analysis.
 
 Presentation:
 
@@ -88,10 +90,13 @@ const checkpointer = new MemorySaver();
 function buildFinancialAgent() {
   const model = new OrchestrationClient([
     // { promptTemplating: { model: { name: 'gpt-5.6-luna' } } },
-    { promptTemplating: { model: { name: 'gemini-3.5-flash' } } },
+    // { promptTemplating: { model: { name: 'gemini-3.5-flash' } } },
     {
       promptTemplating: {
-        model: { name: 'anthropic--claude-4.6-sonnet' },
+        model: {
+          name: 'anthropic--claude-4.6-sonnet',
+          params: { reasoning_effort: 'high' },
+        },
       },
     },
   ]);
