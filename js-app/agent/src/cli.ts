@@ -30,8 +30,47 @@ await sessionContext.run(sessionId, async () => {
       configurable: { thread_id: sessionId },
     },
   );
-
   let finalContent = '';
+
+  function logContent(content: AIMessage['content']): string {
+    if (typeof content === 'string') return content;
+    if (!Array.isArray(content)) return JSON.stringify(content);
+    let text = '';
+    for (const block of content) {
+      if (typeof block !== 'object' || block === null || !('type' in block))
+        continue;
+      if (
+        block.type === 'reasoning' &&
+        'reasoning' in block &&
+        typeof block.reasoning === 'string'
+      ) {
+        console.log(
+          styleText(
+            'dim',
+            `[thinking] ${block.reasoning.slice(0, 500)}${block.reasoning.length > 500 ? '…' : ''}`,
+          ),
+        );
+      } else if (
+        block.type === 'thinking' &&
+        'thinking' in block &&
+        typeof block.thinking === 'string'
+      ) {
+        console.log(
+          styleText(
+            'dim',
+            `[thinking] ${block.thinking.slice(0, 500)}${block.thinking.length > 500 ? '…' : ''}`,
+          ),
+        );
+      } else if (
+        block.type === 'text' &&
+        'text' in block &&
+        typeof block.text === 'string'
+      ) {
+        text = block.text;
+      }
+    }
+    return text;
+  }
 
   for await (const chunk of stream) {
     if (
@@ -54,11 +93,11 @@ await sessionContext.run(sessionId, async () => {
             styleText('dim', JSON.stringify(toolCall.args)),
         );
       }
-      if (!toolCalls.length && last.content) {
-        finalContent =
-          typeof last.content === 'string'
-            ? last.content
-            : JSON.stringify(last.content);
+      if (last.content) {
+        const text = logContent(last.content);
+        if (!toolCalls.length && text) {
+          finalContent = text;
+        }
       }
     } else if (ToolMessage.isInstance(last)) {
       const text =
