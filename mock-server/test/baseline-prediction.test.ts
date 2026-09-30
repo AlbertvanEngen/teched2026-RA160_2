@@ -78,3 +78,43 @@ test('aggregate baselines remain credible but imperfect for the workshop demo', 
     `Seasonal SQL MAPE ${seasonalSqlMape.toFixed(1)}% should leave material room for tabular models`,
   );
 });
+
+test('planning categories are distinct and remain predictive of actuals', async () => {
+  const entries = (await getFinancialPlanningEntries()).filter(
+    (entry) =>
+      entry.CostCenter === COST_CENTER &&
+      entry.LedgerFiscalYear === FORECAST_YEAR,
+  );
+  const totals = new Map<string, number>();
+
+  for (const entry of entries) {
+    const key = `${entry.PlanningCategory}:${entry.FiscalPeriod}`;
+    totals.set(
+      key,
+      (totals.get(key) ?? 0) + Number(entry.AmountInCompanyCodeCurrency),
+    );
+  }
+
+  const actuals = PERIODS.map((period) => totals.get(`ACTUAL:${period}`) ?? 0);
+  const categoryMape = (category: 'BUDGET' | 'FORECAST' | 'PLAN') =>
+    (100 *
+      PERIODS.reduce((sum, period, index) => {
+        const estimate = totals.get(`${category}:${period}`) ?? 0;
+        return sum + Math.abs(estimate - actuals[index]) / actuals[index];
+      }, 0)) /
+    PERIODS.length;
+
+  const planMape = categoryMape('PLAN');
+  const forecastMape = categoryMape('FORECAST');
+  const budgetMape = categoryMape('BUDGET');
+
+  assert.ok(planMape > 1 && planMape < 12, `PLAN MAPE was ${planMape}`);
+  assert.ok(
+    forecastMape < planMape,
+    `FORECAST MAPE ${forecastMape} should improve on PLAN ${planMape}`,
+  );
+  assert.ok(
+    budgetMape > planMape,
+    `BUDGET MAPE ${budgetMape} should exceed PLAN ${planMape}`,
+  );
+});

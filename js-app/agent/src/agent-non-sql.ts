@@ -40,10 +40,14 @@ Data sources:
 - Ledger is a recurring categorical amount driver; retain it as a feature when forecasting.
 
 Prediction integrity for every tabular model:
-- Construct prediction rows only from row identities and feature values known at the forecast cutoff. Never fetch actual target-period rows and zero or null the target: row counts, dimensions, categories, and timestamps leak future information.
-- When future transactions are unknown, use future-period financial-planning rows in the relevant PLAN or BUDGET category as the preferred prediction-row grain, because those dimensions are known at the cutoff. Preserve each known planning amount under a distinct feature name such as plannedAmount, then set the model target column to null. Otherwise construct an explicit ex-ante scenario grain using only pre-cutoff dimensions. Label results as a scenario forecast when the future rows are not already known.
-- Preserve the model's native row grain. RPT and TabPFN must receive every distinct source line item; never collapse rows into period totals before prediction. Aggregate predicted values only after the model returns results, to produce the requested reporting grain.
-- Apply the same cutoff in a historical backtest. Do not use a holdout period's observed row identities or feature values to construct its prediction rows.
+- Construct prediction rows only from identities and feature values known at the forecast cutoff. Load historical ACTUAL in a separate request whose year filter excludes the target year; load PLAN, BUDGET, and FORECAST through the target year in another request. Never combine ACTUAL with target-year estimate categories in one request. Target-period ACTUAL is scoring data: retrieve it only after prediction through an available scoring capability; if this mode has none, state that validation is unavailable.
+- For plan-guided ACTUAL forecasts, aggregate each available PLAN, BUDGET, and FORECAST category separately to the complete shared key (companyCode, costCenter, profitCenter, glAccount, ledger, ledgerFiscalYear, fiscalPeriod), then join those one-row-per-key estimates to historical ACTUAL targets. Join target-year planning categories on the same key and set only the ACTUAL target to null. Carry currency from the planning rows; never replace a missing currency with a guessed literal. Never join the raw three-line category tables; that creates a many-to-many row multiplication.
+- Before prediction, verify the final model rows retain every key and filter field including ledgerFiscalYear, contain exactly one row per complete key, preserve every historical ACTUAL key and every joined target-estimate key, and have no null estimate features. Repair any violation before calling a model.
+- Use RPT for a default numeric forecast. Use TabPFN when the user requests it or when comparing models.
+- Give every amount one stable meaning, such as plannedAmount, budgetAmount, forecastAmount, and actualAmount. When predicting one currency amount, remove its equivalent source columns (amountInTransactionCurrency, amountInCompanyCodeCurrency, amountInGlobalCurrency) after deriving the named features; otherwise the target survives under another name.
+- Use only features available in both historical and prediction rows. For plan-guided forecasts, use planning ACTUAL as the historical target and do not fetch journal entries. Historical journal amounts are not prediction features unless an equivalent target-period feature is genuinely known at the cutoff.
+- Predict at the finest alignable forecast-cell grain. Aggregate predictions only afterward to the user's requested reporting grain.
+- Apply the same cutoff in a historical backtest. Reveal target-period ACTUAL rows only after predictions exist, for scoring.
 Present the requested grain, show the currency, and state material filters or result limits.`;
 
 const QUICKJS_MODE_PROMPT = `${COMMON_PROMPT}
@@ -56,8 +60,7 @@ Workspace mode: sandboxed JavaScript over session-scoped JSON files. SQL is unav
 - Use Promise.all only for independent source requests. Do not request the same source slice twice.
 - run_rpt_prediction and run_tabpfn_prediction_from_rows are available inside js_eval. Call them with in-memory contextRows, predictionRows, targetColumn, and taskType; TabPFN also requires categoricalFeatureColumns for every string or enum feature. Pass row arrays directly — no table names. Keep RPT arrays under 2048 rows; sub-sample RPT with Fisher-Yates if needed.
 - JavaScript variables exist only for one js_eval invocation and must not be assumed to survive a later turn. The session virtual filesystem does persist while the active session remains alive. Save reusable fetched rows, prepared contextRows, predictionRows, and prediction results with tools.writeFile; on a later invocation, call tools.listFiles and tools.readFile before re-fetching or recomputing.
-- For a future-period financial forecast, query PLAN or BUDGET planning rows for the forecast period and relevant scope to form predictionRows. Copy the planning amount to a separate known feature (for example, plannedAmount), set targetColumn to null, and do not use journal entries from that future period.
-- For RPT, preserve historical source rows as individual line items in contextRows. Do not collapse distinct rows into period totals before the call; RPT learns row-level variance from fields such as ledger, companyCode, costCenter, profitCenter, glAccount, and transaction category.`;
+- For a future-period financial forecast, prepare contextRows and predictionRows at the same complete forecast-cell key. Preserve PLAN, BUDGET, and FORECAST estimates under distinct feature names, set the ACTUAL target to null only in predictionRows, and keep RPT arrays under 2048 rows.`;
 
 const CONTEXT_MODE_PROMPT = `${COMMON_PROMPT}
 
@@ -92,12 +95,15 @@ const checkpointer = new MemorySaver();
 function buildFinancialAgentNonSql() {
   const model = new OrchestrationClient([
     // { promptTemplating: { model: { name: 'gpt-5.6-luna' } } },
-    { promptTemplating: { model: { name: 'gemini-3.5-flash' } } },
     {
       promptTemplating: {
-        model: { name: 'anthropic--claude-4.6-sonnet' },
+        model: {
+          name: 'anthropic--claude-4.6-sonnet',
+          params: { reasoning_effort: 'low' },
+        },
       },
     },
+    { promptTemplating: { model: { name: 'gemini-3.5-flash' } } },
   ]);
 
   const tools =

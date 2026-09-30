@@ -193,9 +193,59 @@ type TruthCell = {
   fiscalYear: string;
   fiscalPeriod: string;
   amount: number;
+  expectedAmount: number;
   globalFx: number;
   ledger: (typeof LEDGERS)[number];
 };
+
+type PlanningCategory = (typeof CATEGORIES)[number];
+
+const PLAN_ACCOUNT_BIAS: Record<string, number> = {
+  '410000': -0.04,
+  '420000': 0.03,
+  '510000': 0.05,
+  '610000': -0.02,
+  '620000': 0.04,
+  '630000': -0.03,
+  '710000': 0.02,
+  '720000': -0.05,
+};
+
+const actualVariation = randomNormal.source(rng)(0, 0.02);
+const planningVariations: Record<
+  Exclude<PlanningCategory, 'ACTUAL'>,
+  () => number
+> = {
+  BUDGET: randomNormal.source(rng)(0, 0.05),
+  FORECAST: randomNormal.source(rng)(0, 0.02),
+  PLAN: randomNormal.source(rng)(0, 0.03),
+};
+
+function planningAmount(cell: TruthCell, category: PlanningCategory): number {
+  if (category === 'ACTUAL') return cell.amount;
+
+  const period = Number(cell.fiscalPeriod) - 1;
+  const cycleYear = (Number(cell.fiscalYear) - 2018) % 3;
+  const phase = ACCOUNT_SEASONAL[cell.glAccount.code]?.phase ?? 0;
+  const timingBias = 0.045 * Math.sin(((period - phase) * Math.PI * 2) / 12);
+  const cycleBias = (cycleYear - 1) * 0.015;
+  const planFactor =
+    1 + (PLAN_ACCOUNT_BIAS[cell.glAccount.code] ?? 0) + timingBias + cycleBias;
+
+  const planDelta = planFactor - 1;
+  const factor =
+    category === 'PLAN'
+      ? planFactor
+      : category === 'FORECAST'
+        ? 1 + planDelta * 0.45
+        : 1 + Math.sign(planDelta || 1) * (Math.abs(planDelta) * 1.25 + 0.06);
+
+  const variation = Math.max(
+    0.85,
+    Math.min(1.15, 1 + planningVariations[category]()),
+  );
+  return Number((cell.expectedAmount * factor * variation).toFixed(2));
+}
 
 function semanticAmountMultiplier(
   companyCode: string,
@@ -240,11 +290,10 @@ function semanticAmountMultiplier(
   return 1;
 }
 
-// Small seeded noise keeps amounts realistic without obscuring the categorical
-// ledger cycle and account-specific monthly profiles used for forecasting.
-const normalVariation = randomNormal.source(rng)(0, 0.01);
-
-function canonicalAmount(
+// ACTUAL includes an irreducible realized variance. Planning categories are
+// generated independently from the latent expectation, so none can encode the
+// future ACTUAL value under another column name.
+function expectedAmount(
   accountCode: string,
   fiscalYear: string,
   fiscalPeriod: string,
@@ -261,16 +310,19 @@ function canonicalAmount(
     profile.amp *
       Math.sin(((Number(fiscalPeriod) - 1 - driftedPhase) * Math.PI * 2) / 12);
   const cycleTrend = (1 + profile.growth) ** cycleYear;
-  const variation = Math.max(0.8, Math.min(1.2, 1 + normalVariation()));
   return Number(
     (
       ACCOUNT_BASE_AMOUNTS[accountCode] *
       seasonality *
       cycleTrend *
-      variation *
       multiplier
     ).toFixed(2),
   );
+}
+
+function realizedAmount(expected: number): number {
+  const variation = Math.max(0.9, Math.min(1.1, 1 + actualVariation()));
+  return Number((expected * variation).toFixed(2));
 }
 
 function splitAmount(total: number, count: number): number[] {
@@ -301,6 +353,14 @@ function generateTruthCells(): TruthCell[] {
             fiscalYear,
             fiscalPeriod,
           );
+          const expected = expectedAmount(
+            gl.code,
+            fiscalYear,
+            fiscalPeriod,
+            semanticMultiplier *
+              LEDGER_AMOUNT_MULTIPLIERS[ledger.code] *
+              entity.amountScale,
+          );
 
           cells.push({
             company: entity.company,
@@ -311,14 +371,8 @@ function generateTruthCells(): TruthCell[] {
             transactionTypes: entity.transactionTypes,
             fiscalYear,
             fiscalPeriod,
-            amount: canonicalAmount(
-              gl.code,
-              fiscalYear,
-              fiscalPeriod,
-              semanticMultiplier *
-                LEDGER_AMOUNT_MULTIPLIERS[ledger.code] *
-                entity.amountScale,
-            ),
+            amount: realizedAmount(expected),
+            expectedAmount: expected,
             globalFx: 0.97 + rng() * 0.06,
             ledger,
           });
@@ -397,7 +451,7 @@ function projectPlanningEntries(cells: TruthCell[]): PlanningEntry[] {
   for (const cell of cells) {
     for (const category of CATEGORIES) {
       const lineItemCount = 3;
-      const parts = splitAmount(cell.amount, lineItemCount);
+      const parts = splitAmount(planningAmount(cell, category), lineItemCount);
 
       for (const part of parts) {
         sequence++;

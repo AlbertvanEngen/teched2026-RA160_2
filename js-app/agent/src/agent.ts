@@ -39,10 +39,14 @@ Data sources:
 - Ledger is a recurring categorical amount driver; retain it as a feature when forecasting.
 
 Prediction integrity for every tabular model:
-- Construct prediction rows only from row identities and feature values known at the forecast cutoff. Never fetch actual target-period rows and zero or null the target: row counts, dimensions, categories, and timestamps leak future information.
-- When future transactions are unknown, use future-period financial-planning rows in the relevant PLAN or BUDGET category as the preferred prediction-row grain, because those dimensions are known at the cutoff. Preserve each known planning amount under a distinct feature name such as plannedAmount, then set the model target column to null. Otherwise construct an explicit ex-ante scenario grain using only pre-cutoff dimensions. Label results as a scenario forecast when the future rows are not already known.
-- Preserve the model's native row grain. RPT and TabPFN must receive every distinct source line item; never collapse rows into period totals before prediction. Aggregate predicted values only after the model returns results, to produce the requested reporting grain.
-- Apply the same cutoff in a historical backtest. Do not use a holdout period's observed row identities or feature values to construct its prediction rows.
+- Construct prediction rows only from identities and feature values known at the forecast cutoff. Load historical ACTUAL in a separate request whose year filter excludes the target year; load PLAN, BUDGET, and FORECAST through the target year in another request. Never combine ACTUAL with target-year estimate categories in one OData request. Target-period ACTUAL is scoring data: fetch it only through get_ground_truth after the prediction tool has completed.
+- For plan-guided ACTUAL forecasts, aggregate each available PLAN, BUDGET, and FORECAST category separately to the complete shared key (companyCode, costCenter, profitCenter, glAccount, ledger, ledgerFiscalYear, fiscalPeriod), then join those one-row-per-key estimates to historical ACTUAL targets. Join target-year planning categories on the same key and set only the ACTUAL target to null. Carry currency from the planning rows; never replace a missing currency with a guessed literal. Never join the raw three-line category tables; that creates a many-to-many row multiplication.
+- Before prediction, run one integrity query over the final model table: retain every key and filter column including ledgerFiscalYear; require one row per complete key; require the historical join count to equal the historical ACTUAL-key count; require the target count to equal the joined target-estimate key count; and require every estimate feature to be non-null. Repair any violation before calling a model.
+- Use RPT for a default numeric forecast. Use TabPFN when the user requests it or when comparing models.
+- Give every amount one stable meaning, such as plannedAmount, budgetAmount, forecastAmount, and actualAmount. When predicting one currency amount, remove its equivalent source columns (amountInTransactionCurrency, amountInCompanyCodeCurrency, amountInGlobalCurrency) after deriving the named features; otherwise the target survives under another name.
+- Use only features available in both historical and prediction rows. For plan-guided forecasts, use planning ACTUAL as the historical target and do not fetch journal entries. Historical journal amounts are not prediction features unless an equivalent target-period feature is genuinely known at the cutoff.
+- Predict at the finest alignable forecast-cell grain. Aggregate predictions only afterward to the user's requested reporting grain.
+- Apply the same cutoff in a historical backtest. Reveal target-period ACTUAL rows only after predictions exist, for scoring.
 Present the requested grain, show the currency, and state material filters or result limits.
 
 Workspace mode: SQL.
@@ -58,8 +62,7 @@ Workspace mode: SQL.
 - run_tabpfn_prediction runs TabPFN on one session table, writes predictions into the requested output table,
   and returns a confirmation with the predicted column. Use it for
   in-context tabular prediction, especially when categorical or mixed-type features matter.
-- Never aggregate rows before passing them to RPT or TabPFN — both learn from individual-row variance. If context or prediction rows exceed 2048,
-  sub-sample with USING SAMPLE 2048 rather than grouping.
+- Pass one row per complete forecast-cell key to RPT or TabPFN; never pre-aggregate to the requested reporting grain. If context or prediction rows exceed 2048, sub-sample with USING SAMPLE 2048 rather than dropping dimensions.
 - When the target cost center has little history, include peer cost centers that share its
   G/L accounts; retain companyCode, costCenter, and profitCenter as model features.
 - query_financial_planning and query_journal_entry append to their target tables. Repeated or overlapping appends may require deduplication by id before downstream analysis.
@@ -90,15 +93,15 @@ const checkpointer = new MemorySaver();
 function buildFinancialAgent() {
   const model = new OrchestrationClient([
     // { promptTemplating: { model: { name: 'gpt-5.6-luna' } } },
-    // { promptTemplating: { model: { name: 'gemini-3.5-flash' } } },
     {
       promptTemplating: {
         model: {
           name: 'anthropic--claude-4.6-sonnet',
-          params: { reasoning_effort: 'high' },
+          params: { reasoning_effort: 'low' },
         },
       },
     },
+    { promptTemplating: { model: { name: 'gemini-3.5-flash' } } },
   ]);
 
   const tools = [

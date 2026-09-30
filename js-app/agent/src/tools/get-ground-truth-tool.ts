@@ -23,6 +23,7 @@ const STANDARD_DIMENSIONS = [
   'costCenter',
   'profitCenter',
   'glAccount',
+  'ledger',
   'ledgerFiscalYear',
   'fiscalPeriod',
 ] as const;
@@ -40,6 +41,7 @@ const filterSchema = z.object({
     .string()
     .optional()
     .describe('Filter ground truth by profit center'),
+  ledger: z.string().optional().describe('Filter ground truth by ledger'),
   ledgerFiscalYear: z
     .string()
     .optional()
@@ -77,6 +79,7 @@ async function loadPlanningActualRows(
     filters.companyCode ? f.COMPANY_CODE.equals(filters.companyCode) : null,
     filters.costCenter ? f.COST_CENTER.equals(filters.costCenter) : null,
     filters.profitCenter ? f.PROFIT_CENTER.equals(filters.profitCenter) : null,
+    filters.ledger ? f.LEDGER.equals(filters.ledger) : null,
     filters.ledgerFiscalYear
       ? f.LEDGER_FISCAL_YEAR.equals(filters.ledgerFiscalYear)
       : null,
@@ -101,6 +104,7 @@ async function loadJournalEntryRows(
     filters.companyCode ? f.COMPANY_CODE.equals(filters.companyCode) : null,
     filters.costCenter ? f.COST_CENTER.equals(filters.costCenter) : null,
     filters.profitCenter ? f.PROFIT_CENTER.equals(filters.profitCenter) : null,
+    filters.ledger ? f.LEDGER.equals(filters.ledger) : null,
     filters.ledgerFiscalYear
       ? f.LEDGER_FISCAL_YEAR.equals(filters.ledgerFiscalYear)
       : null,
@@ -133,6 +137,7 @@ async function loadGroundTruthTable(
     costCenter VARCHAR,
     profitCenter VARCHAR,
     glAccount VARCHAR,
+    ledger VARCHAR,
     ledgerFiscalYear VARCHAR,
     fiscalPeriod VARCHAR,
     amountInTransactionCurrency DOUBLE,
@@ -149,6 +154,7 @@ async function loadGroundTruthTable(
       appender.appendVarchar(e.costCenter ?? '');
       appender.appendVarchar(e.profitCenter ?? '');
       appender.appendVarchar(e.glAccount ?? '');
+      appender.appendVarchar(e.ledger ?? '');
       appender.appendVarchar(e.ledgerFiscalYear ?? '');
       appender.appendVarchar(e.fiscalPeriod ?? '');
       appender.appendDouble(Number(e.amountInTransactionCurrency) || 0);
@@ -180,9 +186,11 @@ export const getGroundTruthTool = tool(
     truthSource,
     targetColumn,
     groupBy,
+    groundTruthColumn,
     companyCode,
     costCenter,
     profitCenter,
+    ledger,
     ledgerFiscalYear,
     fiscalPeriod,
   }) => {
@@ -195,6 +203,16 @@ export const getGroundTruthTool = tool(
       }
 
       const predictedCol = `predicted_${targetColumn}`;
+      const truthAmountColumn = groundTruthColumn ?? targetColumn;
+      if (
+        ![
+          'amountInTransactionCurrency',
+          'amountInCompanyCodeCurrency',
+          'amountInGlobalCurrency',
+        ].includes(truthAmountColumn)
+      ) {
+        return `Error: groundTruthColumn is required when targetColumn '${targetColumn}' is a derived name.`;
+      }
       const groundTruthCol = `ground_truth_${targetColumn}`;
       const callId = randomUUID().replaceAll('-', '_');
       const stagingTable = `_gt_staging_${callId}`;
@@ -208,6 +226,27 @@ export const getGroundTruthTool = tool(
       if (!colNames.includes(predictedCol)) {
         return `Error: Prediction table '${predictionTable}' has no column '${predictedCol}'. Available: ${colNames.join(', ')}`;
       }
+      const confidenceCol = `confidence_${targetColumn}`;
+      const confidenceLowerCol = `confidence_interval_lower_${targetColumn}`;
+      const confidenceUpperCol = `confidence_interval_upper_${targetColumn}`;
+      const confidenceAggregates = [
+        colNames.includes(confidenceCol)
+          ? `AVG(${quoteIdentifier(confidenceCol)}) AS ${quoteIdentifier(confidenceCol)}`
+          : null,
+        colNames.includes(confidenceLowerCol)
+          ? `SUM(${quoteIdentifier(confidenceLowerCol)}) AS ${quoteIdentifier(confidenceLowerCol)}`
+          : null,
+        colNames.includes(confidenceUpperCol)
+          ? `SUM(${quoteIdentifier(confidenceUpperCol)}) AS ${quoteIdentifier(confidenceUpperCol)}`
+          : null,
+      ].filter((column): column is string => column !== null);
+      const confidenceSelect = [
+        confidenceCol,
+        confidenceLowerCol,
+        confidenceUpperCol,
+      ]
+        .filter((column) => colNames.includes(column))
+        .map((column) => `p.${quoteIdentifier(column)}`);
 
       const invalidGroupBy = groupBy.filter((col) => !colNames.includes(col));
       if (invalidGroupBy.length > 0) {
@@ -219,6 +258,7 @@ export const getGroundTruthTool = tool(
         companyCode: companyCode ?? derivedFilters.companyCode,
         costCenter: costCenter ?? derivedFilters.costCenter,
         profitCenter: profitCenter ?? derivedFilters.profitCenter,
+        ledger: ledger ?? derivedFilters.ledger,
         ledgerFiscalYear: ledgerFiscalYear ?? derivedFilters.ledgerFiscalYear,
         fiscalPeriod: fiscalPeriod ?? derivedFilters.fiscalPeriod,
       };
@@ -243,14 +283,14 @@ export const getGroundTruthTool = tool(
 
       await runQuery(
         `CREATE OR REPLACE TABLE ${predAggTable} AS
-         SELECT ${groupByList}, SUM(${quoteIdentifier(predictedCol)}) AS ${quoteIdentifier(predictedCol)}
+         SELECT ${groupByList}, SUM(${quoteIdentifier(predictedCol)}) AS ${quoteIdentifier(predictedCol)}${confidenceAggregates.length > 0 ? `, ${confidenceAggregates.join(', ')}` : ''}
          FROM ${predictionTable}
          GROUP BY ${groupByList}`,
       );
 
       await runQuery(
         `CREATE OR REPLACE TABLE ${truthAggTable} AS
-         SELECT ${groupByList}, SUM(${quoteIdentifier(targetColumn)}) AS ${quoteIdentifier(groundTruthCol)}
+         SELECT ${groupByList}, SUM(${quoteIdentifier(truthAmountColumn)}) AS ${quoteIdentifier(groundTruthCol)}
          FROM ${stagingTable}
          GROUP BY ${groupByList}`,
       );
@@ -259,7 +299,7 @@ export const getGroundTruthTool = tool(
         `CREATE OR REPLACE TABLE ${outputTable} AS
          SELECT
            ${groupBy.map((col) => `p.${quoteIdentifier(col)}`).join(', ')},
-           p.${quoteIdentifier(predictedCol)},
+           p.${quoteIdentifier(predictedCol)}${confidenceSelect.length > 0 ? `, ${confidenceSelect.join(', ')}` : ''},
            g.${quoteIdentifier(groundTruthCol)},
            ABS(g.${quoteIdentifier(groundTruthCol)}) AS actual_magnitude,
            p.${quoteIdentifier(predictedCol)} - g.${quoteIdentifier(groundTruthCol)} AS error,
@@ -349,7 +389,7 @@ export const getGroundTruthTool = tool(
 
       return (
         `Wrote comparison into '${outputTable}'. ` +
-        `Columns: ${groupBy.join(', ')}, ${predictedCol}, ${groundTruthCol}, actual_magnitude, ` +
+        `Columns: ${groupBy.join(', ')}, ${predictedCol}, ${confidenceSelect.map((column) => column.slice(2)).join(', ')}, ${groundTruthCol}, actual_magnitude, ` +
         `error, absolute_error, pct_error, pct_of_actual, pct_below_actual, pct_above_actual. ` +
         `pct_of_actual = forecast / |ground truth| × 100; pct_below_actual = % under spend (positive or null); ` +
         `pct_above_actual = % over spend (positive or null). ` +
@@ -374,7 +414,7 @@ export const getGroundTruthTool = tool(
       'to the same grain as the prediction table, joins on groupBy dimensions, and writes a comparison ' +
       'table with predicted vs ground-truth values plus percentage metrics (pct_of_actual, pct_below_actual, pct_above_actual, MAPE). ' +
       'pct_of_actual = forecast / |ground truth| × 100; pct_below_actual = % under spend; pct_above_actual = % over spend. ' +
-      'Use after run_rpt_prediction or run_rpt_prediction_from_sources. ' +
+      'Use after run_rpt_prediction or run_rpt_prediction_from_sources. When the prediction target was renamed (for example, actualAmount), pass groundTruthColumn with the corresponding source amount column. ' +
       'truthSource journal_entry = posted actuals; planning_actual = financial planning ACTUAL category.',
     schema: z.object({
       predictionTable: z
@@ -392,6 +432,16 @@ export const getGroundTruthTool = tool(
         .string()
         .describe(
           'Target amount column that was predicted, e.g. amountInGlobalCurrency',
+        ),
+      groundTruthColumn: z
+        .enum([
+          'amountInTransactionCurrency',
+          'amountInCompanyCodeCurrency',
+          'amountInGlobalCurrency',
+        ])
+        .optional()
+        .describe(
+          'Source amount column to aggregate when targetColumn is a derived prediction name',
         ),
       groupBy: z
         .array(z.string())

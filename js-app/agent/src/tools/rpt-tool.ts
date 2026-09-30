@@ -565,12 +565,10 @@ export const runRptPredictionTool = tool(
       '• mode="single": tableName — a session table or view containing both context and prediction rows. ' +
       'predictionWhere selects rows to forecast (SQL predicate, no WHERE keyword, e.g. "ledgerFiscalYear = \'2026\'"); ' +
       'contextWhere selects known-truth rows (default: NOT predictionWhere). ' +
-      'Pass a view name to avoid repeating complex queries. ' +
-      'Never aggregate before calling — RPT learns from raw row variance. ' +
-      'If rows exceed 2048, pass a view defined with USING SAMPLE 2048.\n' +
-      '• mode="dual": contextTable supplies known-truth rows (actuals / journal entries), ' +
-      'predictionTable supplies rows whose target will be predicted (planning / budget entries). ' +
-      'Only columns shared by both tables are used; a source column (actual/plan) is added automatically. ' +
+      'Pass a view name to avoid repeating complex queries. Preserve one row per complete, alignable forecast key; do not aggregate to the requested reporting grain before calling. ' +
+      'Every feature must have the same meaning in context and prediction rows. If rows exceed 2048, pass a view defined with USING SAMPLE 2048.\n' +
+      '• mode="dual": contextTable supplies known-truth rows and predictionTable supplies rows whose target will be predicted. ' +
+      'Only columns shared by both tables are used, so prepare both tables with identical feature semantics; a source column (actual/plan) is added automatically. ' +
       'Both accept table or view names.\n' +
       'Predictions land in outputTable as predicted_<targetColumn> plus confidence_<targetColumn> ' +
       'and confidence_interval_lower/upper_<targetColumn> (regression only). ' +
@@ -654,7 +652,7 @@ export const runRptFromRowsTool = tool(
       'contextRows: known-truth rows with targetColumn populated. ' +
       'predictionRows: rows to predict — must include targetColumn (may be null or zero). ' +
       'taskType: "regression" for numeric amounts, "classification" for categories.\n' +
-      'Never aggregate rows before calling — RPT learns from raw row variance. ' +
+      'Preserve one row per complete, alignable forecast key; do not aggregate to the requested reporting grain. Every feature must have the same meaning in contextRows and predictionRows. ' +
       'Keep each array under 2048 rows; sub-sample if needed.\n' +
       'Returns JSON with results[] — each prediction row enriched with predicted_<targetColumn>, ' +
       'confidence_<targetColumn>, and (regression) confidence_interval_lower/upper_<targetColumn>.',

@@ -316,7 +316,7 @@ test('aligns journal postings with planning actuals from shared truth', async ()
   }
 });
 
-test('aligns all planning categories to the same shared amount per cell', async () => {
+test('keeps planning estimates distinct and progressively closer to actuals', async () => {
   const totalsByCategory = new Map<string, Map<string, number>>();
 
   for (const entry of await getFinancialPlanningEntries()) {
@@ -337,15 +337,27 @@ test('aligns all planning categories to the same shared amount per cell', async 
     );
     totalsByCategory.set(cellKey, categoryTotals);
   }
+  let forecastErrorTotal = 0;
+  let planErrorTotal = 0;
+  let budgetErrorTotal = 0;
 
   for (const [cellKey, categoryTotals] of totalsByCategory) {
-    const amounts = [...categoryTotals.values()];
-    const first = amounts[0]?.toFixed(2);
-    assert.ok(
-      amounts.every((amount) => amount.toFixed(2) === first),
-      `planning categories diverged for ${cellKey}`,
-    );
+    const actual = categoryTotals.get('ACTUAL');
+    const forecast = categoryTotals.get('FORECAST');
+    const plan = categoryTotals.get('PLAN');
+    const budget = categoryTotals.get('BUDGET');
+    assert.ok(actual != null, `missing ACTUAL for ${cellKey}`);
+    assert.ok(forecast != null, `missing FORECAST for ${cellKey}`);
+    assert.ok(plan != null, `missing PLAN for ${cellKey}`);
+    assert.ok(budget != null, `missing BUDGET for ${cellKey}`);
+
+    forecastErrorTotal += Math.abs(forecast - actual) / actual;
+    planErrorTotal += Math.abs(plan - actual) / actual;
+    budgetErrorTotal += Math.abs(budget - actual) / actual;
   }
+
+  assert.ok(forecastErrorTotal < planErrorTotal);
+  assert.ok(planErrorTotal < budgetErrorTotal);
 });
 
 test('returns 404 for unknown financial planning entry ID', async () => {
@@ -474,8 +486,8 @@ test('shares account-month patterns across peer entities at stable scales', asyn
 
       const ratio = (totals.get(peerKey) ?? 0) / (totals.get(targetKey) ?? 0);
       assert.ok(
-        ratio > 1.05 && ratio < 1.16,
-        `expected peer scale near 1.1 for ${fiscalYear}/${fiscalPeriod}`,
+        ratio > 0.99 && ratio < 1.21,
+        `expected peer scale within 10% of 1.1 for ${fiscalYear}/${fiscalPeriod}`,
       );
     }
   }

@@ -237,7 +237,7 @@ export const runTabpfnPredictionTool = tool(
       'Run a TabPFN in-context tabular prediction on a session table or view and write results into a named output table.\n' +
       'Required: tableName, outputTable (replaced if it exists), targetColumn, and taskType. ' +
       'predictionWhere selects rows to predict; contextWhere selects training rows. ' +
-      'Never aggregate before calling — TabPFN learns from raw row variance. ' +
+      'Preserve one row per complete, alignable forecast key; do not aggregate to the requested reporting grain. Every feature must have the same meaning in context and prediction rows. ' +
       'Set categoricalFeatureColumns for string or enum features.',
     schema: z.object({
       tableName: z

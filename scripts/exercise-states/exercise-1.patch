@@ -1,18 +1,19 @@
---- a/js-app/agent/src/agent.ts
-+++ b/js-app/agent/src/agent.ts
-@@ -86,32 +86,28 @@
+diff --git aa/js-app/agent/src/agent.ts bb/js-app/agent/src/agent.ts
+index 3117e97..9d3b1d0 100644
+--- aa/js-app/agent/src/agent.ts
++++ bb/js-app/agent/src/agent.ts
+@@ -91,6 +91,7 @@ Tool boundary:
  const checkpointer = new MemorySaver();
  
  function buildFinancialAgent() {
 +  /*
    const model = new OrchestrationClient([
      // { promptTemplating: { model: { name: 'gpt-5.6-luna' } } },
+     {
+@@ -103,23 +104,23 @@ function buildFinancialAgent() {
+       },
+     },
      { promptTemplating: { model: { name: 'gemini-3.5-flash' } } },
--    {
--      promptTemplating: {
--        model: { name: 'anthropic--claude-4.6-sonnet' },
--      },
--    },
    ]);
 +  */
  
