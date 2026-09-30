@@ -16,8 +16,8 @@ This package provides a client for the [TabPFN](https://github.com/automl/TabPFN
 
 ## Installation
 
-```
-$ npm install @sap-ai-sdk/tabpfn
+```bash
+npm install @sap-ai-sdk/tabpfn
 ```
 
 ## Documentation

@@ -150,7 +150,7 @@ cd java-app/agent
 
 Spring Boot starts on `:3143` and then automatically launches the mock OData server (`:3141`) and the web UI (`:3142`) as child processes. Wait for the log line:
 
-```
+```text
 webui is ready on port 3142
 ```
 
@@ -163,7 +163,7 @@ Pressing Ctrl-C stops the Spring Boot process and shuts down the mock server and
 
 ### How it works
 
-```
+```text
 Browser (React UI at :3142)
         │  POST /api/agent/run { prompt, sessionId }
         ▼
