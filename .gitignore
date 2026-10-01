@@ -1,0 +1,10 @@
+node_modules
+dist
+.envrc
+.idea
+.env
+.agents
+*.tsbuildinfo
+specs/
+*.edmx
+js-app/tabpfn/src/spec/

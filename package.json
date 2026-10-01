@@ -1,0 +1,49 @@
+{
+  "name": "teched2026-RA160",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "lint": "biome check . && pnpm lint:markdown && pnpm lint:markdown-links && pnpm lint:typos",
+    "lint:fix": "biome check --write . && tsx scripts/check-markdown.ts --fix",
+    "lint:ci": "biome ci . && pnpm lint:markdown && pnpm lint:markdown-links && pnpm lint:typos",
+    "lint:markdown": "tsx scripts/check-markdown.ts",
+    "lint:markdown:all": "tsx scripts/check-markdown.ts --all",
+    "lint:markdown-links": "tsx scripts/check-markdown-links.ts",
+    "lint:typos": "tsx scripts/check-typos.ts",
+    "lint:markdown-links:all": "tsx scripts/check-markdown-links.ts --all",
+    "typecheck": "pnpm -r typecheck",
+    "build": "pnpm -r run --if-present -r build",
+    "test": "pnpm -r test",
+    "setup-ai-core-deployments": "tsx --env-file-if-exists=.env scripts/setup-ai-core-deployments.ts",
+    "mock-server": "pnpm --filter purchase-order-mock-server dev",
+    "webui": "MOCK_SERVER_URL=http://localhost:3142 pnpm --filter financial-agent-webui dev",
+    "webui-java": "JAVA_AGENT_URL=http://localhost:3143 pnpm --filter financial-agent-webui dev",
+    "java-agent": "cd java-app/agent && ./mvnw spring-boot:run",
+    "java-build": "cd java-app/agent && ./mvnw package -DskipTests"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "Apache-2.0",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^12.7.0",
+      "onFail": "warn"
+    },
+    "runtime": {
+      "name": "node",
+      "version": "^24.21.0",
+      "onFail": "download"
+    }
+  },
+  "type": "module",
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "@sap-ai-sdk/ai-api": "^2.16.0",
+    "@types/node": "^24.19.0",
+    "markdownlint-cli2": "catalog:",
+    "tinyexec": "catalog:",
+    "tsx": "catalog:"
+  }
+}

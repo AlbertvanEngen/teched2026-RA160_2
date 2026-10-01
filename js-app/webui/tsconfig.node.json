@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.webui-base.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "lib": ["ES2025"],
+    "types": ["node"],
+    "rewriteRelativeImportExtensions": true
+  },
+  "include": ["vite.config.ts", "src/server.ts", "src/app.ts"],
+  "exclude": ["../agent/src/**", "../../../mock-server/src/**", "node_modules"]
+}

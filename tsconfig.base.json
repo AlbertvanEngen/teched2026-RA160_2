@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "ES2025",
+    "module": "nodenext",
+    "types": ["node"],
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "strict": false,
+    "skipLibCheck": true,
+    "rewriteRelativeImportExtensions": true,
+    "allowImportingTsExtensions": true
+  }
+}

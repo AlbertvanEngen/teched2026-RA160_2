@@ -1,0 +1,9 @@
+[files]
+extend-exclude = [
+  "java-app/agent/src/main/java/com/sap/teched/poc/generated/",
+  "js-app/agent/src/generated/",
+]
+
+[default.extend-words]
+mape = "mape"
+teched = "teched"
