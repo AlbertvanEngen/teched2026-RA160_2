@@ -101,7 +101,7 @@ function buildFinancialAgent() {
         },
       },
     },
-    { promptTemplating: { model: { name: 'gemini-3.5-flash' } } },
+    { promptTemplating: { model: { name: 'gemini-3.8-flash' } } },
   ]);
 
   const tools = [
