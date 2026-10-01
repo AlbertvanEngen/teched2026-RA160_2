@@ -93,6 +93,7 @@ const checkpointer = new MemorySaver();
 function buildFinancialAgent() {
   const model = new OrchestrationClient([
     // { promptTemplating: { model: { name: 'gpt-5.6-luna' } } },
+
     {
       promptTemplating: {
         model: {

@@ -48,7 +48,7 @@ The SAP Cloud SDK for AI Orchestration service validates and proxies each tool c
 
 ## Step 1: Get to know the tools
 
-Open [agent/src/main/java/com/sap/teched/demo/agent/AgentService.java](../agent/src/main/java/com/sap/teched/demo/agent/AgentService.java) and read the field declarations at the top of the class.
+Open [agent/src/main/java/com/sap/teched/demo/agent/AgentService.java](../../agent/src/main/java/com/sap/teched/demo/agent/AgentService.java) and read the field declarations at the top of the class.
 In this exercise we will wire up six tools:
 
 | Field                  | Tool class              | What it does |

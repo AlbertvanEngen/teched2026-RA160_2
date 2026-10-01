@@ -8,13 +8,14 @@ A demonstration of SAP OData services, generated SAP Cloud SDK clients, SAP RPT 
 - Generated OData v2 clients for both mock services.
 - A **JavaScript agent** (LangChain + SAP AI SDK) that:
   - queries the OData services through one normalized data-source layer;
-  - selects SQL, sandboxed QuickJS over virtual JSON files, or model-context analysis with `AGENT_DATA_MODE`;
-  - creates reusable SQL views in SQL mode; and
-  - runs SAP AI Runtime Prediction (RPT) predictions in SQL mode.
+  - loads filtered rows into an in-memory DuckDB workspace;
+  - uses SQL for deterministic filtering, joins, aggregation, and reusable views; and
+  - runs SAP AI Runtime Prediction (RPT) predictions against session tables.
 - A **Java agent** (Spring AI + SAP Cloud SDK for AI) that does the same using Spring Boot, with DuckDB via JDBC and SSE streaming.
 - A React and Hono web UI for chatting with either agent and inspecting tool activity.
 
-The default `sql` mode uses an in-memory DuckDB workspace. The experimental `quickjs` and `context` modes evaluate the same OData rows without SQL, making each approach independently removable.
+The agents use SQL as their data-analysis path. OData tools load rows into the session workspace; SQL performs deterministic reporting before any predictive tool is considered.
+
 
 ## Prerequisites
 
@@ -266,9 +267,12 @@ pnpm --filter purchase-order-mock-server build
 │   │       ├── agent.ts              Agent model, prompt, and tool registration
 │   │       ├── cli.ts                Agent command-line entry point
 │   │       ├── db.ts                 Session workspace database access
-│   │       ├── sql-tool.ts           SQL query tool for the session workspace
-│   │       ├── odata-tools.ts        OData queries and table loading
-│   │       └── rpt-tool.ts           SAP RPT prediction tools
+│   │       └── tools/
+│   │           ├── odata-tools.ts      OData queries and table loading
+│   │           ├── sql-tool.ts         SQL query tool for the session workspace
+│   │           ├── rpt-tool.ts         SAP RPT prediction tools
+│   │           ├── tabpfn-tool.ts      TabPFN prediction tools
+│   │           └── get-ground-truth-tool.ts  Prediction evaluation
 │   ├── client/
 │   │   └── src/
 │   │       └── cli.ts                Direct OData client command line interface

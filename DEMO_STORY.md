@@ -270,7 +270,7 @@ The workshop-facing agent should expose one provider-neutral `run_tabular_predic
 Its input should identify a context table and optional filter, a prediction table and optional filter, the target column, task type, and output table.
 The context and prediction sources may refer to the same table or to different tables.
 
-The current JavaScript implementation exposes `run_rpt_prediction` for one table and `run_rpt_prediction_from_sources` for two tables.
+The current JavaScript implementation exposes `run_rpt_prediction` for one table and a separate dual-source variant for two tables.
 Consolidating them behind the single contract is low-hanging preparation work, not a participant exercise.
 
 An application-level adapter should select the tabular model backend.
@@ -402,7 +402,7 @@ Participants register and use the provider-neutral tabular prediction tool, conf
 Historical actuals provide known context.
 Planning rows define the dimensions for which target values should be predicted.
 
-The current implementation offers `run_rpt_prediction` for a single session table and `run_rpt_prediction_from_sources` for separate context and prediction tables.
+The current implementation offers `run_rpt_prediction` for a single session table and a separate dual-source variant for separate context and prediction tables.
 Before producing exercise branches, consolidate these behind the `run_tabular_prediction` contract described in the [tabular-model boundary](#tabular-model-boundary).
 The core scenario supplies journal actuals and planning targets as separate sources.
 

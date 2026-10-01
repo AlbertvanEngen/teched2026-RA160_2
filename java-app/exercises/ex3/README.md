@@ -94,7 +94,7 @@ The pattern is intentionally similar to what you saw in Exercise 1 with the Orch
 | `PredictRequestPayloadOneOf` | `Prompt` | Bundles the prediction config together with the actual row data and sends it to RPT. |
 | `RptClient.forModel(...).tableCompletion(request)` | `chatClient.prompt(p).call().content()` | Fires the request synchronously and returns the response. |
 
-Open [agent/src/main/java/com/sap/teched/demo/tool/RptPredictionTool.java](../agent/src/main/java/com/sap/teched/demo/tool/RptPredictionTool.java) and find the `callRpt` method.
+Open [agent/src/main/java/com/sap/teched/demo/tool/RptPredictionTool.java](../../agent/src/main/java/com/sap/teched/demo/tool/RptPredictionTool.java) and find the `callRpt` method.
 The solution code is commented out inside the `/* */` block — your task in Step 5 is to put it back in, one piece at a time.
 
 
@@ -211,8 +211,8 @@ Restart the application: press `CTRL + c` while in your terminal and then run `m
 Ask the agent to produce a forecast:
 
 > "Forecast the planned spend for cost center A1000 in fiscal year 2026, using the 2022–2024 ACTUAL history as context."
-
 Watch the agent trace panel. You should see a sequence like:
+
 1. `query_financial_planning` — loads `planningCategory = ACTUAL` rows for 2022–2024.
 2. `query_financial_planning` — loads `planningCategory = PLAN` rows for 2026 (these are the rows to predict).
 3. `run_rpt_prediction` — sends both tables to SAP RPT and writes predictions into an output table.

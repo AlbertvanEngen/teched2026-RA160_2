@@ -288,12 +288,13 @@ layout: two-cols-header
 zoom: 0.9
 ---
 
-# Current tool: `run_rpt_prediction_from_sources`
+# Current tool: `run_rpt_prediction`
 
 ::left::
 
 ```ts
-run_rpt_prediction_from_sources({
+run_rpt_prediction({
+  mode: 'dual',
   contextTable: 'journal_actuals_2022_2025',
   predictionTable: 'planning_targets_2026',
   targetColumn: 'amountInCompanyCodeCurrency',

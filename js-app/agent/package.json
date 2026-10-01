@@ -22,7 +22,7 @@
     "query:quarterly-budget": "tsx --env-file-if-exists=../../.env src/cli.ts \"Show me the quarterly budget for cost center A1000 for the last 12 months.\"",
     "query:monthly-costs": "tsx --env-file-if-exists=../../.env src/cli.ts \"Show me the monthly cost for cost center A1000 for the last 12 months.\"",
     "query:forecast": "tsx --env-file-if-exists=../../.env src/cli.ts \"Forecast: plan the budget for cost center A1000 for the next 12 months based on historical data.\"",
-    "query:dual-source-rpt": "tsx --env-file-if-exists=../../.env src/cli.ts \"Load journal entries for cost center A1000 as actuals context, load budget planning entries as prediction target, then use run_rpt_prediction_from_sources to predict amountInGlobalCurrency.\"",
+    "query:dual-source-rpt": "tsx --env-file-if-exists=../../.env src/cli.ts \"Load journal entries for cost center A1000 as actuals context, load budget planning entries as prediction target, then use run_rpt_prediction to predict amountInGlobalCurrency.\"",
     "test": "node --test 'test/*.test.ts'",
     "typecheck": "tsc --noEmit"
   },
