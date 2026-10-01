@@ -12,6 +12,32 @@ import { registerSessionObject } from '../session-store.ts';
 
 const db = (message: string) =>
   console.log(styleText('magenta', '[Session] ') + message);
+/** Build a one-line schema/data summary from in-memory rows so the model
+ *  knows the year range, categories, and currencies without extra SQL probes. */
+function dataSummary(rows: object[], extraKeys: string[] = []): string {
+  if (rows.length === 0) return '';
+  const distinct = (key: string) =>
+    [
+      ...new Set(
+        rows
+          .map((r) => String((r as Record<string, unknown>)[key] ?? ''))
+          .filter(Boolean),
+      ),
+    ].sort();
+  const years = distinct('ledgerFiscalYear');
+  const yearRange =
+    years.length > 1 ? `${years[0]}–${years[years.length - 1]}` : years[0];
+  const parts: string[] = [`years: ${yearRange}`];
+  for (const k of extraKeys) {
+    const vals = distinct(k);
+    if (vals.length) parts.push(`${k}: ${vals.join(', ')}`);
+  }
+  const ccCcy = distinct('companyCodeCurrency');
+  const gcCcy = distinct('globalCurrency');
+  if (ccCcy.length) parts.push(`companyCodeCurrency: ${ccCcy.join(', ')}`);
+  if (gcCcy.length) parts.push(`globalCurrency: ${gcCcy.join(', ')}`);
+  return parts.join(' | ');
+}
 
 const FIN_PLANNING_DDL = (tableName: string) => `
   CREATE TABLE IF NOT EXISTS ${tableName} (
@@ -115,7 +141,12 @@ export const queryFinancialPlanningTool = tool(
         db(` Appended ${entries.length} rows into ${tableName}`);
       }
 
-      return `Appended ${entries.length} rows into table '${tableName}'.`;
+      const summary = dataSummary(entries, [
+        'planningCategory',
+        'companyCode',
+        'costCenter',
+      ]);
+      return `Appended ${entries.length} rows into table '${tableName}'. ${summary}`;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(
@@ -183,7 +214,12 @@ export const queryJournalEntryTool = tool(
         db(` Appended ${entries.length} rows into ${tableName}`);
       }
 
-      return `Appended ${entries.length} rows into table '${tableName}'.`;
+      const summary = dataSummary(entries, [
+        'businessTransactionCategory',
+        'companyCode',
+        'costCenter',
+      ]);
+      return `Appended ${entries.length} rows into table '${tableName}'. ${summary}`;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(
