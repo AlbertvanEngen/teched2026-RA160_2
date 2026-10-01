@@ -1,0 +1,53 @@
+{
+  "name": "@sap-ai-sdk/tabpfn",
+  "version": "2.13.0",
+  "description": "This package provides a client for the TabPFN foundation model for tabular prediction via in-context learning.",
+  "license": "Apache-2.0",
+  "keywords": [
+    "sap-ai-sdk",
+    "ai-api",
+    "tabpfn"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SAP/ai-sdk-js",
+    "directory": "packages/tabpfn"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./internal.js": {
+      "types": "./dist/internal.d.ts",
+      "default": "./dist/internal.js"
+    }
+  },
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.js.map",
+    "dist/**/*.d.ts",
+    "dist/**/*.d.ts.map"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "postinstall": "pnpm build",
+    "test": "node --test 'src/*.test.ts'",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write ."
+  },
+  "dependencies": {
+    "@sap-ai-sdk/ai-api": "^2.16.0",
+    "@sap-ai-sdk/core": "^2.16.0",
+    "@sap-cloud-sdk/connectivity": "catalog:",
+    "@sap-cloud-sdk/http-client": "catalog:",
+    "@sap-cloud-sdk/util": "catalog:"
+  },
+  "devDependencies": {
+    "@sap-cloud-sdk/openapi-generator": "catalog:",
+    "typescript": "catalog:"
+  }
+}

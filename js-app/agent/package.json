@@ -1,0 +1,51 @@
+{
+  "name": "financial-mock-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/agent.ts"
+    },
+    "./odata-client/API_FINPLANNINGENTRYITEM_SRV": {
+      "types": "./src/generated/API_FINPLANNINGENTRYITEM_SRV/index.ts",
+      "default": "./src/generated/API_FINPLANNINGENTRYITEM_SRV/index.ts"
+    },
+    "./odata-client/API_JOURNALENTRYITEMBASIC_SRV": {
+      "types": "./src/generated/API_JOURNALENTRYITEMBASIC_SRV/index.ts",
+      "default": "./src/generated/API_JOURNALENTRYITEMBASIC_SRV/index.ts"
+    }
+  },
+  "scripts": {
+    "start": "tsx --env-file-if-exists=../../.env src/cli.ts",
+    "query:quarterly-budget": "tsx --env-file-if-exists=../../.env src/cli.ts \"Show me the quarterly budget for cost center A1000 for the last 12 months.\"",
+    "query:monthly-costs": "tsx --env-file-if-exists=../../.env src/cli.ts \"Show me the monthly cost for cost center A1000 for the last 12 months.\"",
+    "query:forecast": "tsx --env-file-if-exists=../../.env src/cli.ts \"Forecast: plan the budget for cost center A1000 for the next 12 months based on historical data.\"",
+    "query:dual-source-rpt": "tsx --env-file-if-exists=../../.env src/cli.ts \"Load journal entries for cost center A1000 as actuals context, load budget planning entries as prediction target, then use run_rpt_prediction to predict amountInGlobalCurrency.\"",
+    "test": "node --test 'test/*.test.ts'",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@duckdb/node-api": "1.5.5-r.5",
+    "@langchain/langgraph-checkpoint": "^1.1.5",
+    "@sap-ai-sdk/langchain": "2.16.1-20260922111303.0",
+    "@sap-ai-sdk/rpt": "canary",
+    "@sap-ai-sdk/tabpfn": "workspace:*",
+    "@sap-cloud-sdk/odata-v2": "catalog:",
+    "@sap-cloud-sdk/resilience": "catalog:",
+    "@sap-cloud-sdk/util": "catalog:",
+    "bignumber.js": "^11.1.5",
+    "langchain": "^1.5.14",
+    "moment": "^2.31.0",
+    "tsx": "catalog:",
+    "zod": "^4.6.5"
+  },
+  "peerDependencies": {
+    "@langchain/core": "catalog:"
+  },
+  "devDependencies": {
+    "@langchain/core": "catalog:",
+    "@sap-cloud-sdk/generator": "catalog:",
+    "typescript": "catalog:"
+  }
+}

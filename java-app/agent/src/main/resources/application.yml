@@ -1,0 +1,27 @@
+server:
+  port: 3143
+
+spring:
+  application:
+    name: teched2026-java-agent
+  mvc:
+    async:
+      request-timeout: 120000
+
+logging:
+  level:
+    root: INFO
+    com.sap.teched.demo: DEBUG
+    # Full HTTP wire traffic (request/response headers + bodies)
+    org.apache.http: DEBUG
+    org.apache.http.wire: DEBUG
+    org.apache.http.headers: DEBUG
+    # SAP Cloud SDK HTTP client
+    com.sap.cloud.sdk: INFO
+
+# OData backend — points at the shared mock-server by default (port 3141).
+# Change base-url to a real S/4HANA system URL to use live data.
+s4:
+  base-url: http://localhost:3141
+  username: mock
+  password: mock
