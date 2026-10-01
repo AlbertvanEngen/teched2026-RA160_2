@@ -1,13 +1,63 @@
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
-import {
-  FIN_PLANNING_BASE_URL,
-  JOURNAL_BASE_URL,
-  seedDatabase,
-} from './financial-truth.ts';
 
-export type { JournalEntry, PlanningEntry } from './financial-truth.ts';
+const FIN_PLANNING_BASE_URL =
+  'https://{host}:{port}/sap/opu/odata/sap/API_FINPLANNINGENTRYITEM_SRV';
+const JOURNAL_BASE_URL =
+  'https://{host}:{port}/sap/opu/odata/sap/API_JOURNALENTRYITEMBASIC_SRV';
 
-import type { JournalEntry, PlanningEntry } from './financial-truth.ts';
+export type PlanningEntry = {
+  __metadata: { id: string; uri: string; type: string };
+  ID: string;
+  Ledger: string;
+  LedgerName: string;
+  PlanningCategory: string;
+  LedgerFiscalYear: string;
+  FiscalPeriod: string;
+  FiscalYearPeriod: string;
+  GLAccount: string;
+  GLAccountName: string;
+  CompanyCode: string;
+  CompanyCodeName: string;
+  CostCenter: string;
+  CostCenterName: string;
+  ProfitCenter: string;
+  ProfitCenterName: string;
+  TransactionCurrency: string;
+  AmountInTransactionCurrency: string;
+  CompanyCodeCurrency: string;
+  AmountInCompanyCodeCurrency: string;
+  GlobalCurrency: string;
+  AmountInGlobalCurrency: string;
+};
+
+export type JournalEntry = {
+  __metadata: { id: string; uri: string; type: string };
+  ID: string;
+  Ledger: string;
+  LedgerName: string;
+  SourceLedger: string;
+  LedgerFiscalYear: string;
+  FiscalPeriod: string;
+  FiscalYearPeriod: string;
+  CompanyCode: string;
+  CompanyCodeName: string;
+  GLAccount: string;
+  GLAccountName: string;
+  BusinessTransactionCategory: string;
+  BusinessTransactionType: string;
+  CostCenter: string;
+  CostCenterName: string;
+  ProfitCenter: string;
+  ProfitCenterName: string;
+  TransactionCurrency: string;
+  AmountInTransactionCurrency: string;
+  CompanyCodeCurrency: string;
+  AmountInCompanyCodeCurrency: string;
+  GlobalCurrency: string;
+  AmountInGlobalCurrency: string;
+};
 
 const db = new DatabaseSync(':memory:');
 
@@ -48,11 +98,11 @@ db.exec(`
   CREATE INDEX idx_je_period  ON journal_entries (FiscalPeriod);
 `);
 
-const dbReady: Promise<void> = new Promise((resolve) => {
-  setImmediate(() => {
-    seedDatabase(db);
-    resolve();
-  });
+const dbReady = readFile(
+  join(import.meta.dirname, '../../data/seed.sql'),
+  'utf-8',
+).then((sql) => {
+  db.exec(sql);
 });
 
 const PLANNING_COLUMNS = new Set([

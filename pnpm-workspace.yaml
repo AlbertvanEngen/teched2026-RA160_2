@@ -5,6 +5,7 @@ packages:
   - js-app/tabpfn
   - slides-js-demo
   - mock-server
+  - mock-data-generator
 
 catalog:
   '@biomejs/biome': ^2.5.14

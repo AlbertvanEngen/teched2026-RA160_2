@@ -1,8 +1,8 @@
 import { randomNormal } from 'd3-random';
 
-export const FIN_PLANNING_BASE_URL =
+const FIN_PLANNING_BASE_URL =
   'https://{host}:{port}/sap/opu/odata/sap/API_FINPLANNINGENTRYITEM_SRV';
-export const JOURNAL_BASE_URL =
+const JOURNAL_BASE_URL =
   'https://{host}:{port}/sap/opu/odata/sap/API_JOURNALENTRYITEMBASIC_SRV';
 
 function seededRng(seed: number) {
@@ -44,7 +44,12 @@ const ACCOUNT_SEASONAL: Record<
 };
 const DEFAULT_SEASONAL = { amp: 0.1, phase: 0, growth: 0.01 };
 
-const EXPENSE_ACCOUNTS = new Set(['510000', '610000', '620000', '630000']);
+const EXPENSE_ACCOUNTS: Record<string, true> = {
+  '510000': true,
+  '610000': true,
+  '620000': true,
+  '630000': true,
+};
 const CATEGORIES = ['BUDGET', 'FORECAST', 'ACTUAL', 'PLAN'] as const;
 const TX_CATEGORIES = ['RFBU', 'RMVL', 'COIN', 'PRFI'];
 
@@ -384,12 +389,7 @@ function generateTruthCells(): TruthCell[] {
   return cells;
 }
 
-type PlanningEntry = {
-  __metadata: {
-    id: string;
-    uri: string;
-    type: string;
-  };
+type PlanningRow = {
   ID: string;
   Ledger: string;
   LedgerName: string;
@@ -413,12 +413,7 @@ type PlanningEntry = {
   AmountInGlobalCurrency: string;
 };
 
-type JournalEntry = {
-  __metadata: {
-    id: string;
-    uri: string;
-    type: string;
-  };
+type JournalRow = {
   ID: string;
   Ledger: string;
   LedgerName: string;
@@ -444,8 +439,8 @@ type JournalEntry = {
   AmountInGlobalCurrency: string;
 };
 
-function projectPlanningEntries(cells: TruthCell[]): PlanningEntry[] {
-  const entries: PlanningEntry[] = [];
+function projectPlanningRows(cells: TruthCell[]): PlanningRow[] {
+  const entries: PlanningRow[] = [];
   let sequence = 0;
 
   for (const cell of cells) {
@@ -459,11 +454,6 @@ function projectPlanningEntries(cells: TruthCell[]): PlanningEntry[] {
         const globalAmount = (part * cell.globalFx).toFixed(2);
 
         entries.push({
-          __metadata: {
-            id: `${FIN_PLANNING_BASE_URL}/A_FinPlanningEntryItem('${id}')`,
-            uri: `${FIN_PLANNING_BASE_URL}/A_FinPlanningEntryItem('${id}')`,
-            type: 'API_FINPLANNINGENTRYITEM_SRV.A_FinPlanningEntryItemType',
-          },
           ID: id,
           Ledger: cell.ledger.code,
           LedgerName: cell.ledger.name,
@@ -493,14 +483,14 @@ function projectPlanningEntries(cells: TruthCell[]): PlanningEntry[] {
   return entries;
 }
 
-function projectJournalEntries(cells: TruthCell[]): JournalEntry[] {
-  const entries: JournalEntry[] = [];
+function projectJournalRows(cells: TruthCell[]): JournalRow[] {
+  const entries: JournalRow[] = [];
   let sequence = 0;
 
   for (const cell of cells) {
     const lineItemCount = 3;
     const parts = splitAmount(cell.amount, lineItemCount);
-    const sign = EXPENSE_ACCOUNTS.has(cell.glAccount.code) ? -1 : 1;
+    const sign = EXPENSE_ACCOUNTS[cell.glAccount.code] ? -1 : 1;
 
     for (const part of parts) {
       sequence++;
@@ -509,11 +499,6 @@ function projectJournalEntries(cells: TruthCell[]): JournalEntry[] {
       const globalAmount = (signedAmount * cell.globalFx).toFixed(2);
 
       entries.push({
-        __metadata: {
-          id: `${JOURNAL_BASE_URL}/A_JournalEntryItemBasic('${id}')`,
-          uri: `${JOURNAL_BASE_URL}/A_JournalEntryItemBasic('${id}')`,
-          type: 'API_JOURNALENTRYITEMBASIC_SRV.A_JournalEntryItemBasicType',
-        },
         ID: id,
         Ledger: cell.ledger.code,
         LedgerName: cell.ledger.name,
@@ -544,76 +529,93 @@ function projectJournalEntries(cells: TruthCell[]): JournalEntry[] {
   return entries;
 }
 
-export type { JournalEntry, PlanningEntry };
-
-import type { DatabaseSync } from 'node:sqlite';
-
-export function seedDatabase(db: DatabaseSync): void {
-  const cells = generateTruthCells();
-  const planning = projectPlanningEntries(cells);
-  const journal = projectJournalEntries(cells);
-
-  db.exec('BEGIN');
-
-  const insertPe = db.prepare(
-    `INSERT INTO planning_entries VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-  );
-  for (const e of planning) {
-    insertPe.run(
-      e.ID,
-      e.Ledger,
-      e.LedgerName,
-      e.PlanningCategory,
-      e.LedgerFiscalYear,
-      e.FiscalPeriod,
-      e.FiscalYearPeriod,
-      e.GLAccount,
-      e.GLAccountName,
-      e.CompanyCode,
-      e.CompanyCodeName,
-      e.CostCenter,
-      e.CostCenterName,
-      e.ProfitCenter,
-      e.ProfitCenterName,
-      e.TransactionCurrency,
-      e.AmountInTransactionCurrency,
-      e.CompanyCodeCurrency,
-      e.AmountInCompanyCodeCurrency,
-      e.GlobalCurrency,
-      e.AmountInGlobalCurrency,
-    );
-  }
-
-  const insertJe = db.prepare(
-    `INSERT INTO journal_entries VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-  );
-  for (const e of journal) {
-    insertJe.run(
-      e.ID,
-      e.Ledger,
-      e.LedgerName,
-      e.SourceLedger,
-      e.LedgerFiscalYear,
-      e.FiscalPeriod,
-      e.FiscalYearPeriod,
-      e.CompanyCode,
-      e.CompanyCodeName,
-      e.GLAccount,
-      e.GLAccountName,
-      e.BusinessTransactionCategory,
-      e.BusinessTransactionType,
-      e.CostCenter,
-      e.CostCenterName,
-      e.ProfitCenter,
-      e.ProfitCenterName,
-      e.TransactionCurrency,
-      e.AmountInTransactionCurrency,
-      e.CompanyCodeCurrency,
-      e.AmountInCompanyCodeCurrency,
-      e.GlobalCurrency,
-      e.AmountInGlobalCurrency,
-    );
-  }
-
-  db.exec('COMMIT');
+function esc(val: string): string {
+  return `'${val.replace(/'/g, "''")}'`;
 }
+
+/**
+ * Generates SQL INSERT statements for both planning_entries and journal_entries
+ * tables. The output is a self-contained SQL script that can be executed against
+ * a database whose schema was created by mock-server.
+ */
+export function generateSql(): string {
+  const cells = generateTruthCells();
+  const planning = projectPlanningRows(cells);
+  const journal = projectJournalRows(cells);
+
+  const lines: string[] = [
+    '-- Generated by mock-data-generator. Do not edit by hand.',
+    `-- Planning entries: ${planning.length}  Journal entries: ${journal.length}`,
+    'BEGIN;',
+  ];
+
+  for (const e of planning) {
+    lines.push(
+      `INSERT INTO planning_entries VALUES (${[
+        e.ID,
+        e.Ledger,
+        e.LedgerName,
+        e.PlanningCategory,
+        e.LedgerFiscalYear,
+        e.FiscalPeriod,
+        e.FiscalYearPeriod,
+        e.GLAccount,
+        e.GLAccountName,
+        e.CompanyCode,
+        e.CompanyCodeName,
+        e.CostCenter,
+        e.CostCenterName,
+        e.ProfitCenter,
+        e.ProfitCenterName,
+        e.TransactionCurrency,
+        e.AmountInTransactionCurrency,
+        e.CompanyCodeCurrency,
+        e.AmountInCompanyCodeCurrency,
+        e.GlobalCurrency,
+        e.AmountInGlobalCurrency,
+      ]
+        .map(esc)
+        .join(',')});`,
+    );
+  }
+
+  for (const e of journal) {
+    lines.push(
+      `INSERT INTO journal_entries VALUES (${[
+        e.ID,
+        e.Ledger,
+        e.LedgerName,
+        e.SourceLedger,
+        e.LedgerFiscalYear,
+        e.FiscalPeriod,
+        e.FiscalYearPeriod,
+        e.CompanyCode,
+        e.CompanyCodeName,
+        e.GLAccount,
+        e.GLAccountName,
+        e.BusinessTransactionCategory,
+        e.BusinessTransactionType,
+        e.CostCenter,
+        e.CostCenterName,
+        e.ProfitCenter,
+        e.ProfitCenterName,
+        e.TransactionCurrency,
+        e.AmountInTransactionCurrency,
+        e.CompanyCodeCurrency,
+        e.AmountInCompanyCodeCurrency,
+        e.GlobalCurrency,
+        e.AmountInGlobalCurrency,
+      ]
+        .map(esc)
+        .join(',')});`,
+    );
+  }
+
+  lines.push('COMMIT;');
+  return lines.join('\n') + '\n';
+}
+
+// The URL constants below are unused by the generator itself but kept here so
+// that the generator package remains the single source of truth for the OData
+// service path templates should they ever need to change.
+export { FIN_PLANNING_BASE_URL, JOURNAL_BASE_URL };

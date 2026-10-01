@@ -1,0 +1,20 @@
+{
+  "name": "mock-data-generator",
+  "version": "1.0.0",
+  "description": "Generates SQL seed data for the mock OData server (not for public release)",
+  "type": "module",
+  "scripts": {
+    "generate": "node src/generate.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": "^24"
+  },
+  "dependencies": {
+    "d3-random": "^3.0.1"
+  },
+  "devDependencies": {
+    "@types/d3-random": "^3.0.4",
+    "typescript": "catalog:"
+  }
+}
