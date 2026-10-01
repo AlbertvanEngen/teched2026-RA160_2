@@ -21,7 +21,7 @@ The agent follows a deliberate reasoning pattern:
 
 ## Requirements
 
-- Node.js 24 and pnpm 12 (JavaScript exercises)
+- Node.js 24 and pnpm 12 (Both Java and JavaScript exercises)
 - Java 21 and Maven 3.9+ or the included Maven wrapper (Java exercises)
 - Access to SAP AI Core / Generative AI Hub
 
