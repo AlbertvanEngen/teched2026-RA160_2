@@ -72,7 +72,7 @@ public class FinancialPlanningTool {
       name = "query_financial_planning",
       description =
           "Fetch financial planning (budget/allocation) entries from the OData backend and append "
-              + "them into local DB table 'financial_planning_data'. Call this before querying with query_local_db. "
+              + "them into local DB table 'financial_planning_data'. "
               + "All filter parameters are pushed server-side. "
               + "Cost center codes: A1000 (Corporate Finance), B2000 (Sales Operations), "
               + "E5000 (Research & Development), G7000 (Marketing). "

@@ -1,6 +1,6 @@
 package com.sap.teched.demo.tool;
 
-import static com.sap.ai.sdk.foundationmodels.rpt.RptModel.SAP_RPT_1_5;
+import static com.sap.ai.sdk.foundationmodels.rpt.RptModel.SAP_RPT_1_6;
 import static com.sap.ai.sdk.foundationmodels.rpt.generated.model.TargetColumnConfig.TaskTypeEnum.CLASSIFICATION;
 import static com.sap.ai.sdk.foundationmodels.rpt.generated.model.TargetColumnConfig.TaskTypeEnum.REGRESSION;
 
@@ -87,7 +87,7 @@ public class RptPredictionTool {
             .rows(rptRows)
             .parseDataTypes(true);
 
-    return RptClient.forModel(SAP_RPT_1_5).tableCompletion(request);
+    return RptClient.forModel(SAP_RPT_1_6).tableCompletion(request);
     */
     // YOUR CODE END
     // delete the following line
@@ -228,7 +228,6 @@ public class RptPredictionTool {
 
     final String summary = "Wrote " + rowCount + " predicted rows into table '" + outputTable + "'. "
         + "Predicted column: predicted_" + targetColumn + ". "
-        + "Use query_local_db to aggregate (e.g. GROUP BY fiscalYearPeriod)."
         + (explanation.isEmpty() ? "" : " " + explanation);
 
     log.info("run_rpt_prediction: {}", summary);
