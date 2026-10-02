@@ -1,25 +1,19 @@
 package com.sap.teched.demo.agent;
 
-import static com.sap.ai.sdk.orchestration.OrchestrationAiModel.GEMINI_2_5_FLASH;
-import static com.sap.ai.sdk.orchestration.OrchestrationAiModel.GEMINI_3_5_FLASH;
-import static com.sap.ai.sdk.orchestration.OrchestrationAiModel.GPT_41;
-import static com.sap.ai.sdk.orchestration.OrchestrationAiModel.GPT_4O;
+import static com.sap.ai.sdk.orchestration.OrchestrationAiModel.CLAUDE_4_6_SONNET;
 
-import com.sap.ai.sdk.orchestration.OrchestrationAiModel;
 import com.sap.ai.sdk.orchestration.OrchestrationModuleConfig;
 import com.sap.ai.sdk.orchestration.spring.OrchestrationChatModel;
 import com.sap.ai.sdk.orchestration.spring.OrchestrationChatOptions;
+import com.sap.teched.demo.tool.LocalDbTool;
+import com.sap.teched.demo.tool.RptSinglePredictionTool;
 import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.ai.model.tool.ToolExecutionResult;
-import com.sap.teched.demo.tool.CreateViewTool;
-import com.sap.teched.demo.tool.DropTableTool;
 import com.sap.teched.demo.tool.FinancialPlanningTool;
 import com.sap.teched.demo.tool.GetGroundTruthTool;
 import com.sap.teched.demo.tool.JournalEntryTool;
-import com.sap.teched.demo.tool.LocalDbTool;
 import com.sap.teched.demo.tool.RptPredictionTool;
 import java.util.List;
-import java.util.Map;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,8 +53,6 @@ public class AgentService {
       - query_local_db is your primary reporting tool: filter, join, GROUP BY, and aggregate \
         loaded tables with SUM/AVG/COUNT/MIN/MAX — use it liberally to answer questions from \
         loaded data.
-      - create_view saves a SQL transformation as a virtual table; drop_table cleans up tables \
-        and views.
       - run_rpt_prediction / run_rpt_prediction_single are SAP RPT, a tabular foundation model. \
         They take context rows with known values plus rows to predict, and write the predicted \
         values into an output table you name. Output columns include predicted_<targetColumn>, \
@@ -159,8 +151,7 @@ public class AgentService {
   private final LocalDbTool duckDbTool;
   private final RptPredictionTool rptPredictionTool;
   private final GetGroundTruthTool getGroundTruthTool;
-  private final CreateViewTool createViewTool;
-  private final DropTableTool dropTableTool;
+  private final RptSinglePredictionTool rptSinglePredictionTool;
 
   /**
    * Run the agent for the given prompt, streaming SSE events via the emitter.
@@ -196,7 +187,7 @@ public class AgentService {
     // ---------------------------------------- EXERCISE 1 ----------------------------------------
     // YOUR CODE START
     /*
-    final OrchestrationModuleConfig config = new OrchestrationModuleConfig(GPT_4O);
+    final OrchestrationModuleConfig config = new OrchestrationModuleConfig(CLAUDE_4_6_SONNET);
     final ChatModel chatModel = new OrchestrationChatModel();
     final OrchestrationChatOptions options = addToolCalls(new OrchestrationChatOptions(config));
     final ToolCallingManager toolCallingManager = ToolCallingManager.builder().build();
@@ -238,9 +229,10 @@ public class AgentService {
             ToolCallbacks.from(
                 financialPlanningTool,
                 journalEntryTool,
-                duckDbTool,
-                createViewTool,
-                dropTableTool))).build();
+                rptPredictionTool,
+                rptSinglePredictionTool,
+                getGroundTruthTool,
+                duckDbTool))).build();
     */
     // YOUR CODE END
     return options;
@@ -248,7 +240,7 @@ public class AgentService {
   }
 
   private void addFallbackConfigs(final OrchestrationChatOptions options) {
-    var workingConfig = new OrchestrationModuleConfig(GPT_4O);
+    var workingConfig = new OrchestrationModuleConfig(CLAUDE_4_6_SONNET);
     options.mutate().fallbackConfigs(List.of(workingConfig));
   }
 }

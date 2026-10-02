@@ -1,6 +1,6 @@
 package com.sap.teched.demo.tool;
 
-import static com.sap.ai.sdk.foundationmodels.rpt.RptModel.SAP_RPT_1_5;
+import static com.sap.ai.sdk.foundationmodels.rpt.RptModel.SAP_RPT_1_6;
 import static com.sap.ai.sdk.foundationmodels.rpt.generated.model.TargetColumnConfig.TaskTypeEnum.CLASSIFICATION;
 import static com.sap.ai.sdk.foundationmodels.rpt.generated.model.TargetColumnConfig.TaskTypeEnum.REGRESSION;
 
@@ -175,7 +175,7 @@ public class RptSinglePredictionTool {
             .rows(rptRows)
             .parseDataTypes(true);
 
-    final PredictResponsePayload response = RptClient.forModel(SAP_RPT_1_5).tableCompletion(request);
+    final PredictResponsePayload response = RptClient.forModel(SAP_RPT_1_6).tableCompletion(request);
 
     final List<Map<String, PredictionsInnerValue>> predictions = response.getPredictions();
     if (predictions == null || predictions.isEmpty()) {
@@ -190,7 +190,6 @@ public class RptSinglePredictionTool {
     return "Wrote " + rowCount + " predicted rows into table '" + outputTable + "'. "
         + "Predicted columns: predicted_" + targetColumn + ", confidence_" + targetColumn
         + ", confidence_interval_lower_" + targetColumn + ", confidence_interval_upper_" + targetColumn + ". "
-        + "Aggregate with query_local_db (e.g. GROUP BY fiscalYearPeriod)."
         + (explanation.isEmpty() ? "" : " " + explanation);
   }
 
