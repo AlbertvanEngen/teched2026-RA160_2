@@ -48,7 +48,7 @@ const model = new OrchestrationClient([
 If the application is not already running, start it:
 
 ```bash
-pnpm webui
+pnpm run js-agent
 ```
 
 Ask any question in the UI.

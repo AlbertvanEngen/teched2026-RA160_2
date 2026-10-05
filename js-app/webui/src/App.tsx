@@ -27,7 +27,7 @@ const DEMO_PROMPTS = [
   {
     label: '3. Compare ground truth',
     prompt:
-      'Compare that forecast with the journal-entry ground truth for fiscal year 2026. Show forecast as a percentage of actual spend and identify the periods furthest below or above actual.',
+      'For cost center A1000, use journal entries from fiscal years 2022 through 2025 as actuals and forecast the monthly amount for fiscal year 2026. Compare that forecast with the journal-entry ground truth for fiscal year 2026. Show forecast as a percentage of actual spend and identify the periods furthest below or above actual.',
   },
 ];
 

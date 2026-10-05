@@ -107,7 +107,7 @@ function buildFinancialAgent() {
 If the application is not already running, start it:
 
 ```bash
-pnpm webui
+pnpm run js-agent
 ```
 
 Navigate to the UI and ask a question that requires real data:

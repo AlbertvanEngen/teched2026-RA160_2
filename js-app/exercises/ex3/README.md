@@ -25,7 +25,7 @@ Open the following files and read the `tool(...)` definitions:
 
 | File | Tool name | When to use |
 |---|---|---|
-| [`rpt-tool.ts`](../../agent/src/tools/rpt-tool.ts) | `run_rpt_prediction` | Runs SAP RPT on session tables and writes predicted values into an output table. Supports `mode="single"` (one table, WHERE predicates split context vs. prediction rows) and `mode="dual"` (two separate tables, e.g. journal entries as context, planning rows as predictions). |
+| [`rpt-tool.ts`](../../agent/src/tools/rpt-tool.ts) | `run_rpt_prediction` | Runs SAP RPT on one session table or view and writes predicted values into an output table. `predictionWhere` and optional `contextWhere` split context from prediction rows. |
 | [`tabpfn-tool.ts`](../../agent/src/tools/tabpfn-tool.ts) | `run_tabpfn_prediction` | Runs TabPFN on a session table and returns predictions as JSON. Use for in-context tabular prediction, especially when categorical or mixed-type features matter. |
 | [`get-ground-truth-tool.ts`](../../agent/src/tools/get-ground-truth-tool.ts) | `get_ground_truth` | After a prediction is written into an output table, compares it against real OData data. Fetches journal entries or planning ACTUAL rows, joins on the dimensions you specify, and writes a comparison table with per-row `pct_error`, `pct_of_actual`, `pct_below_actual`, and `pct_above_actual` columns, plus summary MAPE, MAE, and RMSE metrics. |
 
@@ -55,10 +55,11 @@ A complete forecast workflow looks like this:
 ```text
 1. Load context data    → query_financial_planning (planningCategory = ACTUAL, e.g. 2022–2024)
 2. Load prediction rows → query_financial_planning (planningCategory = PLAN, target year)
-3. Run forecast         → run_rpt_prediction (mode="dual", contextTable, predictionTable, outputTable, targetColumn)
-4. Aggregate results    → run_sql (SELECT fiscalYearPeriod, SUM(predicted_...) FROM outputTable)
-5. Report               → LLM formats the requested forecast
-6. Optional validation  → only when the user explicitly asks: get_ground_truth (...)
+3. Create a view         → run_sql (combine the loaded rows with matching feature columns)
+4. Run forecast         → run_rpt_prediction (tableName, predictionWhere, contextWhere, outputTable, targetColumn)
+5. Aggregate results    → run_sql (SELECT fiscalYearPeriod, SUM(predicted_...) FROM outputTable)
+6. Report               → LLM formats the requested forecast
+7. Optional validation  → only when the user explicitly asks: get_ground_truth (...)
 ```
 
 Steps 1–2 load filtered OData rows into the SQL workspace.
@@ -120,7 +121,7 @@ The Parquet approach is more efficient than JSON for large tables and is the rec
 If the application is not already running, start it:
 
 ```bash
-pnpm webui
+pnpm run js-agent
 ```
 
 Ask the agent to produce a forecast:
@@ -192,7 +193,7 @@ The task is complete when the response shows the SQL, period-level comparison, a
 
 When `run_rpt_prediction` is called, the following happens inside the `rpt-tool.ts` file:
 
-1. Both in-memory SQL tables are read, and only columns that appear in **both** tables are forwarded to RPT (irrelevant columns are dropped).
+1. The context and prediction rows are read from one in-memory SQL table or view. Prepare the view so both row types have matching feature semantics.
 2. Context rows keep their known target value; prediction rows have their target set to `null`.
 3. A combined SQL query is assembled (`UNION ALL BY NAME`) and serialised to Parquet.
 4. The Parquet file is sent to `RptClient.predictParquet(...)`.

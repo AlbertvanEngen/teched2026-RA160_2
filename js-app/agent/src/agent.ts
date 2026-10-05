@@ -57,8 +57,8 @@ Workspace mode: SQL.
   (CREATE OR REPLACE VIEW) with run_sql and reference the view name in subsequent queries
   or tool calls instead of repeating the same subquery.
 - run_rpt_prediction is SAP RPT, a tabular foundation model. It writes predicted values into an output
-  table. Use mode="single" when data is in one table (predictionWhere selects rows to forecast; optional
-  contextWhere selects known-truth rows). Use mode="dual" when actuals and planning live in separate tables.
+  table. It reads one table or view: predictionWhere selects rows to forecast and optional contextWhere
+  selects known-truth rows. Create a view first when source data must be combined from separate tables.
 - run_tabpfn_prediction runs TabPFN on one session table, writes predictions into the requested output table,
   and returns a confirmation with the predicted column. Use it for
   in-context tabular prediction, especially when categorical or mixed-type features matter.

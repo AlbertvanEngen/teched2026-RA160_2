@@ -344,49 +344,7 @@ export const runRptPredictionTool = tool(
       let predCount: number;
       let columns: string[];
 
-      if (input.mode === 'dual') {
-        const { contextTable, predictionTable, targetColumn } = input;
-        if (!isValidIdentifier(contextTable))
-          return `Error: '${contextTable}' is not a valid table name.`;
-        if (!isValidIdentifier(predictionTable))
-          return `Error: '${predictionTable}' is not a valid table name.`;
-
-        const [contextCols, predCols] = await Promise.all([
-          selectColumns(`SELECT * FROM ${contextTable}`),
-          selectColumns(`SELECT * FROM ${predictionTable}`),
-        ]);
-        const predSet = new Set(predCols);
-        const shared = contextCols.filter((c) => predSet.has(c));
-
-        if (!shared.includes(targetColumn)) {
-          return `Error: Target column '${targetColumn}' not found in both tables. Shared columns: ${shared.join(', ')}`;
-        }
-
-        const quoted = shared
-          .map((c) => `"${c.replaceAll('"', '""')}"`)
-          .join(', ');
-        contextSql = `SELECT 'actual' AS source, ${quoted} FROM ${contextTable}`;
-        predictionSql = `SELECT 'plan' AS source, ${quoted} FROM ${predictionTable}`;
-        columns = ['source', ...shared];
-
-        const [[{ count: cc = 0 } = {}], [{ count: pc = 0 } = {}]] =
-          await Promise.all([
-            runQuery(`SELECT COUNT(*) AS count FROM (${contextSql})`),
-            runQuery(`SELECT COUNT(*) AS count FROM (${predictionSql})`),
-          ]);
-        contextCount = Number(cc);
-        predCount = Number(pc);
-
-        if (contextCount === 0)
-          return `Error: Context table '${contextTable}' is empty.`;
-        if (predCount === 0)
-          return `Error: Prediction table '${predictionTable}' is empty.`;
-
-        rpt(
-          ` Dual-source ${input.taskType}: ${contextCount} context (${contextTable}) + ${predCount} prediction (${predictionTable})`,
-        );
-        rpt(` Shared columns: ${shared.join(', ')}`);
-      } else {
+      {
         const { tableName, predictionWhere, contextWhere, targetColumn } =
           input;
         if (!isValidIdentifier(tableName))
@@ -468,72 +426,40 @@ export const runRptPredictionTool = tool(
     name: 'run_rpt_prediction',
     description:
       'Run an SAP RPT prediction on a session table or view and write results into a named output table.\n' +
-      'Required for both modes: outputTable (name to write into, replaced if it exists), ' +
+      'Required: tableName, outputTable (name to write into, replaced if it exists), ' +
       'targetColumn (column to predict), taskType ("regression" for numeric amounts, "classification" for categories).\n' +
-      '• mode="single": tableName — a session table or view containing both context and prediction rows. ' +
+      'tableName — a session table or view containing both context and prediction rows. ' +
       'predictionWhere selects rows to forecast (SQL predicate, no WHERE keyword, e.g. "ledgerFiscalYear = \'2026\'"); ' +
       'contextWhere selects known-truth rows (default: NOT predictionWhere). ' +
       'Pass a view name to avoid repeating complex queries. Preserve one row per complete, alignable forecast key; do not aggregate to the requested reporting grain before calling. ' +
       'Every feature must have the same meaning in context and prediction rows. If rows exceed 2048, pass a view defined with USING SAMPLE 2048.\n' +
-      '• mode="dual": contextTable supplies known-truth rows and predictionTable supplies rows whose target will be predicted. ' +
-      'Only columns shared by both tables are used, so prepare both tables with identical feature semantics; a source column (actual/plan) is added automatically. ' +
-      'Both accept table or view names.\n' +
       'Predictions land in outputTable as predicted_<targetColumn> plus confidence_<targetColumn> ' +
       'and confidence_interval_lower/upper_<targetColumn> (regression only). ' +
       'Aggregate outputTable with run_sql to the granularity the user asked for.',
-    schema: z.discriminatedUnion('mode', [
-      z.object({
-        mode: z.literal('single'),
-        tableName: z.string().describe('Session table or view to read from'),
-        predictionWhere: z
-          .string()
-          .describe(
-            'SQL predicate (no WHERE keyword) selecting rows to predict, e.g. "ledgerFiscalYear = \'2026\'"',
-          ),
-        contextWhere: z
-          .string()
-          .optional()
-          .describe(
-            'Optional SQL predicate for context rows. Defaults to NOT (predictionWhere).',
-          ),
-        outputTable: z
-          .string()
-          .describe(
-            'Session table to write predictions into (replaced if exists)',
-          ),
-        targetColumn: z.string().describe('Column name to predict'),
-        taskType: z
-          .enum(['classification', 'regression'])
-          .describe(
-            '"regression" for numeric amounts, "classification" for categories',
-          ),
-      }),
-      z.object({
-        mode: z.literal('dual'),
-        contextTable: z
-          .string()
-          .describe(
-            'Table with known target values — typically journal entries or actuals',
-          ),
-        predictionTable: z
-          .string()
-          .describe(
-            'Table whose target will be predicted — typically planning/budget entries',
-          ),
-        outputTable: z
-          .string()
-          .describe(
-            'Session table to write predictions into (replaced if exists)',
-          ),
-        targetColumn: z
-          .string()
-          .describe('Column to predict — must exist in both tables'),
-        taskType: z
-          .enum(['classification', 'regression'])
-          .describe(
-            '"regression" for numeric amounts, "classification" for categories',
-          ),
-      }),
-    ]),
+    schema: z.object({
+      tableName: z.string().describe('Session table or view to read from'),
+      predictionWhere: z
+        .string()
+        .describe(
+          'SQL predicate (no WHERE keyword) selecting rows to predict, e.g. "ledgerFiscalYear = \'2026\'"',
+        ),
+      contextWhere: z
+        .string()
+        .optional()
+        .describe(
+          'Optional SQL predicate for context rows. Defaults to NOT (predictionWhere).',
+        ),
+      outputTable: z
+        .string()
+        .describe(
+          'Session table to write predictions into (replaced if exists)',
+        ),
+      targetColumn: z.string().describe('Column name to predict'),
+      taskType: z
+        .enum(['classification', 'regression'])
+        .describe(
+          '"regression" for numeric amounts, "classification" for categories',
+        ),
+    }),
   },
 );

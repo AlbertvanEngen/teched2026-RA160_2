@@ -25,8 +25,7 @@ The SAP AI SDK reads `AICORE_SERVICE_KEY` from the environment.
 Start the mock OData server and web application in separate terminals:
 
 ```bash
-mise run mock-server # optional, in-process by default
-mise run webui
+pnpm run js-agent
 ```
 
 Open http://localhost:3142.
