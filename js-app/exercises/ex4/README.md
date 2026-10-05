@@ -62,7 +62,7 @@ Now restore a working config as the second entry in the array:
 ```typescript
 const model = new OrchestrationClient([
   { promptTemplating: { model: { name: 'broken_model_name' } } },
-  { promptTemplating: { model: { name: 'gemini-3.5-flash' } } },
+  { promptTemplating: { model: { name: 'anthropic--claude-4.6-sonnet' } } },
 ]);
 ```
 
@@ -74,7 +74,7 @@ Your application code does not change — the failover is handled entirely serve
 
 Save the config and ask the same question again.
 The development server reloads automatically.
-This time the call should succeed and return a response from `gemini-3.5-flash` — even though the primary config was deliberately broken.
+This time the call should succeed and return a response from `anthropic--claude-4.6-sonnet` — even though the primary config was deliberately broken.
 
 You will not see any change in the response format.
 Fallback is transparent to the caller: the agent and the user receive a normal response regardless of which config in the array ultimately handled the request.
@@ -102,7 +102,6 @@ Now that you have verified the fallback, restore the `agent.ts` file to a clean 
 
 ```typescript
 const model = new OrchestrationClient([
-  { promptTemplating: { model: { name: 'gemini-3.5-flash' } } },
   {
     promptTemplating: {
       model: {
@@ -111,6 +110,7 @@ const model = new OrchestrationClient([
       },
     },
   },
+  { promptTemplating: { model: { name: 'gemini-3.8-flash' } } },
 ]);
 ```
 

@@ -66,7 +66,14 @@ Create the client with a single model to start:
 
 ```typescript
 const model = new OrchestrationClient([
-  { promptTemplating: { model: { name: 'gemini-3.5-flash' } } },
+  {
+    promptTemplating: {
+      model: {
+        name: 'anthropic--claude-4.6-sonnet',
+        params: { reasoning_effort: 'low' },
+      },
+    },
+  },
 ]);
 ```
 
@@ -88,7 +95,14 @@ Your complete `buildFinancialAgent` function should look like this:
 ```typescript
 function buildFinancialAgent() {
   const model = new OrchestrationClient([
-    { promptTemplating: { model: { name: 'gemini-3.5-flash' } } },
+    {
+      promptTemplating: {
+        model: {
+          name: 'anthropic--claude-4.6-sonnet',
+          params: { reasoning_effort: 'low' },
+        },
+      },
+    },
   ]);
 
   const tools: never[] = [];

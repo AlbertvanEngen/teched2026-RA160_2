@@ -79,7 +79,7 @@ After Step 2, the relevant parts of `buildFinancialAgent` should look like this:
 ```typescript
 function buildFinancialAgent() {
   const model = new OrchestrationClient([
-    { promptTemplating: { model: { name: 'gemini-3.5-flash' } } },
+    { promptTemplating: { model: { name: 'anthropic--claude-4.6-sonnet', params: { reasoning_effort: 'low' } } } },
   ]);
 
   const tools = [

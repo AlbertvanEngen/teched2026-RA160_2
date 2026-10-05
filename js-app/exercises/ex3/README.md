@@ -54,7 +54,7 @@ A complete forecast workflow looks like this:
 
 ```text
 1. Load context data    → query_financial_planning (planningCategory = ACTUAL, e.g. 2022–2024)
-2. Load prediction rows → query_financial_planning (planningCategory = PLAN, target year)
+2. Load prediction rows → query_financial_planning (planningCategory = PLAN|BUDGET|FORECAST, target year)
 3. Create a view         → run_sql (combine the loaded rows with matching feature columns)
 4. Run forecast         → run_rpt_prediction (tableName, predictionWhere, contextWhere, outputTable, targetColumn)
 5. Aggregate results    → run_sql (SELECT fiscalYearPeriod, SUM(predicted_...) FROM outputTable)
@@ -95,7 +95,7 @@ return withParquetBlob(selectSql, features, (file) =>
       },
     },
     {
-      middleware: [resilience({ timeout: 60000 })],
+      middleware: resilience({ timeout: 60000 }),
     },
   ),
 );

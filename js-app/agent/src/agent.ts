@@ -66,6 +66,7 @@ Workspace mode: SQL.
 - When the target cost center has little history, include peer cost centers that share its
   G/L accounts; retain companyCode, costCenter, and profitCenter as model features.
 - query_financial_planning and query_journal_entry append to their target tables. Repeated or overlapping appends may require deduplication by id before downstream analysis.
+- For prediction include all other scenarios (e.g., PLAN, BUDGET, FORECAST) as context that are not directly being forecasted.
 
 Presentation:
 
