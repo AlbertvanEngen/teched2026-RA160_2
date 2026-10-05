@@ -41,13 +41,13 @@ Orchestration can apply content filtering to the LLM's input and output when you
 
 Open the following files and read the `tool(...)` definitions at the bottom of each:
 
-| File | Tool name | What it does |
-|---|---|---|
-| [`odata-tools.ts`](../../agent/src/tools/odata-tools.ts) | `query_financial_planning` | Fetches financial planning entries from the OData API and **appends** them into a named session table. |
-| [`odata-tools.ts`](../../agent/src/tools/odata-tools.ts) | `query_journal_entry` | Fetches journal entry items from the OData API and **appends** them into a named session table. |
-| [`sql-tool.ts`](../../agent/src/tools/sql-tool.ts) | `run_sql` | Executes SQL against the session's in-memory workspace — `SELECT` for reporting, `CREATE OR REPLACE VIEW` to define virtual tables, `DROP TABLE`/`DROP VIEW` to clean up. |
-You will register the three core SQL tools in this exercise.
-Exercise 3 adds RPT, TabPFN, and ground-truth tools after the SQL workflow is established.
+| File                                                                                       | Tool name                  | What it does                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------ | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`odata-tools.ts`](../../agent/src/tools/odata-tools.ts)                                   | `query_financial_planning` | Fetches financial planning entries from the OData API and **appends** them into a named session table.                                                                    |
+| [`odata-tools.ts`](../../agent/src/tools/odata-tools.ts)                                   | `query_journal_entry`      | Fetches journal entry items from the OData API and **appends** them into a named session table.                                                                           |
+| [`sql-tool.ts`](../../agent/src/tools/sql-tool.ts)                                         | `run_sql`                  | Executes SQL against the session's in-memory workspace — `SELECT` for reporting, `CREATE OR REPLACE VIEW` to define virtual tables, `DROP TABLE`/`DROP VIEW` to clean up. |
+| You will register the three core SQL tools in this exercise.                               |
+| Exercise 3 adds RPT, TabPFN, and ground-truth tools after the SQL workflow is established. |
 
 Each tool is defined with `tool(fn, { name, description, schema })` from `@langchain/core/tools` — the LangChain convention that makes a function visible to the LLM as a callable tool.
 The `description` string and the Zod `schema` together form the function definition the model sees, so it knows _when_ and _how_ to call each tool.
@@ -79,7 +79,14 @@ After Step 2, the relevant parts of `buildFinancialAgent` should look like this:
 ```typescript
 function buildFinancialAgent() {
   const model = new OrchestrationClient([
-    { promptTemplating: { model: { name: 'anthropic--claude-4.6-sonnet', params: { reasoning_effort: 'low' } } } },
+    {
+      promptTemplating: {
+        model: {
+          name: 'anthropic--claude-4.6-sonnet',
+          params: { reasoning_effort: 'low' },
+        },
+      },
+    },
   ]);
 
   const tools = [
@@ -141,11 +148,13 @@ Here are a few things worth noticing:
 Try the following prompts to explore the agent's tool-calling behaviour:
 
 - **Multi-step aggregation:**
+
   > "Compare actual journal entry spend vs. planning ACTUAL for cost center A1000 in 2023."
 
   The agent needs to load both OData tables and join them in the in-memory workspace.
 
 - **Cross-year comparison:**
+
   > "How did total planned spend for cost center A1000 change between 2022 and 2024?"
 
   The agent should load multiple years of planning data and aggregate with `GROUP BY ledgerFiscalYear`.

@@ -3,6 +3,7 @@
 In this exercise, you will register and explore the forecasting and evaluation tools.
 
 Complete [Exercise 2](../ex2/README.md) before starting this exercise.
+
 ## What you'll learn
 
 By the end of this exercise, your agent will be able to run a forecast workflow: load historical actuals, predict future periods using SAP RPT, and aggregate the results with SQL.
@@ -23,11 +24,11 @@ The key insight is that RPT uses **in-context learning on tabular data**: you gi
 
 Open the following files and read the `tool(...)` definitions:
 
-| File | Tool name | When to use |
-|---|---|---|
-| [`rpt-tool.ts`](../../agent/src/tools/rpt-tool.ts) | `run_rpt_prediction` | Runs SAP RPT on one session table or view and writes predicted values into an output table. `predictionWhere` and optional `contextWhere` split context from prediction rows. |
-| [`tabpfn-tool.ts`](../../agent/src/tools/tabpfn-tool.ts) | `run_tabpfn_prediction` | Runs TabPFN on a session table and returns predictions as JSON. Use for in-context tabular prediction, especially when categorical or mixed-type features matter. |
-| [`get-ground-truth-tool.ts`](../../agent/src/tools/get-ground-truth-tool.ts) | `get_ground_truth` | After a prediction is written into an output table, compares it against real OData data. Fetches journal entries or planning ACTUAL rows, joins on the dimensions you specify, and writes a comparison table with per-row `pct_error`, `pct_of_actual`, `pct_below_actual`, and `pct_above_actual` columns, plus summary MAPE, MAE, and RMSE metrics. |
+| File                                                                         | Tool name               | When to use                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`rpt-tool.ts`](../../agent/src/tools/rpt-tool.ts)                           | `run_rpt_prediction`    | Runs SAP RPT on one session table or view and writes predicted values into an output table. `predictionWhere` and optional `contextWhere` split context from prediction rows.                                                                                                                                                                         |
+| [`tabpfn-tool.ts`](../../agent/src/tools/tabpfn-tool.ts)                     | `run_tabpfn_prediction` | Runs TabPFN on a session table and returns predictions as JSON. Use for in-context tabular prediction, especially when categorical or mixed-type features matter.                                                                                                                                                                                     |
+| [`get-ground-truth-tool.ts`](../../agent/src/tools/get-ground-truth-tool.ts) | `get_ground_truth`      | After a prediction is written into an output table, compares it against real OData data. Fetches journal entries or planning ACTUAL rows, joins on the dimensions you specify, and writes a comparison table with per-row `pct_error`, `pct_of_actual`, `pct_below_actual`, and `pct_above_actual` columns, plus summary MAPE, MAE, and RMSE metrics. |
 
 ## Step 2: Register the prediction and evaluation tools
 

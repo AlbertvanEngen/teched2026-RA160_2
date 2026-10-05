@@ -15,6 +15,39 @@ import { runTabpfnPredictionTool } from './tools/tabpfn-tool.ts';
 
 export const AGENT_RECURSION_LIMIT = 64;
 
+function buildFinancialAgent() {
+  // YOUR CODE START
+  /*
+  const model = new OrchestrationClient([
+    {
+      promptTemplating: {
+        model: {
+          name: 'anthropic--claude-4.6-sonnet',
+          params: { reasoning_effort: 'low' },
+        },
+      },
+    },
+  ]);
+  */
+
+  const tools: never[] = [];
+
+  const systemPrompt = systemPromptForTools(tools);
+
+  const middleware = [orchestrationPromptCachingMiddleware()];
+
+  return createAgent({
+    model: {} as never,
+    systemPrompt: 'TODO',
+    checkpointer,
+    tools: [],
+    middleware: [],
+  });
+  // YOUR CODE END
+}
+
+// DO NOT EDIT BELOW THIS LINE
+
 const SYSTEM_PROMPT = `You are a financial data analyst agent with access to two SAP OData services.
 
 
@@ -90,41 +123,6 @@ Tool boundary:
 }
 
 const checkpointer = new MemorySaver();
-
-function buildFinancialAgent() {
-  const model = new OrchestrationClient([
-    {
-      promptTemplating: {
-        model: {
-          name: 'anthropic--claude-4.6-sonnet',
-          params: { reasoning_effort: 'low' },
-        },
-      },
-    },
-    { promptTemplating: { model: { name: 'gemini-3.8-flash' } } },
-  ]);
-
-  const tools = [
-    queryFinancialPlanningTool,
-    queryJournalEntryTool,
-    runSqlTool,
-    runRptPredictionTool,
-    runTabpfnPredictionTool,
-    getGroundTruthTool,
-  ];
-
-  const systemPrompt = systemPromptForTools(tools);
-
-  const middleware = [orchestrationPromptCachingMiddleware()];
-
-  return createAgent({
-    model,
-    systemPrompt,
-    checkpointer,
-    tools,
-    middleware,
-  });
-}
 
 // Wraps buildFinancialAgent so that exercise starter states (where the model is not
 // yet configured) produce a stub response instead of crashing the server.
