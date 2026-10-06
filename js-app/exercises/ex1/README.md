@@ -153,12 +153,15 @@ This is the same pattern you would use in a production BTP application: no secre
 
 ## Step 6: Try a different model
 
+> [!TIP]
+> For the best experience, please revert back to `anthropic--claude-4.6-sonnet` after trying the other model.
+
 To switch models, replace the existing entry in the config array.
-Try `anthropic--claude-4.6-sonnet`:
+Try `gemini-3.8-flash`:
 
 ```typescript
 const model = new OrchestrationClient([
-  { promptTemplating: { model: { name: 'anthropic--claude-4.6-sonnet' } } },
+  { promptTemplating: { model: { name: 'gemini-3.8-flash' } } },
 ]);
 ```
 

@@ -40,9 +40,9 @@ Open the `agent.ts` file and find the `buildFinancialAgent` function.
 Replace the first model config with one that references a model name that does not exist:
 
 ```typescript
-const model = new OrchestrationClient([
-  { promptTemplating: { model: { name: 'broken_model_name' } } },
-]);
+const model = new OrchestrationClient({
+  promptTemplating: { model: { name: 'broken_model_name' } }
+});
 ```
 
 If the application is not already running, start it:
@@ -52,7 +52,7 @@ pnpm run js-agent
 ```
 
 Ask any question in the UI.
-You should see an error response — the Orchestration service cannot resolve `"broken_model_name"` to a deployment and returns an error, which the agent surfaces to the browser.
+You should eventually see an error response — the Orchestration service cannot resolve `"broken_model_name"` to a deployment and returns an error, which the agent surfaces to the browser.
 Check the terminal for the underlying error details.
 
 ## Step 2: Add a working config as a fallback
