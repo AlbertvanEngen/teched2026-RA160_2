@@ -95,8 +95,18 @@ export async function dropObjects(names: string[]): Promise<void> {
     const conn = await openConnection();
     try {
       for (const name of names) {
-        await conn.run(`DROP VIEW IF EXISTS ${name}`);
-        await conn.run(`DROP TABLE IF EXISTS ${name}`);
+        const escapedName = name.replaceAll("'", "''");
+        const reader = await conn.runAndReadAll(
+          `SELECT table_type FROM information_schema.tables WHERE table_name = '${escapedName}'`,
+        );
+        const [{ table_type: tableType } = {}] = reader.getRowObjects() as {
+          table_type?: string;
+        }[];
+        if (tableType === 'VIEW') {
+          await conn.run(`DROP VIEW ${name}`);
+        } else if (tableType) {
+          await conn.run(`DROP TABLE ${name}`);
+        }
       }
     } finally {
       conn.closeSync();

@@ -194,9 +194,9 @@ export const runTabpfnPredictionTool = tool(
         if (contextError) return contextError;
       }
       const contextSql = input.contextWhere
-        ? `SELECT * FROM ${input.tableName} WHERE ${input.contextWhere}`
-        : `SELECT * FROM ${input.tableName} WHERE NOT (${input.predictionWhere})`;
-      const predictionSql = `SELECT * FROM ${input.tableName} WHERE ${input.predictionWhere}`;
+        ? `SELECT * FROM ${input.tableName} WHERE ${input.contextWhere} ORDER BY ALL`
+        : `SELECT * FROM ${input.tableName} WHERE NOT (${input.predictionWhere}) ORDER BY ALL`;
+      const predictionSql = `SELECT * FROM ${input.tableName} WHERE ${input.predictionWhere} ORDER BY ALL`;
       const [contextRows, predictionRows] = await Promise.all([
         runQuery(contextSql),
         runQuery(predictionSql),

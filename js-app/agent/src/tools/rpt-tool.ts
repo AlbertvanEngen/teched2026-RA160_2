@@ -361,9 +361,9 @@ export const runRptPredictionTool = tool(
         }
 
         contextSql = contextWhere
-          ? `SELECT * FROM ${tableName} WHERE ${contextWhere}`
-          : `SELECT * FROM ${tableName} WHERE NOT (${predictionWhere})`;
-        predictionSql = `SELECT * FROM ${tableName} WHERE ${predictionWhere}`;
+          ? `SELECT * FROM ${tableName} WHERE ${contextWhere} ORDER BY ALL`
+          : `SELECT * FROM ${tableName} WHERE NOT (${predictionWhere}) ORDER BY ALL`;
+        predictionSql = `SELECT * FROM ${tableName} WHERE ${predictionWhere} ORDER BY ALL`;
 
         const [[{ count: cc = 0 } = {}], [{ count: pc = 0 } = {}]] =
           await Promise.all([
