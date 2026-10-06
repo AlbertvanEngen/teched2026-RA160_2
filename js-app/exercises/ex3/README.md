@@ -111,7 +111,7 @@ Here is what each part does:
   `index_column` identifies each row so predictions can be joined back to the originals after the response arrives.
 - `target_columns[0].task_type` is either `"regression"` (for numeric amounts) or `"classification"` (for discrete labels).
 - `explanations.top_column_scores: 5` asks RPT to return the top 5 most influential input columns per prediction — this populates the feature-importance notes in the agent trace.
-- The second argument, `{ middleware: [resilience({ timeout: 60000 })] }`, wraps the call with `resilience()` from `@sap-cloud-sdk/resilience`, adding timeout and circuit-breaker handling around the HTTP request to the RPT API.
+- The second argument, `{ middleware: resilience({ timeout: 60000 }) }`, wraps the call with `resilience()` from `@sap-cloud-sdk/resilience`, adding timeout and circuit-breaker handling around the HTTP request to the RPT API.
   The explicit 60-second timeout bounds a hung request while leaving room for slow inference; the library default is only 10 seconds.
   This is client-side resilience for a single call, distinct from the server-side model fallback you configure on `OrchestrationClient` in [Exercise 4](../ex4/README.md).
 
