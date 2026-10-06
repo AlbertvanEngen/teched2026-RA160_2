@@ -29,7 +29,7 @@
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "^12.7.0",
+      "version": "^11.6.0 || ^12.7.0",
       "onFail": "warn"
     },
     "runtime": {
