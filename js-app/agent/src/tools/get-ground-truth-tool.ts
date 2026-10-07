@@ -187,6 +187,7 @@ export const getGroundTruthTool = tool(
     targetColumn,
     groupBy,
     groundTruthColumn,
+    comparisonMode = 'auto',
     companyCode,
     costCenter,
     profitCenter,
@@ -202,18 +203,12 @@ export const getGroundTruthTool = tool(
         return `Error: '${outputTable}' is not a valid table name.`;
       }
 
-      const predictedCol = `predicted_${targetColumn}`;
-      const truthAmountColumn = groundTruthColumn ?? targetColumn;
-      if (
-        ![
-          'amountInTransactionCurrency',
-          'amountInCompanyCodeCurrency',
-          'amountInGlobalCurrency',
-        ].includes(truthAmountColumn)
-      ) {
-        return `Error: groundTruthColumn is required when targetColumn '${targetColumn}' is a derived name.`;
-      }
-      const groundTruthCol = `ground_truth_${targetColumn}`;
+      const sourceTargetColumn = targetColumn.startsWith('predicted_')
+        ? targetColumn.slice('predicted_'.length)
+        : targetColumn;
+      const predictedCol = `predicted_${sourceTargetColumn}`;
+      const truthAmountColumn = groundTruthColumn;
+      const groundTruthCol = `ground_truth_${sourceTargetColumn}`;
       const callId = randomUUID().replaceAll('-', '_');
       const stagingTable = `_gt_staging_${callId}`;
       const predAggTable = `_gt_pred_${callId}`;
@@ -226,9 +221,9 @@ export const getGroundTruthTool = tool(
       if (!colNames.includes(predictedCol)) {
         return `Error: Prediction table '${predictionTable}' has no column '${predictedCol}'. Available: ${colNames.join(', ')}`;
       }
-      const confidenceCol = `confidence_${targetColumn}`;
-      const confidenceLowerCol = `confidence_interval_lower_${targetColumn}`;
-      const confidenceUpperCol = `confidence_interval_upper_${targetColumn}`;
+      const confidenceCol = `confidence_${sourceTargetColumn}`;
+      const confidenceLowerCol = `confidence_interval_lower_${sourceTargetColumn}`;
+      const confidenceUpperCol = `confidence_interval_upper_${sourceTargetColumn}`;
       const confidenceAggregates = [
         colNames.includes(confidenceCol)
           ? `AVG(${quoteIdentifier(confidenceCol)}) AS ${quoteIdentifier(confidenceCol)}`
@@ -295,40 +290,66 @@ export const getGroundTruthTool = tool(
          GROUP BY ${groupByList}`,
       );
 
+      const [orientation = {}] = await runQuery(
+        `SELECT
+           AVG(CASE
+             WHEN g.${quoteIdentifier(groundTruthCol)} IS NULL OR g.${quoteIdentifier(groundTruthCol)} = 0 THEN NULL
+             ELSE ABS(p.${quoteIdentifier(predictedCol)} - g.${quoteIdentifier(groundTruthCol)})
+               / ABS(g.${quoteIdentifier(groundTruthCol)}) * 100
+           END) AS signed_mape,
+           AVG(CASE
+             WHEN g.${quoteIdentifier(groundTruthCol)} IS NULL OR g.${quoteIdentifier(groundTruthCol)} = 0 THEN NULL
+             ELSE ABS(p.${quoteIdentifier(predictedCol)} - ABS(g.${quoteIdentifier(groundTruthCol)}))
+               / ABS(g.${quoteIdentifier(groundTruthCol)}) * 100
+           END) AS magnitude_mape
+         FROM ${predAggTable} p
+         LEFT JOIN ${truthAggTable} g ON ${joinCondition}`,
+      );
+      const signedMape = Number(orientation.signed_mape);
+      const magnitudeMape = Number(orientation.magnitude_mape);
+      const resolvedComparisonMode =
+        comparisonMode === 'auto'
+          ? Number.isFinite(magnitudeMape) && magnitudeMape < signedMape
+            ? 'magnitude'
+            : 'signed'
+          : comparisonMode;
+      const comparisonActual =
+        resolvedComparisonMode === 'magnitude'
+          ? `ABS(g.${quoteIdentifier(groundTruthCol)})`
+          : `g.${quoteIdentifier(groundTruthCol)}`;
+
       await runQuery(
         `CREATE OR REPLACE TABLE ${outputTable} AS
          SELECT
            ${groupBy.map((col) => `p.${quoteIdentifier(col)}`).join(', ')},
            p.${quoteIdentifier(predictedCol)}${confidenceSelect.length > 0 ? `, ${confidenceSelect.join(', ')}` : ''},
            g.${quoteIdentifier(groundTruthCol)},
+           '${resolvedComparisonMode}' AS comparison_mode,
+           ${comparisonActual} AS comparison_actual,
            ABS(g.${quoteIdentifier(groundTruthCol)}) AS actual_magnitude,
-           p.${quoteIdentifier(predictedCol)} - g.${quoteIdentifier(groundTruthCol)} AS error,
-           ABS(p.${quoteIdentifier(predictedCol)} - g.${quoteIdentifier(groundTruthCol)}) AS absolute_error,
+           p.${quoteIdentifier(predictedCol)} - ${comparisonActual} AS error,
+           ABS(p.${quoteIdentifier(predictedCol)} - ${comparisonActual}) AS absolute_error,
            CASE
-             WHEN g.${quoteIdentifier(groundTruthCol)} IS NULL THEN NULL
-             WHEN g.${quoteIdentifier(groundTruthCol)} = 0 THEN NULL
-             ELSE ABS(p.${quoteIdentifier(predictedCol)} - g.${quoteIdentifier(groundTruthCol)})
+             WHEN g.${quoteIdentifier(groundTruthCol)} IS NULL OR g.${quoteIdentifier(groundTruthCol)} = 0 THEN NULL
+             ELSE ABS(p.${quoteIdentifier(predictedCol)} - ${comparisonActual})
                / ABS(g.${quoteIdentifier(groundTruthCol)}) * 100
            END AS pct_error,
            CASE
-             WHEN g.${quoteIdentifier(groundTruthCol)} IS NULL THEN NULL
-             WHEN g.${quoteIdentifier(groundTruthCol)} = 0 THEN NULL
-             ELSE p.${quoteIdentifier(predictedCol)}
+             WHEN g.${quoteIdentifier(groundTruthCol)} IS NULL OR g.${quoteIdentifier(groundTruthCol)} = 0 THEN NULL
+             ELSE ABS(p.${quoteIdentifier(predictedCol)})
                / ABS(g.${quoteIdentifier(groundTruthCol)}) * 100
            END AS pct_of_actual,
            CASE
-             WHEN g.${quoteIdentifier(groundTruthCol)} IS NULL THEN NULL
-             WHEN g.${quoteIdentifier(groundTruthCol)} = 0 THEN NULL
-             WHEN p.${quoteIdentifier(predictedCol)} <= ABS(g.${quoteIdentifier(groundTruthCol)}) THEN
-               (ABS(g.${quoteIdentifier(groundTruthCol)}) - p.${quoteIdentifier(predictedCol)})
+             WHEN g.${quoteIdentifier(groundTruthCol)} IS NULL OR g.${quoteIdentifier(groundTruthCol)} = 0 THEN NULL
+             WHEN ABS(p.${quoteIdentifier(predictedCol)}) <= ABS(g.${quoteIdentifier(groundTruthCol)}) THEN
+               (ABS(g.${quoteIdentifier(groundTruthCol)}) - ABS(p.${quoteIdentifier(predictedCol)}))
                / ABS(g.${quoteIdentifier(groundTruthCol)}) * 100
              ELSE NULL
            END AS pct_below_actual,
            CASE
-             WHEN g.${quoteIdentifier(groundTruthCol)} IS NULL THEN NULL
-             WHEN g.${quoteIdentifier(groundTruthCol)} = 0 THEN NULL
-             WHEN p.${quoteIdentifier(predictedCol)} > ABS(g.${quoteIdentifier(groundTruthCol)}) THEN
-               (p.${quoteIdentifier(predictedCol)} - ABS(g.${quoteIdentifier(groundTruthCol)}))
+             WHEN g.${quoteIdentifier(groundTruthCol)} IS NULL OR g.${quoteIdentifier(groundTruthCol)} = 0 THEN NULL
+             WHEN ABS(p.${quoteIdentifier(predictedCol)}) > ABS(g.${quoteIdentifier(groundTruthCol)}) THEN
+               (ABS(p.${quoteIdentifier(predictedCol)}) - ABS(g.${quoteIdentifier(groundTruthCol)}))
                / ABS(g.${quoteIdentifier(groundTruthCol)}) * 100
              ELSE NULL
            END AS pct_above_actual
@@ -342,25 +363,26 @@ export const getGroundTruthTool = tool(
            COUNT(${quoteIdentifier(groundTruthCol)}) AS matched_rows,
            COUNT(*) - COUNT(${quoteIdentifier(groundTruthCol)}) AS unmatched_rows,
            SUM(${quoteIdentifier(predictedCol)}) AS total_predicted,
+           SUM(comparison_actual) AS total_comparison_actual,
            SUM(actual_magnitude) AS total_actual_magnitude,
            AVG(absolute_error) AS mae,
            SQRT(AVG(error * error)) AS rmse,
            AVG(pct_error) AS mape,
            CASE
              WHEN SUM(actual_magnitude) = 0 THEN NULL
-             ELSE SUM(${quoteIdentifier(predictedCol)}) / SUM(actual_magnitude) * 100
+             ELSE SUM(ABS(${quoteIdentifier(predictedCol)})) / SUM(actual_magnitude) * 100
            END AS pct_of_actual,
            CASE
              WHEN SUM(actual_magnitude) = 0 THEN NULL
-             WHEN SUM(${quoteIdentifier(predictedCol)}) <= SUM(actual_magnitude) THEN
-               (SUM(actual_magnitude) - SUM(${quoteIdentifier(predictedCol)}))
+             WHEN SUM(ABS(${quoteIdentifier(predictedCol)})) <= SUM(actual_magnitude) THEN
+               (SUM(actual_magnitude) - SUM(ABS(${quoteIdentifier(predictedCol)})))
                / SUM(actual_magnitude) * 100
              ELSE NULL
            END AS pct_below_actual,
            CASE
              WHEN SUM(actual_magnitude) = 0 THEN NULL
-             WHEN SUM(${quoteIdentifier(predictedCol)}) > SUM(actual_magnitude) THEN
-               (SUM(${quoteIdentifier(predictedCol)}) - SUM(actual_magnitude))
+             WHEN SUM(ABS(${quoteIdentifier(predictedCol)})) > SUM(actual_magnitude) THEN
+               (SUM(ABS(${quoteIdentifier(predictedCol)})) - SUM(actual_magnitude))
                / SUM(actual_magnitude) * 100
              ELSE NULL
            END AS pct_above_actual
@@ -386,17 +408,22 @@ export const getGroundTruthTool = tool(
           : above != null && Number(above) > 0
             ? `${fmt(above)}% above actual`
             : 'on par with actual';
+      const modePhrase =
+        comparisonMode === 'auto'
+          ? `${resolvedComparisonMode} (auto-selected from the lower orientation error)`
+          : `${resolvedComparisonMode} (explicit)`;
 
       return (
         `Wrote comparison into '${outputTable}'. ` +
-        `Columns: ${groupBy.join(', ')}, ${predictedCol}, ${confidenceSelect.map((column) => column.slice(2)).join(', ')}, ${groundTruthCol}, actual_magnitude, ` +
+        `Columns: ${groupBy.join(', ')}, ${predictedCol}, ${confidenceSelect.map((column) => column.slice(2)).join(', ')}, ${groundTruthCol}, comparison_mode, comparison_actual, actual_magnitude, ` +
         `error, absolute_error, pct_error, pct_of_actual, pct_below_actual, pct_above_actual. ` +
-        `pct_of_actual = forecast / |ground truth| × 100; pct_below_actual = % under spend (positive or null); ` +
-        `pct_above_actual = % over spend (positive or null). ` +
-        `Totals — predicted: ${fmt(m.total_predicted)}, actual magnitude: ${fmt(m.total_actual_magnitude)}, ` +
-        `forecast is ${fmt(m.pct_of_actual)}% of actual (${variancePhrase}). ` +
-        `MAPE: ${fmt(m.mape)}%, MAE: ${fmt(m.mae)}, RMSE: ${fmt(m.rmse)}. ` +
-        `Present comparisons primarily as percentages; journal-entry ground truth is signed (expenses negative).`
+        `Comparison mode: ${modePhrase}. Signed MAPE: ${fmt(signedMape)}%; magnitude MAPE: ${fmt(magnitudeMape)}%. ` +
+        `pct_of_actual = |forecast| / |ground truth| × 100; pct_below_actual = % under spend magnitude (positive or null); ` +
+        `pct_above_actual = % over spend magnitude (positive or null). ` +
+        `Totals — predicted: ${fmt(m.total_predicted)}, comparison actual: ${fmt(m.total_comparison_actual)}, actual magnitude: ${fmt(m.total_actual_magnitude)}, ` +
+        `forecast magnitude is ${fmt(m.pct_of_actual)}% of actual (${variancePhrase}). ` +
+        `Selected MAPE: ${fmt(m.mape)}%, MAE: ${fmt(m.mae)}, RMSE: ${fmt(m.rmse)}. ` +
+        `Present the selected mode and both orientation errors; journal-entry expenses are signed negative while spend forecasts are often positive magnitudes.`
       );
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
@@ -411,11 +438,11 @@ export const getGroundTruthTool = tool(
       'Journal entries and planning ACTUAL rows share one underlying truth per cell — ' +
       '|journal sum| equals planning ACTUAL for the same dimensions. ' +
       'Fetches actual values from OData (journal entries or planning ACTUAL rows), aggregates them ' +
-      'to the same grain as the prediction table, joins on groupBy dimensions, and writes a comparison ' +
-      'table with predicted vs ground-truth values plus percentage metrics (pct_of_actual, pct_below_actual, pct_above_actual, MAPE). ' +
-      'pct_of_actual = forecast / |ground truth| × 100; pct_below_actual = % under spend; pct_above_actual = % over spend. ' +
-      'Use after run_rpt_prediction or run_rpt_prediction_from_sources. When the prediction target was renamed (for example, actualAmount), pass groundTruthColumn with the corresponding source amount column. ' +
-      'truthSource journal_entry = posted actuals; planning_actual = financial planning ACTUAL category.',
+      'to the same grain as the prediction table, joins on groupBy dimensions, and writes signed truth, comparison_actual, actual_magnitude, and error metrics. ' +
+      'comparisonMode signed preserves accounting signs; magnitude compares predictions with |ground truth| for positive spend forecasts; auto reports both orientation errors and selects the lower one transparently. ' +
+      'pct_of_actual = |forecast| / |ground truth| × 100; pct_below_actual = % under spend magnitude; pct_above_actual = % over spend magnitude. ' +
+      'Use after an RPT or TabPFN prediction. When the prediction target was renamed (for example, actualAmount), pass groundTruthColumn with the corresponding source amount column. ' +
+      'truthSource journal_entry = posted signed actuals; planning_actual = positive planning ACTUAL amounts.',
     schema: z.object({
       predictionTable: z
         .string()
@@ -431,7 +458,7 @@ export const getGroundTruthTool = tool(
       targetColumn: z
         .string()
         .describe(
-          'Target amount column that was predicted, e.g. amountInGlobalCurrency',
+          'Model target name before the prediction prefix, e.g. actualAmount; predicted_actualAmount is also accepted',
         ),
       groundTruthColumn: z
         .enum([
@@ -439,9 +466,13 @@ export const getGroundTruthTool = tool(
           'amountInCompanyCodeCurrency',
           'amountInGlobalCurrency',
         ])
+        .describe('Source amount column represented by the prediction target'),
+      comparisonMode: z
+        .enum(['auto', 'signed', 'magnitude'])
         .optional()
+        .default('auto')
         .describe(
-          'Source amount column to aggregate when targetColumn is a derived prediction name',
+          'How to align prediction and truth signs. auto computes signed and magnitude MAPE and transparently selects the lower error; signed preserves accounting signs; magnitude compares against absolute ground truth.',
         ),
       groupBy: z
         .array(z.string())

@@ -127,16 +127,18 @@ pnpm run js-agent
 
 Ask the agent to produce a forecast:
 
-> "Forecast the planned spend for cost center A1000 in fiscal year 2026, using the 2022–2024 ACTUAL history as context."
+> "Forecast the planned spend for cost center A1000 in fiscal year 2026, using the 2022–2024 ACTUAL history as context. Return all 12 fiscal periods."
 
-Watch the **Activity** panel.
-You should see a sequence like:
+Watch the **Activity** panel. A successful forecast should need no exploratory schema probes after its integrity check:
 
-1. `query_financial_planning` — loads `planningCategory = ACTUAL` rows for 2022–2024.
-2. `query_financial_planning` — loads `planningCategory = PLAN` rows for 2026 (the rows to predict).
-3. `run_rpt_prediction` — sends both tables to SAP RPT and writes predictions into an output table.
-4. `run_sql` — aggregates `SUM(predicted_amountInCompanyCodeCurrency)` by period.
-5. The model returns a formatted table with predicted values and confidence intervals.
+1. `query_financial_planning` — loads `planningCategory = ACTUAL` for 2022–2024.
+2. `query_financial_planning` — loads `PLAN`, `BUDGET`, and `FORECAST` for every model year, 2022–2026.
+3. `run_sql` — aggregates each category to the complete forecast-cell key, creates the model view, and checks row counts, uniqueness, and non-null features.
+4. `run_rpt_prediction` — predicts the 36 target cells.
+5. `run_sql` — aggregates the predictions to fiscal periods 001–012.
+6. The model returns a 12-row forecast table with currency and confidence intervals.
+
+The historical and target feature columns must have identical semantics: a 2024 context row uses 2024 estimates, not 2026 estimates or null placeholders. The turn should complete in five successful tool calls unless one repair is necessary.
 
 ![The Activity panel showing the 5-step RPT forecast sequence with the predicted spend table](img/ex3-forecast.png)
 
@@ -181,14 +183,10 @@ Keep the same chat session so the historical rows, prediction rows, model result
 
 Ask the agent to create and evaluate the baseline:
 
-> "Create a naïve SQL forecast baseline for cost center A1000 in 2026.
-> Use only the 2022–2024 ACTUAL rows already loaded, and use `run_sql` to assign a prediction to each 2026 planning row at the original item-level grain.
-> Aggregate only after the item-level predictions are complete.
-> Compare the period-level baseline with the 2026 ground truth, RPT forecast, and TabPFN forecast, show the baseline SQL, and report the MAPE for each method."
+> "Using the loaded ACTUAL history, build a historical-mean baseline for the same 2026 target cells and compare its 12-period MAPE with RPT and TabPFN. Show the baseline SQL."
 
-The agent chooses the naïve prediction rule, such as a historical mean over matching dimensions.
-Check that its SQL does not use 2026 actual values to construct the baseline and that it predicts individual rows before aggregating by fiscal period.
-The task is complete when the response shows the SQL, period-level comparison, and MAPE values for the naïve baseline, RPT, and TabPFN.
+Check that the SQL uses the complete key — company code, cost center, profit center, G/L account, ledger, and fiscal period — and excludes 2026 actual values from prediction construction. It must produce exactly one prediction per 2026 target cell before aggregation.
+The task is complete when the response shows the baseline SQL, 12 period-level comparison rows, and magnitude-oriented period MAPE values for the naïve baseline, RPT, and TabPFN. Cell-level MAPE and WAPE are not substitutes. After the target-cell count is verified once, the baseline comparison should need only its construction query, ground-truth call, and final aggregate query.
 
 ## Step 9: Understanding what RPT does under the hood
 

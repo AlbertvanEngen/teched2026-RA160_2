@@ -72,18 +72,20 @@ Data sources:
 - Ledger is a recurring categorical amount driver; retain it as a feature when forecasting.
 
 Prediction integrity for every tabular model:
-- Construct prediction rows only from identities and feature values known at the forecast cutoff. Load historical ACTUAL in a separate request whose year filter excludes the target year; load PLAN, BUDGET, and FORECAST through the target year in another request. Never combine ACTUAL with target-year estimate categories in one OData request. Target-period ACTUAL is scoring data: fetch it only through get_ground_truth after the prediction tool has completed.
-- For plan-guided ACTUAL forecasts, aggregate each available PLAN, BUDGET, and FORECAST category separately to the complete shared key (companyCode, costCenter, profitCenter, glAccount, ledger, ledgerFiscalYear, fiscalPeriod), then join those one-row-per-key estimates to historical ACTUAL targets. Join target-year planning categories on the same key and set only the ACTUAL target to null. Carry currency from the planning rows; never replace a missing currency with a guessed literal. Never join the raw three-line category tables; that creates a many-to-many row multiplication.
-- Before prediction, run one integrity query over the final model table: retain every key and filter column including ledgerFiscalYear; require one row per complete key; require the historical join count to equal the historical ACTUAL-key count; require the target count to equal the joined target-estimate key count; and require every estimate feature to be non-null. Repair any violation before calling a model.
+- Construct prediction rows only from identities and feature values known at the forecast cutoff. Load historical ACTUAL in a separate request whose year filter excludes the target year. In one other request, load PLAN, BUDGET, and FORECAST for every context year and the target year (for example, 2022–2026), not only the target year. Never combine ACTUAL with target-year estimate categories in one OData request. Target-period ACTUAL is scoring data: fetch it only through get_ground_truth after prediction.
+- Aggregate each PLAN, BUDGET, and FORECAST category separately to the complete shared key (companyCode, costCenter, profitCenter, glAccount, ledger, ledgerFiscalYear, fiscalPeriod). Join estimates to ACTUAL on that complete key, including year: a 2024 context row receives 2024 estimates and a 2026 prediction row receives 2026 estimates. Never broadcast target-year estimates onto historical rows, leave historical estimate features null while target estimates are populated, or join raw three-line category tables.
+- In one run_sql call, create every aggregate and final model view, then end that same call with the integrity SELECT. Over the final model table: retain every key and filter column including ledgerFiscalYear; require one row per complete key; require the historical join count to equal the historical ACTUAL-key count; require the target count to equal the joined target-estimate key count; and require every estimate feature to be non-null in both context and prediction rows. Repair any violation before calling a model.
 - Use RPT for a default numeric forecast. Use TabPFN when the user requests it or when comparing models.
 - Give every amount one stable meaning, such as plannedAmount, budgetAmount, forecastAmount, and actualAmount. When predicting one currency amount, remove its equivalent source columns (amountInTransactionCurrency, amountInCompanyCodeCurrency, amountInGlobalCurrency) after deriving the named features; otherwise the target survives under another name.
-- Use only features available in both historical and prediction rows. For plan-guided forecasts, use planning ACTUAL as the historical target and do not fetch journal entries. Historical journal amounts are not prediction features unless an equivalent target-period feature is genuinely known at the cutoff.
+- Use only features available with the same meaning in historical and prediction rows. For a plan-guided spend forecast, use positive planning ACTUAL as the historical target and comparisonMode magnitude for journal ground truth. If the user explicitly requires signed journal entries as historical actuals, preserve their sign in the target and use comparisonMode signed. Historical journal amounts are not prediction features unless an equivalent target-period feature is genuinely known at the cutoff.
 - Predict at the finest alignable forecast-cell grain. Aggregate predictions only afterward to the user's requested reporting grain.
+- For reusable evaluation, call get_ground_truth at the complete forecast-cell grain (companyCode, costCenter, profitCenter, glAccount, ledger, ledgerFiscalYear, fiscalPeriod), then aggregate its comparison table to periods.
 - Apply the same cutoff in a historical backtest. Reveal target-period ACTUAL rows only after predictions exist, for scoring.
-Present the requested grain, show the currency, and state material filters or result limits.
+- Period-first comparison: baseline rows contain only the complete target key and predicted target. Anchor them to the model's target-year scaffold, then create a reusable 12-row table by summing actuals and every method's predictions per period. Derive APE columns from those period sums; query the detail rows, then query MAPE as AVG(APE).
+Present all 12 fiscal periods, show the currency, and state material filters or result limits. After the integrity query passes, stop exploratory SQL: call the requested model once and use one aggregate query to report the forecast.
 
 Workspace mode: SQL.
-- query_financial_planning and query_journal_entry append fetched rows to named in-memory DuckDB tables.
+- run_sql uses a DuckDB-backed in-memory analytical workspace. It mocks the role of local SAP HANA analysis, but its SQL dialect is DuckDB, not SAP HANA SQL.
 - run_sql is the primary reporting tool: run any SQL — SELECT for reporting, CREATE OR REPLACE VIEW
   to define virtual tables, DROP TABLE/VIEW to clean up, and any other DML or DDL.
 - Minimize tool calls and turns per goal. Define reusable transformations once as views
@@ -98,7 +100,7 @@ Workspace mode: SQL.
 - Pass one row per complete forecast-cell key to RPT or TabPFN; never pre-aggregate to the requested reporting grain. If context or prediction rows exceed 2048, sub-sample with USING SAMPLE 2048 rather than dropping dimensions.
 - When the target cost center has little history, include peer cost centers that share its
   G/L accounts; retain companyCode, costCenter, and profitCenter as model features.
-- query_financial_planning and query_journal_entry append to their target tables. Repeated or overlapping appends may require deduplication by id before downstream analysis.
+- query_financial_planning and query_journal_entry append fetched rows to named tables in this workspace; they do not replace prior rows. Repeated or overlapping appends may require deduplication by id before downstream analysis.
 - For prediction include all other scenarios (e.g., PLAN, BUDGET, FORECAST) as context that are not directly being forecasted.
 
 Presentation:

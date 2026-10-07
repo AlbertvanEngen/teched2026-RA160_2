@@ -22,7 +22,7 @@
     "query:monthly-costs": "tsx --env-file-if-exists=../../.env src/cli.ts \"Show me the monthly cost for cost center A1000 for the last 12 months.\"",
     "query:forecast": "tsx --env-file-if-exists=../../.env src/cli.ts \"Forecast: plan the budget for cost center A1000 for the next 12 months based on historical data.\"",
     "query:rpt": "tsx --env-file-if-exists=../../.env src/cli.ts \"Load historical and planned data for cost center A1000 into one session table or view, then use run_rpt_prediction to predict amountInGlobalCurrency.\"",
-    "test": "node --test 'test/*.test.ts'",
+    "test": "node --import tsx --test 'test/*.test.ts'",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -44,8 +44,10 @@
     "@langchain/core": "catalog:"
   },
   "devDependencies": {
+    "@hono/node-server": "^2.1.1",
     "@langchain/core": "catalog:",
     "@sap-cloud-sdk/generator": "catalog:",
+    "purchase-order-mock-server": "workspace:*",
     "typescript": "catalog:"
   }
 }
