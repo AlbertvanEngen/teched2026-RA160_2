@@ -51,6 +51,31 @@ function toolLabel(name: string): string {
   return TOOL_LABELS[name] ?? name.replace(/_/g, ' ');
 }
 
+const RESULT_PREVIEW_CHARS = 2000;
+
+function dedent(text: string): string {
+  const lines = text.replace(/^\s*\n|\s+$/g, '').split('\n');
+  const indent = Math.min(
+    ...lines
+      .filter((line) => line.trim())
+      .map((line) => line.length - line.trimStart().length),
+  );
+  return lines.map((line) => line.slice(indent)).join('\n');
+}
+
+function previewValue(value: unknown): string {
+  const text = typeof value === 'string' ? value : JSON.stringify(value);
+  return (text ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
+}
+
+function formatResult(result: string): string {
+  try {
+    return JSON.stringify(JSON.parse(result), null, 2);
+  } catch {
+    return result;
+  }
+}
+
 function formatDuration(durationMs: number): string {
   if (durationMs < 1000) return `${Math.max(1, Math.round(durationMs))} ms`;
   return `${(durationMs / 1000).toFixed(durationMs < 10_000 ? 1 : 0)} s`;
@@ -110,7 +135,11 @@ function ToolEntryCard({ t, isActive }: { t: ToolEntry; isActive: boolean }) {
   const isDone = t.result !== undefined;
   const status = isDone ? 'done' : isActive ? 'pending' : 'queued';
   const durationMs = useElapsedDuration(t.startedAt, isDone, t.durationMs);
-  const result = t.result ?? '';
+  const result = isDone ? formatResult(t.result ?? '') : '';
+  const { sql, ...argsWithoutSql } = t.args;
+  const sqlText = typeof sql === 'string' ? dedent(sql) : null;
+  const otherArgs = sqlText === null ? t.args : argsWithoutSql;
+
   return (
     <div className={`tool-entry${isActive ? ' is-active' : ''}`}>
       <button
@@ -131,28 +160,42 @@ function ToolEntryCard({ t, isActive }: { t: ToolEntry; isActive: boolean }) {
         >
           {formatDuration(durationMs)}
         </span>
-        <span className="tool-entry__chevron">{open ? '▾' : '▸'}</span>
+        <span className="tool-entry__chevron" aria-hidden="true">
+          {open ? '▾' : '▸'}
+        </span>
       </button>
       {!open && (
         <div className="tool-entry__preview">
           {Object.entries(t.args)
             .slice(0, 2)
-            .map(([k, v]) => `${k}: ${String(v).slice(0, 30)}`)
-            .join('  ')}
+            .map(([k, v]) => `${k}: ${previewValue(v)}`)
+            .join(' · ')}
         </div>
       )}
       {open && (
         <div className="tool-entry__detail">
-          <div className="tool-entry__detail-label">args</div>
-          <pre className="tool-entry__detail-pre">
-            {JSON.stringify(t.args, null, 2)}
-          </pre>
+          {sqlText !== null && (
+            <>
+              <div className="tool-entry__detail-label">sql</div>
+              <pre className="tool-entry__detail-pre tool-entry__detail-pre--code">
+                {sqlText}
+              </pre>
+            </>
+          )}
+          {Object.keys(otherArgs).length > 0 && (
+            <>
+              <div className="tool-entry__detail-label">args</div>
+              <pre className="tool-entry__detail-pre">
+                {JSON.stringify(otherArgs, null, 2)}
+              </pre>
+            </>
+          )}
           {isDone && (
             <>
               <div className="tool-entry__detail-label">result</div>
               <pre className="tool-entry__detail-pre">
-                {result.slice(0, 600)}
-                {result.length > 600 ? '\n…' : ''}
+                {result.slice(0, RESULT_PREVIEW_CHARS)}
+                {result.length > RESULT_PREVIEW_CHARS ? '\n…' : ''}
               </pre>
             </>
           )}
@@ -690,7 +733,9 @@ export default function App() {
     <>
       <header className="shell-bar">
         <span className="shell-bar__app">Financial Agent</span>
-        <span className="shell-bar__sep">/</span>
+        <span className="shell-bar__sep" aria-hidden="true">
+          /
+        </span>
         <span className="shell-bar__sub">SAP Cloud SDK for AI</span>
         <button
           type="button"
