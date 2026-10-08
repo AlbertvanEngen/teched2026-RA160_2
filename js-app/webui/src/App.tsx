@@ -22,12 +22,12 @@ const DEMO_PROMPTS = [
   {
     label: '2. Forecast — FY 2026',
     prompt:
-      'For cost center A1000, use journal entries from fiscal years 2022 through 2025 as actuals and forecast the monthly amount for fiscal year 2026. Summarize the result by fiscal period.',
+      'For cost center A1000, use journal entries from fiscal years 2022 through 2025 as signed actuals and forecast the monthly amount for fiscal year 2026. Summarize all 12 fiscal periods.',
   },
   {
     label: '3. Compare ground truth',
     prompt:
-      'For cost center A1000, use journal entries from fiscal years 2022 through 2025 as actuals and forecast the monthly amount for fiscal year 2026. Compare that forecast with the journal-entry ground truth for fiscal year 2026. Show forecast as a percentage of actual spend and identify the periods furthest below or above actual.',
+      'Compare the signed forecast with 2026 journal-entry ground truth and a 2022–2025 historical-mean baseline built for the same target cells. Report both forecasts and period MAPE across all 12 periods.',
   },
 ];
 

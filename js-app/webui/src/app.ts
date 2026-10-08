@@ -101,8 +101,9 @@ app.post('/api/agent/run', async (c) => {
             messages?: import('@langchain/core/messages').BaseMessage[];
           };
         };
+        const historicalMessages = historicalState.values.messages ?? [];
         const historicalAiMessageIds = new Set(
-          (historicalState.values.messages ?? [])
+          historicalMessages
             .filter(AIMessage.isInstance)
             .flatMap((message) =>
               typeof message.id === 'string' ? [message.id] : [],
@@ -118,7 +119,11 @@ app.post('/api/agent/run', async (c) => {
           },
         );
         const emittedToolCallIds = new Set<string>();
-        const emittedToolResultIds = new Set<string>();
+        const emittedToolResultIds = new Set(
+          historicalMessages
+            .filter(ToolMessage.isInstance)
+            .map((message) => message.tool_call_id),
+        );
         const emittedThinking = new Map<string, string>();
         let emittedDelta = '';
 

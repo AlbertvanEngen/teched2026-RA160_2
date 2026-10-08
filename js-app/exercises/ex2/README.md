@@ -41,13 +41,14 @@ Orchestration can apply content filtering to the LLM's input and output when you
 
 Open the following files and read the `tool(...)` definitions at the bottom of each:
 
-| File                                                                                       | Tool name                  | What it does                                                                                                                                                              |
-| ------------------------------------------------------------------------------------------ | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`odata-tools.ts`](../../agent/src/tools/odata-tools.ts)                                   | `query_financial_planning` | Fetches financial planning entries from the OData API and **appends** them into a named session table.                                                                    |
-| [`odata-tools.ts`](../../agent/src/tools/odata-tools.ts)                                   | `query_journal_entry`      | Fetches journal entry items from the OData API and **appends** them into a named session table.                                                                           |
-| [`sql-tool.ts`](../../agent/src/tools/sql-tool.ts)                                         | `run_sql`                  | Executes SQL against the session's in-memory workspace — `SELECT` for reporting, `CREATE OR REPLACE VIEW` to define virtual tables, `DROP TABLE`/`DROP VIEW` to clean up. |
-| You will register the three core SQL tools in this exercise.                               |
-| Exercise 3 adds RPT, TabPFN, and ground-truth tools after the SQL workflow is established. |
+| File                                                     | Tool name                  | What it does                                                                                                                                  |
+| -------------------------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`odata-tools.ts`](../../agent/src/tools/odata-tools.ts) | `query_financial_planning` | Fetches financial planning entries from the OData API and **appends** them into a named session table.                                        |
+| [`odata-tools.ts`](../../agent/src/tools/odata-tools.ts) | `query_journal_entry`      | Fetches journal entry items from the OData API and **appends** them into a named session table.                                               |
+| [`sql-tool.ts`](../../agent/src/tools/sql-tool.ts)       | `run_sql`                  | Executes SQL against the session's in-memory workspace — `SELECT` for reporting, `CREATE OR REPLACE VIEW` to define virtual tables, and more. |
+
+You will register these three data tools in this exercise.
+Exercise 3 adds RPT, TabPFN, and ground-truth tools after the SQL workflow is established.
 
 Each tool is defined with `tool(fn, { name, description, schema })` from `@langchain/core/tools` — the LangChain convention that makes a function visible to the LLM as a callable tool.
 The `description` string and the Zod `schema` together form the function definition the model sees, so it knows _when_ and _how_ to call each tool.
@@ -59,7 +60,7 @@ The `description` string and the Zod `schema` together form the function definit
 ## Step 2: Register the tools on the agent
 
 Go back to `buildFinancialAgent` in `agent.ts`.
-Replace the empty `tools` array with the three core SQL tools:
+Replace the empty `tools` array with the three data tools:
 
 ```typescript
 const tools = [
@@ -141,7 +142,7 @@ Here are a few things worth noticing:
 
 - **Append semantics:** `query_financial_planning` and `query_journal_entry` always _append_ to their tables.
   If the model calls either tool twice with the same filters, rows are duplicated.
-  The system prompt instructs the model to deduplicate with `DISTINCT id` before aggregating.
+  The system prompt warns the model that overlapping loads may need deduplication by `id` before aggregating.
 
 ## Step 6: Try more complex queries
 

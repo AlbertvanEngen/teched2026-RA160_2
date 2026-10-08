@@ -36,7 +36,7 @@ export const runSqlTool = tool(
     name: 'run_sql',
     description:
       'Execute any SQL against session tables: SELECT for reporting, ' +
-      'CREATE OR REPLACE VIEW to define virtual tables, DROP TABLE/VIEW to clean up, ' +
+      'CREATE OR REPLACE VIEW to define virtual tables, ' +
       'and any other DML or DDL. Standard reporting (WHERE, JOIN, GROUP BY, ' +
       'SUM/AVG/COUNT/MIN/MAX) works, and so do window functions (OVER/QUALIFY, LAG/LEAD, ' +
       'moving averages) and regression aggregates (REGR_*/CORR/STDDEV) — use these to build ' +

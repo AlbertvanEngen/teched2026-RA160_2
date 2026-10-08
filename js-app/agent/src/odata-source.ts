@@ -7,10 +7,10 @@ import { apiJournalentryitembasicSrv } from './generated/API_JOURNALENTRYITEMBAS
 const odata = (message: string) =>
   console.log(styleText('blue', '[OData] ') + message);
 
-const destination = {
+export const destination = {
   url:
     process.env.MOCK_SERVER_URL ??
-    `http://localhost:${Number(process.env.port ?? 3142)}`,
+    `http://localhost:${Number(process.env.PORT ?? 3142)}`,
   authentication: 'NoAuthentication' as const,
 };
 const oneOrManyStrings = (description: string) =>

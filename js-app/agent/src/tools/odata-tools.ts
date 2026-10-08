@@ -160,7 +160,6 @@ export const queryFinancialPlanningTool = tool(
     description:
       'Fetch financial planning entries from the OData API and APPEND them into a named session table. ' +
       'The table is created on first use; subsequent calls append — data accumulates. ' +
-      'Use drop_table to remove a table when no longer needed. ' +
       'Always use the filter parameters to push predicates server-side. ' +
       'Columns: id, ledger, ledgerName, planningCategory, ledgerFiscalYear, fiscalPeriod (001–012), fiscalYearPeriod, ' +
       'glAccount, glAccountName, companyCode, companyCodeName, costCenter, costCenterName, profitCenter, profitCenterName, ' +
@@ -233,7 +232,6 @@ export const queryJournalEntryTool = tool(
     description:
       'Fetch journal entry items from the OData API and APPEND them into a named session table. ' +
       'The table is created on first use; subsequent calls append — data accumulates. ' +
-      'Use drop_table to remove a table when no longer needed. ' +
       'Always use the filter parameters to push predicates server-side. ' +
       'Columns: id, ledger, ledgerName, sourceLedger, ledgerFiscalYear, fiscalPeriod (001–012), fiscalYearPeriod, ' +
       'companyCode, companyCodeName, glAccount, glAccountName, businessTransactionCategory, businessTransactionType, ' +

@@ -83,12 +83,14 @@ The SDK reads credentials, resource group, and deployment details automatically 
 ## Step 3: Wire up `createAgent()`
 
 Find the `createAgent()` call in `buildFinancialAgent`.
-It currently has two placeholder values — replace them with the real ones:
+It currently has four placeholder values — replace each with the variable of the same name computed above it:
 
 - Replace `model: {} as never` with `model`, the `OrchestrationClient` you created in Step 2.
-- Replace `systemPrompt: 'TODO'` with `systemPrompt`, the value already computed by `systemPromptForTools(tools)` a few lines above the `createAgent()` call.
+- Replace `systemPrompt: 'TODO'` with `systemPrompt`, the value already computed by `systemPromptForTools(tools)`.
+- Replace `tools: []` with `tools`, so the tools you register in Exercise 2 reach the agent.
+- Replace `middleware: []` with `middleware`, which enables orchestration prompt caching.
 
-The `tools` array is left empty for now — you will populate it in Exercise 2.
+The `tools` array itself stays empty for now — you will populate it in Exercise 2.
 
 Your complete `buildFinancialAgent` function should look like this:
 
@@ -137,7 +139,11 @@ You should see the agent respond.
 At this point the agent has no tools, so it can only answer from its built-in knowledge and the system prompt.
 It cannot query any real data source yet — that comes in Exercise 2.
 
-![The financial agent UI responding with the stub message](img/ex1-response.png)
+> [!NOTE]
+> If the reply is exactly "This could be a chat client response.", the agent is still running its placeholder model.
+> Check that `createAgent()` receives the `OrchestrationClient` from Step 2 and that the development server reloaded.
+
+![The financial agent UI answering from the model without calling any tools](img/ex1-response.png)
 
 ## Step 5: Understanding what happened
 
@@ -174,6 +180,7 @@ Notice how phrasing, verbosity, and response time change — the system prompt i
 You have connected a TypeScript application to an LLM via SAP AI Core using the SAP Cloud SDK for AI.
 The agent can now receive a user prompt, apply the financial analyst system prompt, and return the model's answer.
 
-In Exercise 2 you will give the agent access to its data tools — OData services, an in-memory SQL workspace, and AI forecasting models — so it can query, aggregate, and forecast financial data.
+In Exercise 2 you will give the agent access to its data tools — OData services and an in-memory SQL workspace — so it can query and aggregate financial data.
+Exercise 3 then adds the forecasting models.
 
 Continue to [Exercise 2 - Equipping the Agent: Tool Calls and the Agentic Loop](../ex2/README.md).

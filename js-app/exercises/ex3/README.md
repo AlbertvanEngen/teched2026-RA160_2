@@ -27,12 +27,12 @@ Open the following files and read the `tool(...)` definitions:
 | File                                                                         | Tool name               | When to use                                                                                                                                                                                                                                                                                                                                           |
 | ---------------------------------------------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`rpt-tool.ts`](../../agent/src/tools/rpt-tool.ts)                           | `run_rpt_prediction`    | Runs SAP RPT on one session table or view and writes predicted values into an output table. `predictionWhere` and optional `contextWhere` split context from prediction rows.                                                                                                                                                                         |
-| [`tabpfn-tool.ts`](../../agent/src/tools/tabpfn-tool.ts)                     | `run_tabpfn_prediction` | Runs TabPFN on a session table and returns predictions as JSON. Use for in-context tabular prediction, especially when categorical or mixed-type features matter.                                                                                                                                                                                     |
+| [`tabpfn-tool.ts`](../../agent/src/tools/tabpfn-tool.ts)                     | `run_tabpfn_prediction` | Runs TabPFN on a session table or view and writes predicted values into an output table. Use for in-context tabular prediction, especially when categorical or mixed-type features matter.                                                                                                                                                                                     |
 | [`get-ground-truth-tool.ts`](../../agent/src/tools/get-ground-truth-tool.ts) | `get_ground_truth`      | After a prediction is written into an output table, compares it against real OData data. Fetches journal entries or planning ACTUAL rows, joins on the dimensions you specify, and writes a comparison table with per-row `pct_error`, `pct_of_actual`, `pct_below_actual`, and `pct_above_actual` columns, plus summary MAPE, MAE, and RMSE metrics. |
 
 ## Step 2: Register the prediction and evaluation tools
 
-Exercise 2 leaves the agent with the three core SQL tools.
+Exercise 2 leaves the agent with the three data tools.
 Now append the prediction and evaluation tools to the existing `tools` array in `agent.ts`:
 
 ```typescript
@@ -55,30 +55,30 @@ A complete forecast workflow looks like this:
 
 ```text
 1. Load context data    → query_financial_planning (planningCategory = ACTUAL, e.g. 2022–2024)
-2. Load prediction rows → query_financial_planning (planningCategory = PLAN|BUDGET|FORECAST, target year)
-3. Create a view         → run_sql (combine the loaded rows with matching feature columns)
+2. Load feature rows    → query_financial_planning (planningCategory = PLAN|BUDGET|FORECAST, context and target years)
+3. Create a view        → run_sql (combine the loaded rows with matching feature columns)
 4. Run forecast         → run_rpt_prediction (tableName, predictionWhere, contextWhere, outputTable, targetColumn)
-5. Aggregate results    → run_sql (SELECT fiscalYearPeriod, SUM(predicted_...) FROM outputTable)
+5. Aggregate results    → run_sql (SELECT fiscalPeriod, SUM(predicted_...) FROM outputTable)
 6. Report               → LLM formats the requested forecast
 7. Optional validation  → only when the user explicitly asks: get_ground_truth (...)
 ```
 
 Steps 1–2 load filtered OData rows into the SQL workspace.
-Steps 3–4 produce and report the forecast.
-Step 6 is opt-in and must not run automatically after every forecast.
+Steps 3–6 produce and report the forecast.
+Step 7 is opt-in and must not run automatically after every forecast.
 The agent always uses SQL for deterministic preparation and aggregation; prediction is reserved for values that are not already present in the loaded source data.
 The agent drives the sequence autonomously once you ask for a forecast.
 
 ## Step 4: How `callRpt` works in `rpt-tool.ts`
 
-Open [`agent/src/tools/rpt-tool.ts`](../../agent/src/tools/rpt-tool.ts) and read the `callRpt` function (around line 289).
+Open [`agent/src/tools/rpt-tool.ts`](../../agent/src/tools/rpt-tool.ts) and read the `callRpt` function (around line 286).
 
 This is the core of the RPT integration.
 Unlike the Java SDK's row-map approach, the TypeScript SDK uses a **Parquet-based API**: instead of sending rows as JSON objects, the function serialises the combined table to a Parquet file blob and sends that to RPT.
 
 ```typescript
 const rptClient = new RptClient({ modelName: RPT_MODEL });
-return withParquetBlob(selectSql, features, (file) =>
+return withParquetBlob(inputTable, features, (file) =>
   rptClient.predictParquet(
     {
       file,
@@ -106,7 +106,8 @@ Here is what each part does:
 
 - `new RptClient({ modelName: RPT_MODEL })` creates a client targeting the configured RPT model (default: `sap-rpt-1.6`).
   Connection details are read from the environment — no credentials in code.
-- `withParquetBlob(selectSql, features, ...)` reads the combined context and prediction rows from the in-memory database using `selectSql`, serialises the feature columns to a Parquet blob, and passes it to the callback.
+- `withParquetBlob(inputTable, features, ...)` reads the combined context and prediction rows from a temporary in-memory table, serialises the feature columns and row ids to a Parquet blob, and passes it to the callback.
+  The tool builds that table once per call, so the rows sent to RPT are exactly the rows its predictions are joined back to.
 - `predictParquet({ file, ... })` sends the Parquet file to the RPT API.
   `index_column` identifies each row so predictions can be joined back to the originals after the response arrives.
 - `target_columns[0].task_type` is either `"regression"` (for numeric amounts) or `"classification"` (for discrete labels).
@@ -136,7 +137,7 @@ Watch the **Activity** panel. A successful forecast should need no exploratory s
 3. `run_sql` — aggregates each category to the complete forecast-cell key, creates the model view, and checks row counts, uniqueness, and non-null features.
 4. `run_rpt_prediction` — predicts the 36 target cells.
 5. `run_sql` — aggregates the predictions to fiscal periods 001–012.
-6. The model returns a 12-row forecast table with currency and confidence intervals.
+6. The model returns a 12-row forecast table with the currency. RPT's confidence intervals are per cell, so a summed range is only a conservative bound for each period.
 
 The historical and target feature columns must have identical semantics: a 2024 context row uses 2024 estimates, not 2026 estimates or null placeholders. The turn should complete in five successful tool calls unless one repair is necessary.
 
@@ -147,7 +148,7 @@ The historical and target feature columns must have identical semantics: a 2024 
 Do not ask for or return ground-truth metrics as part of the forecast request.
 In the same chat session, explicitly ask the agent to compare its prediction to reality:
 
-> "How accurate was that forecast compared to the actual 2026 journal entries?"
+> "How accurate was that forecast compared to the actual 2026 journal entries? Use magnitude comparison for this positive spend forecast."
 
 The agent should call `get_ground_truth` only for this explicit request, using the prediction table it wrote.
 It should fetch real journal entries from OData and return a comparison table showing `pct_of_actual`, `pct_below_actual`, and `pct_above_actual`.
@@ -163,7 +164,8 @@ In a real-world scenario you would not have access to the ground truth for futur
 ## Step 7: Try TabPFN (bonus — JavaScript-only)
 
 TabPFN is a second tabular prediction model available in the TypeScript workspace but not in the Java version.
-It works differently from RPT: instead of sending Parquet data, it sends training rows and test rows directly as arrays and returns predictions as JSON.
+It works differently from RPT: instead of sending Parquet data, it sends training rows and test rows directly as arrays.
+Like RPT, the tool writes the predictions into an output table and returns only a short confirmation, so the agent aggregates the results with `run_sql`.
 
 > **Note:** `@sap-ai-sdk/tabpfn` is a workspace-local package bundled in this repository — not a published SAP AI SDK package.
 > Only `@sap-ai-sdk/rpt` and `@sap-ai-sdk/langchain` ship on npm.

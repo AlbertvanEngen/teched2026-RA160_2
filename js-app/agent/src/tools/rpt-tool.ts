@@ -3,11 +3,14 @@ import { tool } from '@langchain/core/tools';
 import { RptClient } from '@sap-ai-sdk/rpt';
 import { resilience } from '@sap-cloud-sdk/resilience';
 import { z } from 'zod';
-import { isValidIdentifier, runQuery } from '../db.ts';
+import { runQuery, scratchTable } from '../db.ts';
 import { featureColumns, ROW_ID_COLUMN, withParquetBlob } from '../parquet.ts';
 import { registerSessionObject } from '../session-store.ts';
+import { predictionQueries } from './prediction-input.ts';
 
 const rpt = (msg: string) => console.log(styleText('cyan', '[RPT] ') + msg);
+
+const PREDICTION_FLAG_COLUMN = '__is_prediction';
 
 type TaskType = 'classification' | 'regression';
 const RPT_MODEL = process.env.RPT_MODEL ?? 'sap-rpt-1.6';
@@ -91,7 +94,7 @@ async function selectColumns(selectSql: string): Promise<string[]> {
   return rows.map((r) => String(r.column_name));
 }
 
-function formatRptError(e: unknown): string {
+function rptErrorDetails(e: unknown) {
   const root =
     typeof e === 'object' && e !== null && 'cause' in e ? e.cause : e;
   const response =
@@ -106,32 +109,22 @@ function formatRptError(e: unknown): string {
     typeof root.status === 'number'
       ? root.status
       : 'unknown');
-  const body = response?.data;
   const message =
     root instanceof Error
       ? root.message
       : e instanceof Error
         ? e.message
         : String(e);
+  return { status, body: response?.data, message };
+}
+
+function formatRptError(e: unknown): string {
+  const { status, body, message } = rptErrorDetails(e);
   return `Error ${status}: ${JSON.stringify(body ?? message)}`;
 }
 
 function logRptError(e: unknown): void {
-  const root =
-    typeof e === 'object' && e !== null && 'cause' in e ? e.cause : e;
-  const response =
-    typeof root === 'object' && root !== null && 'response' in root
-      ? (root as { response?: { data?: unknown; status?: number } }).response
-      : undefined;
-  const status =
-    response?.status ??
-    (typeof root === 'object' &&
-    root !== null &&
-    'status' in root &&
-    typeof root.status === 'number'
-      ? root.status
-      : 'unknown');
-  const body = response?.data;
+  const { status, body } = rptErrorDetails(e);
   console.error(`${styleText('red', '[RPT] ')} Error status: ${status}`);
   console.error(
     `${styleText('red', '[RPT] ')} Error body: ${JSON.stringify(body)}`,
@@ -170,12 +163,12 @@ function extractPredictions(
 }
 
 // Predictions land in a session table next to the dimensions of the rows they were
-// predicted for. The table is built from the same SELECT that produced the Parquet,
-// so dimension columns keep their source types (and '003'-style padding) for joins
-// against ground truth — only the predicted value is carried over from the service.
+// predicted for. The table is built from the same input table that produced the
+// Parquet, so dimension columns keep their source types (and '003'-style padding)
+// for joins against ground truth — only the predicted value comes from the service.
 async function writePredictionTable(
   outputTable: string,
-  predictionSql: string,
+  inputTable: string,
   rowIdOffset: number,
   predictions: Map<number, PredictionRow>,
   targetColumn: string,
@@ -214,8 +207,9 @@ async function writePredictionTable(
   await runQuery(
     `CREATE OR REPLACE TABLE ${outputTable} AS
      WITH source AS (
-       SELECT *, row_number() OVER () + ${rowIdOffset} AS ${ROW_ID_COLUMN}
-       FROM (${predictionSql})
+       SELECT * EXCLUDE (${PREDICTION_FLAG_COLUMN})
+       FROM ${inputTable}
+       WHERE ${PREDICTION_FLAG_COLUMN}
      ),
      predicted(
        ${ROW_ID_COLUMN},
@@ -230,7 +224,8 @@ async function writePredictionTable(
             predicted."${confidenceIntervalLowerCol}",
             predicted."${confidenceIntervalUpperCol}"
      FROM source
-     JOIN predicted USING (${ROW_ID_COLUMN})`,
+     JOIN predicted USING (${ROW_ID_COLUMN})
+     ORDER BY ${ROW_ID_COLUMN}`,
   );
   registerSessionObject(outputTable);
 
@@ -252,7 +247,8 @@ async function writePredictionTable(
     `Wrote ${rowCount} predicted rows into table '${outputTable}'. ` +
     `Predicted columns: ${predictedCol}, ${confidenceCol}, ` +
     `${confidenceIntervalLowerCol}, ${confidenceIntervalUpperCol}. ` +
-    `Aggregate this table with run_sql (e.g. GROUP BY fiscalPeriod) to build the answer.`
+    `Aggregate this table with run_sql (e.g. GROUP BY fiscalPeriod) to build the answer. ` +
+    `Confidence intervals are per row; summed bounds are a conservative range, not an interval for the total.`
   );
 }
 
@@ -288,7 +284,7 @@ function formatExplanations(response: unknown): string {
 }
 
 async function callRpt(
-  selectSql: string,
+  inputTable: string,
   columns: string[],
   targetColumn: string,
   taskType: TaskType,
@@ -298,7 +294,7 @@ async function callRpt(
   if (dropped.length) rpt(` Excluded from features: ${dropped.join(', ')}`);
 
   const rptClient = new RptClient({ modelName: RPT_MODEL });
-  return withParquetBlob(selectSql, features, (file) =>
+  return withParquetBlob(inputTable, features, (file) =>
     rptClient.predictParquet(
       {
         file,
@@ -322,101 +318,97 @@ async function callRpt(
   );
 }
 
-function assertSafeWhereClause(where: string, label: string): string | null {
-  const trimmed = where.trim();
-  if (!trimmed) return `Error: ${label} must not be empty.`;
-  if (/;|--|\/\*/.test(trimmed)) {
-    return `Error: ${label} must be a single SQL predicate (no semicolons or comments).`;
+const rptInputSchema = z.object({
+  tableName: z.string().describe('Session table or view to read from'),
+  predictionWhere: z
+    .string()
+    .describe(
+      'SQL predicate (no WHERE keyword) selecting rows to predict, e.g. "ledgerFiscalYear = \'2026\'"',
+    ),
+  contextWhere: z
+    .string()
+    .optional()
+    .describe(
+      'Optional SQL predicate for context rows. Defaults to NOT (predictionWhere).',
+    ),
+  outputTable: z
+    .string()
+    .describe('Session table to write predictions into (replaced if exists)'),
+  targetColumn: z.string().describe('Column name to predict'),
+  taskType: z
+    .enum(['classification', 'regression'])
+    .describe(
+      '"regression" for numeric amounts, "classification" for categories',
+    ),
+});
+
+async function runRptPrediction(
+  input: z.infer<typeof rptInputSchema>,
+): Promise<string> {
+  const queries = predictionQueries(input);
+  if (typeof queries === 'string') return queries;
+  const { contextSql, predictionSql } = queries;
+  const { tableName, targetColumn, taskType, outputTable } = input;
+
+  // Materialize the input once so the Parquet upload and the output table see
+  // the same rows and row ids, even when the source view is sampled. Context
+  // rows keep their known target and come first; prediction rows null it out.
+  await using inputTable = scratchTable('_rpt_input');
+  await runQuery(
+    `CREATE TABLE ${inputTable.name} AS
+     SELECT *, row_number() OVER (ORDER BY ${PREDICTION_FLAG_COLUMN}) AS ${ROW_ID_COLUMN}
+     FROM (
+       SELECT *, false AS ${PREDICTION_FLAG_COLUMN} FROM (${contextSql})
+       UNION ALL BY NAME
+       SELECT * EXCLUDE ("${targetColumn}"), NULL AS "${targetColumn}", true AS ${PREDICTION_FLAG_COLUMN}
+       FROM (${predictionSql})
+     )`,
+  );
+  const [{ contextRows = 0, predictionRows = 0 } = {}] = await runQuery(
+    `SELECT COUNT(*) FILTER (WHERE NOT ${PREDICTION_FLAG_COLUMN}) AS contextRows,
+            COUNT(*) FILTER (WHERE ${PREDICTION_FLAG_COLUMN}) AS predictionRows
+     FROM ${inputTable.name}`,
+  );
+  const contextCount = Number(contextRows);
+  const predictionCount = Number(predictionRows);
+  if (contextCount === 0) {
+    return (
+      `Error: No context rows matched${input.contextWhere ? ` contextWhere (${input.contextWhere})` : ''}. ` +
+      `Broaden the context filter or load more historical data.`
+    );
   }
-  return null;
+  if (predictionCount === 0) {
+    return `Error: No prediction rows matched predictionWhere (${input.predictionWhere}).`;
+  }
+
+  rpt(` Single-table ${taskType} on '${tableName}', target: ${targetColumn}`);
+  rpt(` ${contextCount} context rows, ${predictionCount} prediction rows`);
+
+  const columns = await selectColumns(contextSql);
+  const response = await callRpt(
+    inputTable.name,
+    columns,
+    targetColumn,
+    taskType,
+  );
+  rpt(` Prediction complete`);
+  const explanation = formatExplanations(response);
+  if (explanation) rpt(explanation);
+  const result = await writePredictionTable(
+    outputTable,
+    inputTable.name,
+    contextCount,
+    extractPredictions(response, targetColumn, contextCount),
+    targetColumn,
+    taskType,
+  );
+  return result.startsWith('Error:') ? result : result + explanation;
 }
 
 export const runRptPredictionTool = tool(
   async (input) => {
     try {
-      if (!isValidIdentifier(input.outputTable)) {
-        return `Error: '${input.outputTable}' is not a valid table name.`;
-      }
-
-      let contextSql: string;
-      let predictionSql: string;
-      let contextCount: number;
-      let predCount: number;
-      let columns: string[];
-
-      {
-        const { tableName, predictionWhere, contextWhere, targetColumn } =
-          input;
-        if (!isValidIdentifier(tableName))
-          return `Error: '${tableName}' is not a valid table name.`;
-
-        const predErr = assertSafeWhereClause(
-          predictionWhere,
-          'predictionWhere',
-        );
-        if (predErr) return predErr;
-        if (contextWhere) {
-          const ctxErr = assertSafeWhereClause(contextWhere, 'contextWhere');
-          if (ctxErr) return ctxErr;
-        }
-
-        contextSql = contextWhere
-          ? `SELECT * FROM ${tableName} WHERE ${contextWhere} ORDER BY ALL`
-          : `SELECT * FROM ${tableName} WHERE NOT (${predictionWhere}) ORDER BY ALL`;
-        predictionSql = `SELECT * FROM ${tableName} WHERE ${predictionWhere} ORDER BY ALL`;
-
-        const [[{ count: cc = 0 } = {}], [{ count: pc = 0 } = {}]] =
-          await Promise.all([
-            runQuery(`SELECT COUNT(*) AS count FROM (${contextSql})`),
-            runQuery(`SELECT COUNT(*) AS count FROM (${predictionSql})`),
-          ]);
-        contextCount = Number(cc);
-        predCount = Number(pc);
-
-        if (contextCount === 0) {
-          return (
-            `Error: No context rows matched${contextWhere ? ` contextWhere (${contextWhere})` : ''}. ` +
-            `Broaden the context filter or load more historical data.`
-          );
-        }
-        if (predCount === 0) {
-          return `Error: No prediction rows matched predictionWhere (${predictionWhere}).`;
-        }
-
-        rpt(
-          ` Single-table ${input.taskType} on '${tableName}', target: ${targetColumn}`,
-        );
-        rpt(` ${contextCount} context rows, ${predCount} prediction rows`);
-
-        columns = await selectColumns(contextSql);
-      }
-
-      const { targetColumn, taskType, outputTable } = input;
-
-      // Context rows keep their known target; prediction rows null it out.
-      const combinedSql =
-        `SELECT * FROM (${contextSql}) ` +
-        `UNION ALL BY NAME ` +
-        `SELECT * EXCLUDE ("${targetColumn}"), NULL AS "${targetColumn}" FROM (${predictionSql})`;
-
-      const response = await callRpt(
-        combinedSql,
-        columns,
-        targetColumn,
-        taskType,
-      );
-      rpt(` Prediction complete`);
-      const explanation = formatExplanations(response);
-      if (explanation) rpt(explanation);
-      const result = await writePredictionTable(
-        outputTable,
-        predictionSql,
-        contextCount,
-        extractPredictions(response, targetColumn, contextCount),
-        targetColumn,
-        taskType,
-      );
-      return result.startsWith('Error:') ? result : result + explanation;
+      return await runRptPrediction(input);
     } catch (e: unknown) {
       logRptError(e);
       return formatRptError(e);
@@ -432,34 +424,10 @@ export const runRptPredictionTool = tool(
       'predictionWhere selects rows to forecast (SQL predicate, no WHERE keyword, e.g. "ledgerFiscalYear = \'2026\'"); ' +
       'contextWhere selects known-truth rows (default: NOT predictionWhere). ' +
       'Pass a view name to avoid repeating complex queries. Preserve one row per complete, alignable forecast key; do not aggregate to the requested reporting grain before calling. ' +
-      'Every feature must have the same meaning in context and prediction rows. If rows exceed 2048, pass a view defined with USING SAMPLE 2048.\n' +
+      'Every feature must have the same meaning in context and prediction rows. If context rows exceed 2048, sample only the context rows with USING SAMPLE 2048 and keep every prediction row.\n' +
       'Predictions land in outputTable as predicted_<targetColumn> plus confidence_<targetColumn> ' +
       'and confidence_interval_lower/upper_<targetColumn> (regression only). ' +
       'Aggregate outputTable with run_sql to the granularity the user asked for.',
-    schema: z.object({
-      tableName: z.string().describe('Session table or view to read from'),
-      predictionWhere: z
-        .string()
-        .describe(
-          'SQL predicate (no WHERE keyword) selecting rows to predict, e.g. "ledgerFiscalYear = \'2026\'"',
-        ),
-      contextWhere: z
-        .string()
-        .optional()
-        .describe(
-          'Optional SQL predicate for context rows. Defaults to NOT (predictionWhere).',
-        ),
-      outputTable: z
-        .string()
-        .describe(
-          'Session table to write predictions into (replaced if exists)',
-        ),
-      targetColumn: z.string().describe('Column name to predict'),
-      taskType: z
-        .enum(['classification', 'regression'])
-        .describe(
-          '"regression" for numeric amounts, "classification" for categories',
-        ),
-    }),
+    schema: rptInputSchema,
   },
 );
