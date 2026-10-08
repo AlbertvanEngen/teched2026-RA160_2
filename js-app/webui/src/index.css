@@ -29,6 +29,18 @@
   --on-shell-green: #34d399;
   --on-shell-amber: #fbbf24;
   --rail-width: 20rem;
+  /* Syntax tokens on dark code blocks; each ≥ 5:1 on the rail's code background. */
+  --shiki-foreground: var(--on-shell);
+  --shiki-background: transparent;
+  --shiki-token-keyword: #79c0ff;
+  --shiki-token-function: #d2a8ff;
+  --shiki-token-string: #7ee787;
+  --shiki-token-string-expression: #7ee787;
+  --shiki-token-constant: #ffa657;
+  --shiki-token-parameter: #ffa657;
+  --shiki-token-comment: #8b949e;
+  --shiki-token-punctuation: var(--on-shell-3);
+  --shiki-token-link: #79c0ff;
   --mono:
     "72Mono", "72Monofull", ui-monospace, "Cascadia Mono", "SF Mono",
     SFMono-Regular, Menlo, Consolas, "Liberation Mono", "Courier New", monospace;
