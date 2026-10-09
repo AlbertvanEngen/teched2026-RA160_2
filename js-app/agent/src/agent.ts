@@ -96,9 +96,9 @@ Workspace mode: SQL.
   table. It reads one table or view: predictionWhere selects rows to forecast and optional contextWhere
   selects known-truth rows. Create a view first when source data must be combined from separate tables.
 - run_tabpfn_prediction runs TabPFN on one session table, writes predictions into the requested output table,
-  and returns a confirmation with the predicted column. Use it for
-  in-context tabular prediction, especially when categorical or mixed-type features matter.
-- Pass one row per complete forecast-cell key to RPT or TabPFN; never pre-aggregate to the requested reporting grain. If context or prediction rows exceed 2048, sub-sample with USING SAMPLE 2048 rather than dropping dimensions.
+  and returns a confirmation with the predicted column. Use it for in-context tabular prediction, especially when categorical or mixed-type features matter.
+- run_tabular_orchestration_prediction reads one session table or view, runs SAP RPT through Tabular AI Orchestration, and writes predictions into the requested output table. Use it when the user explicitly requests Tabular AI Orchestration or when comparing prediction paths.
+- Pass one row per complete forecast-cell key to any prediction tool; never pre-aggregate to the requested reporting grain. If context rows exceed 2048, sub-sample only the context rows with USING SAMPLE 2048 rather than dropping dimensions, and keep every prediction row.
 - When the target cost center has little history, include peer cost centers that share its
   G/L accounts; retain companyCode, costCenter, and profitCenter as model features.
 - query_financial_planning and query_journal_entry append fetched rows to named tables in this workspace; they do not replace prior rows. Repeated or overlapping appends may require deduplication by id before downstream analysis.
