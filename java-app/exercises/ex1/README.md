@@ -133,7 +133,7 @@ private String callChatClient(final String prompt) {
 Start the application with:
 
 ```bash
-mise run java-agent
+pnpm run java-agent
 ```
 
 Navigate to **http://localhost:3142/** in your browser to see the frontend of our application. You should see an input field for text. Try a query like the following:
@@ -166,7 +166,7 @@ Notice how the phrasing, response times, and verbosity of the answer changes —
 
 Available constants are defined in `OrchestrationAiModel` (e.g., `CLAUDE_4_SONNET`, `GPT_4O_MINI`).
 
-To restart the application after your code changes, press `CTRL + c` while in your terminal and then run `mise run java-agent` again.
+To restart the application after your code changes, press `CTRL + c` while in your terminal and then run `pnpm run java-agent` again.
 Your application should be back up on the same address in your browser within seconds.
 
 

@@ -17,7 +17,7 @@ try {
   const code = (error as NodeJS.ErrnoException).code;
   if (code === 'ENOENT') {
     console.warn(
-      'typos is not available on PATH. Run `mise install` or install https://github.com/crate-ci/typos.',
+      'typos is not available on PATH. Install it from https://github.com/crate-ci/typos.',
     );
   } else {
     throw error;

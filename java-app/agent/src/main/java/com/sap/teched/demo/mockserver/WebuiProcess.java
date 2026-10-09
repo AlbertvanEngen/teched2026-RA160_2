@@ -28,7 +28,7 @@ public class WebuiProcess extends ChildProcess {
         "webui",
         "Web UI already running on port 3142 — skipping launch",
         "Starting web UI",
-        "Could not locate repo root. Start the web UI manually: mise run webui-java",
+        "Could not locate repo root. Start the web UI manually: pnpm run webui-java",
         new String[]{"pnpm", "--filter", "financial-agent-webui", "dev"},
         "JAVA_AGENT_URL", "http://localhost:3143",
         "MOCK_STANDALONE", "1");
