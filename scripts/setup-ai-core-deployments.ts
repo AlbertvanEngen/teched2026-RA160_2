@@ -78,7 +78,7 @@ const SPECS: DeploymentSpec[] = [
     executableId: 'tabular-orchestration',
     scenarioId: 'tabular-orchestration',
     versionId: 'v1.0.0',
-  }
+  },
 ];
 
 // ---------------------------------------------------------------------------

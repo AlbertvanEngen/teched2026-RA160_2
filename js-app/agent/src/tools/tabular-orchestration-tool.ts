@@ -234,6 +234,14 @@ async function runTabularOrchestrationPrediction(
         },
       ],
     },
+    contextSelectionConfig: {
+      indexColumn: ROW_ID_COLUMN,
+      numRows: 2048,
+      strategy: 'random',
+      strategyConfig: {
+        deterministic: true,
+      },
+    },
     modelConfig: {
       index_column: ROW_ID_COLUMN,
       parse_data_types: false,
@@ -302,6 +310,7 @@ export const runTabularOrchestrationPredictionTool = tool(
       'Run an SAP RPT prediction through Tabular AI Orchestration on a session table or view and write results into a named output table.\n' +
       'Required: tableName, outputTable (replaced if it exists), targetColumn, taskType, and predictionWhere. contextWhere selects known-target rows and defaults to NOT predictionWhere. ' +
       'Preserve one row per complete, alignable forecast key; do not aggregate to the requested reporting grain. Every feature must have the same meaning in context and prediction rows. ' +
+      'Context selection subsampling is configured automatically by Tabular AI Orchestration, so manual subsampling with USING SAMPLE is not needed. ' +
       'Use when Tabular AI Orchestration is explicitly requested or when comparing prediction paths; otherwise use the default RPT tool.',
     schema: inputSchema,
   },

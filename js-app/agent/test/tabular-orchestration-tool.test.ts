@@ -81,6 +81,14 @@ describe('run_tabular_orchestration_prediction', () => {
           },
         ],
       });
+      assert.deepEqual(capturedRequest?.contextSelectionConfig, {
+        indexColumn: '__tabular_orchestration_row_id',
+        numRows: 2048,
+        strategy: 'random',
+        strategyConfig: {
+          deterministic: true,
+        },
+      });
       assert.deepEqual(capturedRequest?.modelConfig, {
         index_column: '__tabular_orchestration_row_id',
         parse_data_types: false,
