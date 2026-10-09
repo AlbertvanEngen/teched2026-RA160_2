@@ -13,7 +13,7 @@ const rpt = (msg: string) => console.log(styleText('cyan', '[RPT] ') + msg);
 const PREDICTION_FLAG_COLUMN = '__is_prediction';
 
 type TaskType = 'classification' | 'regression';
-const RPT_MODEL = process.env.RPT_MODEL ?? 'sap-rpt-1.6';
+const RPT_MODEL = 'sap-rpt-1.6';
 
 type PredictionRow = {
   predicted: string | number;
