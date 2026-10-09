@@ -138,7 +138,7 @@ The tools are configured once per request on the `options` object, which is a va
 
 ## Step 5: Start the application and test it
 
-Restart the application: press `CTRL + c` while in your terminal and then run `mise run java-agent` again.
+Restart the application: press `CTRL + c` while in your terminal and then run `pnpm run java-agent` again.
 
 Navigate to the UI and ask a question that requires data:
 

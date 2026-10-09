@@ -9,7 +9,6 @@ Prerequisites:
 
 - Node.js 24.
 - pnpm 12.
-- mise as the tool manager and task runner.
 - SAP AI Core credentials for orchestration and prediction calls.
 
 Install dependencies from the repository root:
@@ -22,7 +21,7 @@ Keep credentials in the root `.env` file.
 Do not commit or print that file.
 The SAP AI SDK reads `AICORE_SERVICE_KEY` from the environment.
 
-Start the mock OData server and web application in separate terminals:
+Start the web application, which also serves the mock OData routes:
 
 ```bash
 pnpm run js-agent
@@ -31,7 +30,7 @@ pnpm run js-agent
 Open http://localhost:3142.
 The agent talks to the OData routes on the same webui server (`http://localhost:3142` by default) — the mock S/4HANA service is mounted in-process, no separate server needed.
 
-Run an agent prompt without the browser:
+Run an agent prompt without the browser while the web application is running, or point `MOCK_SERVER_URL` at a standalone mock server:
 
 ```bash
 pnpm --filter financial-mock-agent start -- "Show me the monthly cost for cost center A1000 for fiscal year 2025."
@@ -89,13 +88,13 @@ It serves financial planning and journal-entry data.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `AICORE_SERVICE_KEY` | None | Authenticates SAP AI SDK calls. |
-| `MOCK_SERVER_URL` | `http://localhost:3141` | Selects the OData service host. |
+| `MOCK_SERVER_URL` | `http://localhost:$PORT`, else `http://localhost:3142` | Selects the OData service host. |
 | `PORT` | Mock: `3141`; web: `3142` | Overrides the port of the process being started. |
 | `MOCK_STANDALONE` | Unset | Set to `1` to stop the web server from mounting mock routes. |
 | `NODE_ENV` | Development | Selects Vite middleware or the production Hono server. |
 
-The web server mounts the mock application under `/sap/` unless `MOCK_STANDALONE=1`.
-This does not change the agent's default destination, so the normal workflow still starts the mock server separately on port `3141`.
+The web server mounts the mock application under `/sap/` unless `MOCK_STANDALONE=1`, so the default agent destination is the web server itself.
+With `MOCK_STANDALONE=1`, start the mock server separately (`pnpm mock-server`, port `3141`) and set `MOCK_SERVER_URL=http://localhost:3141`.
 
 The JavaScript agent always uses SQL for local analysis: OData tools load filtered rows into the in-memory DB, `run_sql` produces deterministic reports, and prediction tools consume session tables.
 
@@ -122,8 +121,7 @@ Do not edit the generated files by hand — regeneration would overwrite them.
 5. Change the system prompt only for behavior the schema cannot express.
 6. Exercise the tool through the CLI before debugging the UI.
 
-The package exports source directly and uses the `agent/src/agent.d.ts` file as its public type facade.
-Keep that declaration file aligned with exported symbols.
+The package exports `agent/src/agent.ts` source directly; there is no separate declaration file.
 
 ### Web event
 
@@ -158,6 +156,7 @@ Run checks from the repository root:
 pnpm typecheck
 pnpm lint
 pnpm --filter purchase-order-mock-server test
+pnpm --filter financial-mock-agent test
 ```
 
 For UI changes, run the application and exercise the changed browser path.
@@ -165,8 +164,8 @@ For agent changes, run the narrowest representative CLI prompt before testing th
 
 ## Workshop authoring
 
-The JavaScript application is a completed reference implementation, not staged exercise material.
-Create starter and solution states before publication.
+The committed `buildFinancialAgent()` in `agent/src/agent.ts` is the Exercise 1 starter state: its solution lives between the `YOUR CODE START` and `YOUR CODE END` markers, partly commented out.
+Do not commit a completed agent configuration; the exercises build it up step by step.
 
 Each exercise should:
 

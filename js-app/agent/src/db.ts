@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { type DuckDBConnection, DuckDBInstance } from '@duckdb/node-api';
 
 export function isValidIdentifier(name: string) {
@@ -74,6 +75,20 @@ export async function runQuery(
       conn.closeSync();
     }
   });
+}
+
+/**
+ * Reserves a unique name for an internal table and drops that table on dispose.
+ * Use with `await using`; the caller creates the table.
+ */
+export function scratchTable(prefix: string) {
+  const name = `${prefix}_${randomUUID().replaceAll('-', '_')}`;
+  return {
+    name,
+    async [Symbol.asyncDispose]() {
+      await runQuery(`DROP TABLE IF EXISTS ${name}`);
+    },
+  };
 }
 
 export async function withConnection<T>(

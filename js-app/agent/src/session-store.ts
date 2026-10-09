@@ -5,10 +5,8 @@ import { dropObjects } from './db.ts';
 export const SESSION_TTL_MS = 30 * 60 * 1000;
 
 interface Session {
-  createdAt: number;
   lastAccessAt: number;
   tables: Set<string>;
-  files: Map<string, string>;
 }
 
 const sessions = new Map<string, Session>();
@@ -26,13 +24,7 @@ export function registerSessionObject(name: string): void {
 export function createSession(): string {
   pruneExpiredSessions();
   const sessionId = randomUUID();
-  const now = Date.now();
-  sessions.set(sessionId, {
-    createdAt: now,
-    lastAccessAt: now,
-    tables: new Set(),
-    files: new Map(),
-  });
+  sessions.set(sessionId, { lastAccessAt: Date.now(), tables: new Set() });
   return sessionId;
 }
 
@@ -44,6 +36,7 @@ export function touchSession(sessionId: string): boolean {
   const now = Date.now();
   if (now - session.lastAccessAt > SESSION_TTL_MS) {
     sessions.delete(sessionId);
+    void dropObjects([...session.tables]);
     return false;
   }
 
@@ -57,39 +50,6 @@ export async function clearSession(sessionId: string): Promise<void> {
   if (!session) return;
   sessions.delete(sessionId);
   await dropObjects([...session.tables]);
-}
-
-function activeSession(): Session {
-  const sessionId = sessionContext.getStore();
-  const session = sessionId ? sessions.get(sessionId) : undefined;
-  if (!session) {
-    throw new Error('No active agent session.');
-  }
-  return session;
-}
-
-function validateFilePath(path: string): void {
-  if (!/^\/[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(path) || path.includes('..')) {
-    throw new Error(`Invalid virtual file path '${path}'.`);
-  }
-}
-
-export function writeSessionFile(path: string, content: string): void {
-  validateFilePath(path);
-  activeSession().files.set(path, content);
-}
-
-export function readSessionFile(path: string): string {
-  validateFilePath(path);
-  const content = activeSession().files.get(path);
-  if (content === undefined) {
-    throw new Error(`Virtual file '${path}' does not exist.`);
-  }
-  return content;
-}
-
-export function listSessionFiles(): string[] {
-  return [...activeSession().files.keys()].sort();
 }
 
 export function pruneExpiredSessions(): void {

@@ -46,12 +46,13 @@ function projectColumn(col: string): string {
 }
 
 /**
- * Writes a typed Parquet file for `selectSql` and hands it to `fn` as a Blob.
- * Parquet carries declared column types to RPT, so nothing depends on JS runtime
- * type inference or service-side string parsing. The temp directory is always removed.
+ * Writes a typed Parquet file of `columns` plus `ROW_ID_COLUMN` from `sourceTable`
+ * and hands it to `fn` as a Blob. Parquet carries declared column types to RPT, so
+ * nothing depends on JS runtime type inference or service-side string parsing.
+ * The temp directory is always removed.
  */
 export async function withParquetBlob<T>(
-  selectSql: string,
+  sourceTable: string,
   columns: string[],
   fn: (blob: Blob) => Promise<T>,
 ): Promise<T> {
@@ -59,7 +60,7 @@ export async function withParquetBlob<T>(
   const path = join(dir.path, 'data.parquet');
   const projection = columns.map(projectColumn).join(', ');
   await runQuery(
-    `COPY (SELECT ${projection}, row_number() OVER () AS ${ROW_ID_COLUMN} FROM (${selectSql})) ` +
+    `COPY (SELECT ${projection}, ${ROW_ID_COLUMN} FROM ${sourceTable} ORDER BY ${ROW_ID_COLUMN}) ` +
       `TO '${path}' (FORMAT PARQUET)`,
   );
   const blob = await openAsBlob(path, {

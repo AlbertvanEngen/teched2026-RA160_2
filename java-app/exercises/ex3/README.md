@@ -206,7 +206,7 @@ private PredictResponsePayload callRpt(
 
 ## Step 6: Start the application and test a forecast
 
-Restart the application: press `CTRL + c` while in your terminal and then run `mise run java-agent` again.
+Restart the application: press `CTRL + c` while in your terminal and then run `pnpm run java-agent` again.
 
 Ask the agent to produce a forecast:
 

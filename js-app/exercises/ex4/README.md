@@ -115,7 +115,7 @@ const model = new OrchestrationClient([
 ```
 
 This is the configuration the agent was designed to run with throughout the workshop.
-The second config sets `reasoning_effort: 'high'` so the Claude model applies deeper reasoning on complex analytical requests.
+The first config sets `reasoning_effort: 'high'` so the Claude model applies deeper reasoning on complex analytical requests; `gemini-3.8-flash` is its fallback.
 
 ## Summary
 
