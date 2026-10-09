@@ -20,6 +20,7 @@
     "purchase-order-mock-server": "workspace:*",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "shiki": "^4.5.0",
     "tsx": "catalog:",
     "zod": "^4.6.5"
   },

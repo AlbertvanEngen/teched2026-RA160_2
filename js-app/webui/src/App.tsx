@@ -1,6 +1,7 @@
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { HighlightedCode } from './highlight.tsx';
 import type { Message, ToolEntry, TurnGroup } from './types.ts';
 
 marked.use({ gfm: true, breaks: true });
@@ -68,12 +69,16 @@ function previewValue(value: unknown): string {
   return (text ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
 }
 
-function formatResult(result: string): string {
+function formatResult(result: string): { text: string; isJson: boolean } {
   try {
-    return JSON.stringify(JSON.parse(result), null, 2);
+    return { text: JSON.stringify(JSON.parse(result), null, 2), isJson: true };
   } catch {
-    return result;
+    return { text: result, isJson: false };
   }
+}
+
+function truncate(text: string, maxChars: number): string {
+  return text.length > maxChars ? `${text.slice(0, maxChars)}\n…` : text;
 }
 
 function formatDuration(durationMs: number): string {
@@ -135,7 +140,7 @@ function ToolEntryCard({ t, isActive }: { t: ToolEntry; isActive: boolean }) {
   const isDone = t.result !== undefined;
   const status = isDone ? 'done' : isActive ? 'pending' : 'queued';
   const durationMs = useElapsedDuration(t.startedAt, isDone, t.durationMs);
-  const result = isDone ? formatResult(t.result ?? '') : '';
+  const result = isDone ? formatResult(t.result ?? '') : null;
   const { sql, ...argsWithoutSql } = t.args;
   const sqlText = typeof sql === 'string' ? dedent(sql) : null;
   const otherArgs = sqlText === null ? t.args : argsWithoutSql;
@@ -178,7 +183,7 @@ function ToolEntryCard({ t, isActive }: { t: ToolEntry; isActive: boolean }) {
             <>
               <div className="tool-entry__detail-label">sql</div>
               <pre className="tool-entry__detail-pre tool-entry__detail-pre--code">
-                {sqlText}
+                <HighlightedCode code={sqlText} lang="sql" />
               </pre>
             </>
           )}
@@ -186,16 +191,25 @@ function ToolEntryCard({ t, isActive }: { t: ToolEntry; isActive: boolean }) {
             <>
               <div className="tool-entry__detail-label">args</div>
               <pre className="tool-entry__detail-pre">
-                {JSON.stringify(otherArgs, null, 2)}
+                <HighlightedCode
+                  code={JSON.stringify(otherArgs, null, 2)}
+                  lang="json"
+                />
               </pre>
             </>
           )}
-          {isDone && (
+          {result && (
             <>
               <div className="tool-entry__detail-label">result</div>
               <pre className="tool-entry__detail-pre">
-                {result.slice(0, RESULT_PREVIEW_CHARS)}
-                {result.length > RESULT_PREVIEW_CHARS ? '\n…' : ''}
+                {result.isJson ? (
+                  <HighlightedCode
+                    code={truncate(result.text, RESULT_PREVIEW_CHARS)}
+                    lang="json"
+                  />
+                ) : (
+                  truncate(result.text, RESULT_PREVIEW_CHARS)
+                )}
               </pre>
             </>
           )}
