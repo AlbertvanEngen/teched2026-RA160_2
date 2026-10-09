@@ -1,4 +1,4 @@
-# Exercise 3 - Forecasting with SAP RPT and TabPFN: Predicting Future Financial Data
+# Exercise 3 - Forecasting with SAP RPT, TabPFN, and Tabular AI Orchestration
 
 In this exercise, you will register and explore the forecasting and evaluation tools.
 
@@ -8,9 +8,9 @@ Complete [Exercise 2](../ex2/README.md) before starting this exercise.
 
 By the end of this exercise, your agent will be able to run a forecast workflow: load historical actuals, predict future periods using SAP RPT, and aggregate the results with SQL.
 It can optionally evaluate a completed prediction against actuals when the user explicitly requests validation.
-You'll understand how `RptClient` from `@sap-ai-sdk/rpt` works, how its Parquet-based API differs from a row-by-row approach, and how `TabpfnClient` from `@sap-ai-sdk/tabpfn` offers a complementary prediction path for categorical or mixed-type features.
+You'll understand how `RptClient` from `@sap-ai-sdk/rpt` works, how `TabpfnClient` from `@sap-ai-sdk/tabpfn` offers a complementary prediction path, and how `TabularOrchestrationClient` routes the same database-backed workflow through Tabular AI Orchestration.
 
-If you have any trouble, the full implementation is in the `rpt-tool.ts` and `tabpfn-tool.ts` files — read them alongside this exercise.
+If you have any trouble, the full implementations are in `rpt-tool.ts`, `tabpfn-tool.ts`, and `tabular-orchestration-tool.ts` — read them alongside this exercise.
 
 ## Background: What is SAP RPT?
 
@@ -28,6 +28,7 @@ Open the following files and read the `tool(...)` definitions:
 | ---------------------------------------------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`rpt-tool.ts`](../../agent/src/tools/rpt-tool.ts)                           | `run_rpt_prediction`    | Runs SAP RPT on one session table or view and writes predicted values into an output table. `predictionWhere` and optional `contextWhere` split context from prediction rows.                                                                                                                                                                         |
 | [`tabpfn-tool.ts`](../../agent/src/tools/tabpfn-tool.ts)                     | `run_tabpfn_prediction` | Runs TabPFN on a session table or view and writes predicted values into an output table. Use for in-context tabular prediction, especially when categorical or mixed-type features matter.                                                                                                                                                                                     |
+| [`tabular-orchestration-tool.ts`](../../agent/src/tools/tabular-orchestration-tool.ts) | `run_tabular_orchestration_prediction` | Reads context and prediction rows from a session table or view, runs SAP RPT through Tabular AI Orchestration, and writes the returned predictions into an output table. |
 | [`get-ground-truth-tool.ts`](../../agent/src/tools/get-ground-truth-tool.ts) | `get_ground_truth`      | After a prediction is written into an output table, compares it against real OData data. Fetches journal entries or planning ACTUAL rows, joins on the dimensions you specify, and writes a comparison table with per-row `pct_error`, `pct_of_actual`, `pct_below_actual`, and `pct_above_actual` columns, plus summary MAPE, MAE, and RMSE metrics. |
 
 ## Step 2: Register the prediction and evaluation tools
@@ -42,12 +43,13 @@ const tools = [
   runSqlTool,
   runRptPredictionTool,
   runTabpfnPredictionTool,
+  runTabularOrchestrationPredictionTool,
   getGroundTruthTool,
 ];
 ```
 
 Only add these tools after the SQL workflow is working.
-The model can then choose RPT, TabPFN, or ground-truth evaluation when the request requires it; deterministic questions still go through SQL.
+The model can then choose direct RPT, TabPFN, Tabular AI Orchestration, or ground-truth evaluation when the request requires it; deterministic questions still go through SQL.
 
 ## Step 3: Understand the typical RPT workflow
 
@@ -178,7 +180,35 @@ Ask the agent to use it:
 The agent will call `run_tabpfn_prediction` with `taskType = "regression"` and `categoricalFeatureColumns = ["ledger", "glAccount"]`.
 Compare the TabPFN predictions to the RPT predictions from Step 4 — the two models approach the same data differently and may produce slightly different results.
 
-## Step 8: Compare with a naïve SQL baseline (bonus)
+## Step 8: Try Tabular AI Orchestration (bonus — JavaScript-only)
+
+`@sap-ai-sdk/tabular-orchestration` routes a prediction request to a supported tabular foundation model through the Tabular AI Orchestration service.
+The agent-facing tool keeps the same database contract as the direct RPT and TabPFN tools: it reads one session table or view and writes one output table.
+
+Call it with the model view created by `run_sql`:
+
+```typescript
+{
+  tableName: 'forecast_model',
+  outputTable: 'tabular_orchestration_predictions',
+  predictionWhere: "ledgerFiscalYear = '2026'",
+  contextWhere: "ledgerFiscalYear BETWEEN '2022' AND '2025'",
+  targetColumn: 'actualAmount',
+  taskType: 'regression',
+}
+```
+
+Inside the tool, DuckDB serializes the selected context and prediction rows for `TabularOrchestrationClient`.
+After inference, DuckDB reads the returned prediction data, validates one result per selected prediction row, and joins the values back to the materialized source rows.
+The output table contains `predicted_<targetColumn>` plus confidence columns; transport encoding is not part of the agent's tool contract.
+
+Ask the agent to use this path explicitly:
+
+> "Use Tabular AI Orchestration to predict the planned spend for cost center A1000 in 2026."
+
+The Activity panel should show `run_tabular_orchestration_prediction`, followed by one `run_sql` aggregation over its output table.
+
+## Step 9: Compare with a naïve SQL baseline (bonus)
 
 A predictive model is most useful when it beats a simple baseline.
 Keep the same chat session so the historical rows, prediction rows, model results, and ground-truth comparison remain available.
@@ -190,7 +220,7 @@ Ask the agent to create and evaluate the baseline:
 Check that the SQL uses the complete key — company code, cost center, profit center, G/L account, ledger, and fiscal period — and excludes 2026 actual values from prediction construction. It must produce exactly one prediction per 2026 target cell before aggregation.
 The task is complete when the response shows the baseline SQL, 12 period-level comparison rows, and magnitude-oriented period MAPE values for the naïve baseline, RPT, and TabPFN. Cell-level MAPE and WAPE are not substitutes. After the target-cell count is verified once, the baseline comparison should need only its construction query, ground-truth call, and final aggregate query.
 
-## Step 9: Understanding what RPT does under the hood
+## Step 10: Understanding what RPT does under the hood
 
 When `run_rpt_prediction` is called, the following happens inside the `rpt-tool.ts` file:
 
@@ -205,13 +235,14 @@ The last point is why you always call `run_sql` _after_ `run_rpt_prediction` rat
 
 ## Summary
 
-You have explored the SAP RPT and TabPFN forecasting tools in the financial analyst agent.
+You have explored the SAP RPT, TabPFN, and Tabular AI Orchestration forecasting tools in the financial analyst agent.
 The agent can now:
 
 - Evaluate its own accuracy by fetching ground truth from OData and computing MAPE, MAE, and percentage metrics only when explicitly requested.
 - Alternatively predict using TabPFN for categorical or mixed-type tabular data.
+- Run the same database-backed prediction workflow through Tabular AI Orchestration.
 - Benchmark model forecasts against an item-level naïve SQL baseline and ground truth.
 
-Both models handle the heavy lifting — your role is to give the agent the tools and let the system prompt guide it on when to use them.
+All three prediction paths handle the model call — your role is to give the agent the tools and let the system prompt guide it on when to use them.
 
 Continue to [Exercise 4 - Resilience with Fallback Configs: Handling Model Failures Gracefully](../ex4/README.md).

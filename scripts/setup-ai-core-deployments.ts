@@ -3,8 +3,8 @@
  *
  * Deployments managed:
  *  - Orchestration  (routes to all LLMs — one deployment covers everything)
- *  - SAP RPT 1.5    (Java agent)
- *  - SAP RPT 1.6    (JS agent, env RPT_MODEL default)
+ *  - SAP RPT 1.6    (both agents)
+ *  - Tabular Orchestration (JS agent)
  *
  * Usage:
  *   pnpm setup-ai-core-deployments
@@ -51,17 +51,6 @@ const SPECS: DeploymentSpec[] = [
     versionId: '0.0.1',
   },
   {
-    label: 'SAP RPT 1.5',
-    configName: 'rpt-1.5',
-    executableId: 'aicore-sap',
-    scenarioId: 'foundation-models',
-    versionId: '0.0.1',
-    parameterBindings: [
-      { key: 'modelName', value: 'sap-rpt-1.5' },
-      { key: 'modelVersion', value: 'latest' },
-    ],
-  },
-  {
     label: 'SAP RPT 1.6',
     configName: 'rpt-1.6',
     executableId: 'aicore-sap',
@@ -83,6 +72,13 @@ const SPECS: DeploymentSpec[] = [
       { key: 'modelVersion', value: 'latest' },
     ],
   },
+  {
+    label: 'Tabular Orchestration',
+    configName: 'tabular-orchestration',
+    executableId: 'tabular-orchestration',
+    scenarioId: 'tabular-orchestration',
+    versionId: 'v1.0.0',
+  }
 ];
 
 // ---------------------------------------------------------------------------

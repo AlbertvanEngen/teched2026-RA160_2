@@ -66,7 +66,7 @@ Follow the exercises in order. Each exercise builds on the previous one.
 | --- | --- |
 | [Exercise 1 – Connecting to AI Core: Building a Chat Agent](js-app/exercises/ex1/README.md) | Connect a TypeScript app to SAP AI Core via `OrchestrationClient`; first LLM round-trip |
 | [Exercise 2 – Equipping the Agent: Tool Calls and the Agentic Loop](js-app/exercises/ex2/README.md) | Add OData and SQL tools; agent queries the mock S/4HANA data and aggregates it in a scratch database |
-| [Exercise 3 – Forecasting with SAP RPT and TabPFN](js-app/exercises/ex3/README.md) | Register forecasting and ground-truth tools; agent predicts future periods and evaluates actuals |
+| [Exercise 3 – Forecasting with SAP RPT, TabPFN, and Tabular AI Orchestration](js-app/exercises/ex3/README.md) | Register forecasting and ground-truth tools; agent predicts future periods and evaluates actuals |
 | [Exercise 4 – Resilience with Fallback Configs](js-app/exercises/ex4/README.md) | Use the Orchestration service's fallback config to recover automatically from model-level failures |
 
 ### Java

@@ -31,6 +31,7 @@
     "@sap-ai-sdk/langchain": "2.16.1-20260922111303.0",
     "@sap-ai-sdk/rpt": "canary",
     "@sap-ai-sdk/tabpfn": "workspace:*",
+    "@sap-ai-sdk/tabular-orchestration": "2.16.1-20261009112632.0",
     "@sap-cloud-sdk/odata-v2": "catalog:",
     "@sap-cloud-sdk/resilience": "catalog:",
     "@sap-cloud-sdk/util": "catalog:",
