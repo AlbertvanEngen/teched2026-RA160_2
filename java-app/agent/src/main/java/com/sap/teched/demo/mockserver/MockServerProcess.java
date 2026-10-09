@@ -23,7 +23,7 @@ public class MockServerProcess extends ChildProcess {
         "mock-server",
         "Mock server already running on port 3141 — skipping launch",
         "Starting mock server",
-        "Could not locate repo root. Start the mock server manually: mise run mock-server",
+        "Could not locate repo root. Start the mock server manually: pnpm run mock-server",
         new String[]{"pnpm", "--filter", "purchase-order-mock-server", "start"});
   }
 }

@@ -9,7 +9,6 @@ Prerequisites:
 
 - Node.js 24.
 - pnpm 12.
-- mise as the tool manager and task runner.
 - SAP AI Core credentials for orchestration and prediction calls.
 
 Install dependencies from the repository root:
