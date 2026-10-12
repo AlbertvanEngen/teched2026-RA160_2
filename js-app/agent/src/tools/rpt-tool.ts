@@ -4,7 +4,12 @@ import { RptClient } from '@sap-ai-sdk/rpt';
 import { resilience } from '@sap-cloud-sdk/resilience';
 import { z } from 'zod';
 import { runQuery, scratchTable } from '../db.ts';
-import { featureColumns, ROW_ID_COLUMN, withParquetBlob } from '../parquet.ts';
+import {
+  featureColumns,
+  protectedPredictionColumns,
+  ROW_ID_COLUMN,
+  withParquetBlob,
+} from '../parquet.ts';
 import { registerSessionObject } from '../session-store.ts';
 import { predictionQueries } from './prediction-input.ts';
 
@@ -173,12 +178,16 @@ async function writePredictionTable(
   predictions: Map<number, PredictionRow>,
   targetColumn: string,
   taskType: TaskType,
+  protectedColumns: string[],
 ) {
   const predictedCol = `predicted_${targetColumn}`;
   const confidenceCol = `confidence_${targetColumn}`;
   const confidenceIntervalLowerCol = `confidence_interval_lower_${targetColumn}`;
   const confidenceIntervalUpperCol = `confidence_interval_upper_${targetColumn}`;
   const isRegression = taskType === 'regression';
+  const protectedProjection = protectedColumns
+    .map((column) => `"${column.replaceAll('"', '""')}"`)
+    .join(', ');
 
   const values = [...predictions.entries()]
     .map(([rowId, prediction]) => {
@@ -218,7 +227,7 @@ async function writePredictionTable(
        "${confidenceIntervalLowerCol}",
        "${confidenceIntervalUpperCol}"
      ) AS (VALUES ${values})
-     SELECT source.* EXCLUDE (${ROW_ID_COLUMN}, "${targetColumn}"),
+     SELECT source.* EXCLUDE (${ROW_ID_COLUMN}, ${protectedProjection}),
             predicted."${predictedCol}",
             predicted."${confidenceCol}",
             predicted."${confidenceIntervalLowerCol}",
@@ -401,6 +410,7 @@ async function runRptPrediction(
     extractPredictions(response, targetColumn, contextCount),
     targetColumn,
     taskType,
+    protectedPredictionColumns(columns, targetColumn),
   );
   return result.startsWith('Error:') ? result : result + explanation;
 }
@@ -424,7 +434,7 @@ export const runRptPredictionTool = tool(
       'predictionWhere selects rows to forecast (SQL predicate, no WHERE keyword, e.g. "ledgerFiscalYear = \'2026\'"); ' +
       'contextWhere selects known-truth rows (default: NOT predictionWhere). ' +
       'Pass a view name to avoid repeating complex queries. Preserve one row per complete, alignable forecast key; do not aggregate to the requested reporting grain before calling. ' +
-      'Every feature must have the same meaning in context and prediction rows. If context rows exceed 2048, sample only the context rows with USING SAMPLE 2048 and keep every prediction row.\n' +
+      'Every feature must have the same meaning in context and prediction rows. For amount targets, raw transaction, company-code, and global-currency amount columns are excluded from model features and prediction output as known target proxies. If context rows exceed 2048, sample only the context rows with USING SAMPLE 2048 and keep every prediction row.\n' +
       'Predictions land in outputTable as predicted_<targetColumn> plus confidence_<targetColumn> ' +
       'and confidence_interval_lower/upper_<targetColumn> (regression only). ' +
       'Aggregate outputTable with run_sql to the granularity the user asked for.',

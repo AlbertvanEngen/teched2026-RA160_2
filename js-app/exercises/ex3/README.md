@@ -108,6 +108,7 @@ Here is what each part does:
   Connection details are read from the environment — no credentials in code.
 - `withParquetBlob(inputTable, features, ...)` reads the combined context and prediction rows from a temporary in-memory table, serialises the feature columns and row ids to a Parquet blob, and passes it to the callback.
   The tool builds that table once per call, so the rows sent to RPT are exactly the rows its predictions are joined back to.
+  For amount targets, it also excludes the raw transaction-, company-code-, and global-currency amount columns from model features and prediction output. These fields encode the same mock-data cell and would otherwise expose the hidden target through a sibling currency column.
 - `predictParquet({ file, ... })` sends the Parquet file to the RPT API.
   `index_column` identifies each row so predictions can be joined back to the originals after the response arrives.
 - `target_columns[0].task_type` is either `"regression"` (for numeric amounts) or `"classification"` (for discrete labels).
