@@ -247,7 +247,12 @@ app.post('/api/agent/run', async (c) => {
 
         await send('done', {});
       } catch (err) {
-        await send('error', { message: String(err) });
+        console.error('[Agent error]', err);
+        const message =
+          err instanceof Error && err.cause instanceof Error
+            ? `${err.message}: ${err.cause.message}`
+            : String(err);
+        await send('error', { message });
       }
     }),
   );
