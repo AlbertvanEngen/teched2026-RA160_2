@@ -5,7 +5,7 @@ import { TabpfnClient } from '@sap-ai-sdk/tabpfn';
 import { resilience } from '@sap-cloud-sdk/resilience';
 import { z } from 'zod';
 import { runQuery, scratchTable } from '../db.ts';
-import { featureColumns } from '../parquet.ts';
+import { featureColumns, protectedPredictionColumns } from '../parquet.ts';
 import { registerSessionObject } from '../session-store.ts';
 import { predictionQueries } from './prediction-input.ts';
 
@@ -122,8 +122,12 @@ async function writeTabpfnPredictionTable(
   predictions: unknown[],
   targetColumn: string,
   taskType: 'classification' | 'regression',
+  protectedColumns: string[],
 ): Promise<string> {
   const predictedColumn = `predicted_${targetColumn}`;
+  const protectedProjection = protectedColumns
+    .map((column) => `"${column.replaceAll('"', '""')}"`)
+    .join(', ');
   const values = predictions
     .map(
       (prediction, index) =>
@@ -134,7 +138,7 @@ async function writeTabpfnPredictionTable(
   await runQuery(
     `CREATE OR REPLACE TABLE ${outputTable} AS
      WITH predicted(${ROW_ID_COLUMN}, "${predictedColumn}") AS (VALUES ${values})
-     SELECT source.* EXCLUDE (${ROW_ID_COLUMN}), predicted."${predictedColumn}"
+     SELECT source.* EXCLUDE (${ROW_ID_COLUMN}, ${protectedProjection}), predicted."${predictedColumn}"
      FROM ${predictionTable} source
      JOIN predicted USING (${ROW_ID_COLUMN})
      ORDER BY ${ROW_ID_COLUMN}`,
@@ -220,6 +224,7 @@ async function runTabpfnPrediction(
     predictions,
     input.targetColumn,
     input.taskType,
+    protectedPredictionColumns(Object.keys(contextRows[0]), input.targetColumn),
   );
 }
 
@@ -240,6 +245,7 @@ export const runTabpfnPredictionTool = tool(
       'Required: tableName, outputTable (replaced if it exists), targetColumn, and taskType. ' +
       'predictionWhere selects rows to predict; contextWhere selects training rows. ' +
       'Preserve one row per complete, alignable forecast key; do not aggregate to the requested reporting grain. Every feature must have the same meaning in context and prediction rows. ' +
+      'For amount targets, raw transaction, company-code, and global-currency amount columns are excluded from model features and prediction output as known target proxies. ' +
       'Set categoricalFeatureColumns for string or enum features.',
     schema: tabpfnInputSchema,
   },

@@ -27,15 +27,46 @@ const EXCLUDED_FEATURES = new Set([
   'fiscalyearperiod',
 ]);
 
+// The mock OData services expose the same monetary cell in three currencies.
+// For amount targets these raw columns are target proxies: retaining a sibling
+// after hiding the target lets a tabular model reconstruct the answer.
+const RAW_CURRENCY_AMOUNT_COLUMNS: Record<string, true> = {
+  amountintransactioncurrency: true,
+  amountincompanycodecurrency: true,
+  amountinglobalcurrency: true,
+};
+
+/** Target and known target-proxy columns that prediction outputs must not expose. */
+export function protectedPredictionColumns(
+  columns: string[],
+  targetColumn: string,
+): string[] {
+  const protectRawAmounts = targetColumn.toLowerCase().includes('amount');
+  return columns.filter(
+    (column) =>
+      column === targetColumn ||
+      (protectRawAmounts &&
+        RAW_CURRENCY_AMOUNT_COLUMNS[column.toLowerCase()] === true),
+  );
+}
+
 export const ROW_ID_COLUMN = '__row_id';
 
-/** Drops columns that would mislead the model, keeping the target column always. */
+/** Drops columns that would mislead or leak into the model, keeping the target. */
 export function featureColumns(
   columns: string[],
   targetColumn: string,
 ): string[] {
+  const protectedColumns = new Set(
+    protectedPredictionColumns(columns, targetColumn).filter(
+      (column) => column !== targetColumn,
+    ),
+  );
   return columns.filter(
-    (c) => c === targetColumn || !EXCLUDED_FEATURES.has(c.toLowerCase()),
+    (column) =>
+      column === targetColumn ||
+      (!EXCLUDED_FEATURES.has(column.toLowerCase()) &&
+        !protectedColumns.has(column)),
   );
 }
 
