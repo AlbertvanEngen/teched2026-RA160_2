@@ -67,9 +67,6 @@ public class RptPredictionTool {
       final List<Map<String, RowsInnerValue>> rptRows,
       final String targetColumn,
       final String taskType) {
-    // ---------------------------------------- EXERCISE 3 ----------------------------------------
-    // YOUR CODE START
-    /*
     final var targetColConfig =
         TargetColumnConfig.create()
             .name(targetColumn)
@@ -88,11 +85,6 @@ public class RptPredictionTool {
             .parseDataTypes(true);
 
     return RptClient.forModel(SAP_RPT_1_6).tableCompletion(request);
-    */
-    // YOUR CODE END
-    // delete the following line
-    throw new UnsupportedOperationException("callRpt not yet implemented — complete Exercise 3");
-    // ---------------------------------------- EXERCISE 3 ----------------------------------------
   }
 
   @Tool(
