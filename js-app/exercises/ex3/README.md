@@ -181,15 +181,20 @@ Compare the TabPFN predictions to the RPT predictions from Step 4 — the two mo
 
 ## Step 8: Compare with a naïve SQL baseline (bonus)
 
-A predictive model is most useful when it beats a simple baseline.
-Keep the same chat session so the historical rows, prediction rows, model results, and ground-truth comparison remain available.
+Before trusting a predictive model, check whether it actually beats the simplest possible approach: predicting 2026 by averaging the 2022–2024 actuals. This is called a **naïve baseline**, no ML, just a SQL mean.
 
-Ask the agent to create and evaluate the baseline:
+Keep the same chat session so all previously loaded data remains available.
+
+Ask the agent to build and compare the baseline:
 
 > "Using the loaded ACTUAL history, build a historical-mean baseline for the same 2026 target cells and compare its 12-period MAPE with RPT and TabPFN. Show the baseline SQL."
 
-Check that the SQL uses the complete key — company code, cost center, profit center, G/L account, ledger, and fiscal period — and excludes 2026 actual values from prediction construction. It must produce exactly one prediction per 2026 target cell before aggregation.
-The task is complete when the response shows the baseline SQL, 12 period-level comparison rows, and magnitude-oriented period MAPE values for the naïve baseline, RPT, and TabPFN. Cell-level MAPE and WAPE are not substitutes. After the target-cell count is verified once, the baseline comparison should need only its construction query, ground-truth call, and final aggregate query.
+**What to check in the response:**
+- The SQL groups by the full cell key: company code, cost center, profit center, G/L account, ledger, and fiscal period — not a partial subset.
+- The baseline only uses 2022–2024 actuals, 2026 actuals must not be included.
+- The output is a 12-row table showing MAPE (how wrong each prediction is, as a percentage) for each model side by side.
+
+The step is complete when you can see the baseline SQL, 12 period rows, and MAPE values for the naïve baseline, RPT, and TabPFN — and judge whether the ML models beat the simple average.
 
 ## Step 9: Understanding what RPT does under the hood
 
