@@ -8,12 +8,12 @@ If you haven't done so, please finish that exercise first.
 
 ## Overview
 
-In this task we will extend `addToolCalls` in `AgentService` with three forecasting tools and implement the `callRpt` method in `RptPredictionTool` so you can see the SAP AI SDK's RPT client in action.
+In this task we will extend `addToolCalls` in `AgentService` with three forecasting tools and implement the `callRpt` method in `RptPredictionTool` so you can see the SAP Cloud SDK for AI's RPT client in action.
 In order to do this, we will perform the following steps:
 - Understand what SAP RPT is and why it is different from a hand-rolled statistical forecast.
 - Learn what each of the three RPT tools does and when the model should pick each one.
 - Register the tools by appending them to the existing `ToolCallbacks.from(...)` call.
-- Get to know the three-object model used to call RPT via the SAP AI SDK.
+- Get to know the three-object model used to call RPT via the SAP Cloud SDK for AI.
 - Implement the `callRpt` method step by step.
 - Test an end-to-end forecast and a ground-truth evaluation.
 
@@ -81,7 +81,7 @@ That is the only change needed in `AgentService`.
 
 ## Step 4: Get to know the RPT request model
 
-Before implementing `callRpt`, it helps to understand the three-object model the SAP AI SDK uses to build an RPT request.
+Before implementing `callRpt`, it helps to understand the three-object model the SAP Cloud SDK for AI uses to build an RPT request.
 The pattern is intentionally similar to what you saw in Exercise 1 with the Orchestration client:
 
 | RPT SDK object | Orchestration equivalent | Purpose |
@@ -225,7 +225,7 @@ Without restarting, ask the agent to compare its prediction to reality:
 
 The agent should call `get_ground_truth` on the prediction table it just wrote, fetch real journal entries from OData, and return a comparison table showing `pct_of_actual`, `pct_below_actual`, and `pct_above_actual`.
 
-> **Note on the data:** Ground truth exists for fiscal years 2018–2028 in the mock OData server.
+> **Note on the data:** Ground truth exists for fiscal years 2018–2028 in the mock S4/HANA server.
 > If the agent says ground truth is unavailable, check that it is actually querying 2026 and not a different year.
 
 This step is of course only for demo purposes here.
