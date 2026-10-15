@@ -16,8 +16,8 @@ function whereClauseError(where: string, label: string): string | null {
 }
 
 /**
- * Validates the shared input of the prediction tools and builds the SELECTs for
- * context rows (default: NOT predictionWhere) and prediction rows.
+ * Validates the shared input of the prediction tools and builds the SELECT
+ * queries for context rows (default: NOT predictionWhere) and prediction rows.
  * Returns an error message for invalid input.
  */
 export function predictionQueries(
