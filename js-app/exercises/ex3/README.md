@@ -8,6 +8,7 @@ Complete [Exercise 2](../ex2/README.md) before starting this exercise.
 ## What you'll learn
 
 By the end of this exercise, your agent will be able to run a complete forecast workflow:
+
 - Load historical actuals and future planning features from SAP OData services.
 - Predict future periods using **SAP RPT** (Relational Pretrained Transformer).
 - Optionally evaluate prediction accuracy against actuals using standard metrics like **MAPE**.
@@ -102,27 +103,28 @@ Deterministic queries continue to run directly through SQL.
 A complete forecast workflow follows this sequence:
 
 ```text
-1. Load context data    → query_financial_planning (planningCategory = ACTUAL, e.g. 2022–2024)
-2. Load feature rows    → query_financial_planning (planningCategory = PLAN|BUDGET|FORECAST, context and target years)
-3. Create a view        → run_sql (combine the loaded rows with matching feature columns)
-4. Run forecast         → run_rpt_prediction (tableName, predictionWhere, contextWhere, outputTable, targetColumn)
-5. Aggregate results    → run_sql (SELECT fiscalPeriod, SUM(predicted_...) FROM outputTable)
-6. Report               → LLM formats the requested forecast
-7. Optional validation  → only when the user explicitly asks: get_ground_truth (...)
+1. Load context data     → query_financial_planning (planningCategory = ACTUAL, 2022–2024)
+2. Load feature rows     → query_financial_planning (PLAN, BUDGET, FORECAST for 2022–2026)
+3. Create model view     → run_sql (align features; set target to NULL for 2026)
+4. Run forecast          → run_rpt_prediction (predict target cells)
+5. Aggregate results     → run_sql (SELECT fiscalPeriod, SUM(predicted_...) FROM outputTable)
+6. Report                → LLM formats and explains the 12-period forecast
+7. Optional validation   → get_ground_truth (only when explicitly requested by user)
 ```
 
-Steps 1–2 load filtered OData rows into the SQL workspace.
-Steps 3–6 produce and report the forecast.
-Step 7 is opt-in and must not run automatically after every forecast.
-The agent always uses SQL for deterministic preparation and aggregation; prediction is reserved for values that are not already present in the loaded source data.
-The agent drives the sequence autonomously once you ask for a forecast.
+1. **Steps 1–2:** Load the required historical actuals and planning features into in-memory SQL tables.
+2. **Step 3:** Use `run_sql` to create a unified view aligning context rows (where `ACTUAL` is known) and prediction rows (where `ACTUAL` is `null`).
+3. **Step 4:** Call `run_rpt_prediction` to populate the missing values into a new output table.
+4. **Step 5–6:** Use SQL to aggregate predictions to the requested reporting grain (e.g., monthly fiscal periods 001–012) and present the response.
+5. **Step 7:** Validation is strictly opt-in — the agent only fetches ground truth when explicitly asked.
+
+---
 
 ## Step 4: How `callRpt` works in `rpt-tool.ts`
 
-Open [`agent/src/tools/rpt-tool.ts`](../../agent/src/tools/rpt-tool.ts) and read the `callRpt` function (around line 286).
+Open [`agent/src/tools/rpt-tool.ts`](../../agent/src/tools/rpt-tool.ts) and locate the `callRpt` function (around line 294).
 
-This is the core of the RPT integration.
-Unlike the Java SDK's row-map approach, the TypeScript SDK uses a **Parquet-based API**: instead of sending rows as JSON objects, the function serialises the combined table to a Parquet file blob and sends that to RPT.
+Unlike row-by-row JSON APIs, the TypeScript SDK uses a **Parquet-based API**: it serializes the SQL view into a binary Parquet blob and transmits it to SAP RPT in a single request:
 
 ```typescript
 const rptClient = new RptClient({ modelName: RPT_MODEL });
@@ -262,6 +264,6 @@ You have explored tabular foundation models and evaluation tools in the financia
 - **Ground Truth Evaluation:** Explicitly compared predictions against real historical actuals to compute accuracy metrics like MAPE.
 - **TabPFN:** Tested an alternative tabular foundation model designed for mixed categorical and numeric data.
 
-Both models handle the heavy lifting — your role is to give the agent the tools and let the system prompt guide it on when to use them.
+All model interactions were orchestrated autonomously through LangChain tool calling.
 
 Continue to [Exercise 4 - Resilience with Fallback Configs: Handling Model Failures Gracefully](../ex4/README.md).
