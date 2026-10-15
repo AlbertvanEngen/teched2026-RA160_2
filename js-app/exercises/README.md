@@ -21,7 +21,7 @@ AICORE_SERVICE_KEY={"clientid":"...","clientsecret":"...","url":"...","serviceur
 ### Start the web UI (JavaScript)
 
 ```sh
-pnpm --filter financial-agent-webui dev
+pnpm run js-agent
 ```
 
 The UI listens on `http://localhost:3142`. The mock S/4HANA OData services (financial planning and journal entries, on the same `/sap/opu/odata/sap/` path structure as a real system) are embedded in the same process and start automatically.
