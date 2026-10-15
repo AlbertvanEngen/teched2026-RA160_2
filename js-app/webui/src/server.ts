@@ -13,10 +13,29 @@ if (isDev) {
   });
 
   // Watch sibling workspace packages so edits in agent or mock-server trigger SSR reloads
-  vite.watcher.add([
-    path.resolve(import.meta.dirname, '../../agent/src'),
-    path.resolve(import.meta.dirname, '../../../mock-server/src'),
-  ]);
+  const agentSrc = path.resolve(import.meta.dirname, '../../agent/src');
+  const mockServerSrc = path.resolve(
+    import.meta.dirname,
+    '../../../mock-server/src',
+  );
+  vite.watcher.add([agentSrc, mockServerSrc]);
+
+  // Trigger a full browser reload when backend agent or mock-server code changes,
+  // keeping the UI chat history in sync with fresh in-memory agent checkpoints.
+  const triggerBrowserReload = (file: string) => {
+    const normalized = file.replaceAll('\\', '/');
+    if (
+      normalized.includes('/agent/src/') ||
+      normalized.includes('/mock-server/src/') ||
+      normalized.includes('/webui/src/app.ts')
+    ) {
+      vite.ws.send({ type: 'full-reload' });
+    }
+  };
+
+  vite.watcher.on('change', triggerBrowserReload);
+  vite.watcher.on('add', triggerBrowserReload);
+  vite.watcher.on('unlink', triggerBrowserReload);
 
   let cachedApp: unknown = null;
   let cachedListener: ReturnType<typeof getRequestListener> | null = null;
