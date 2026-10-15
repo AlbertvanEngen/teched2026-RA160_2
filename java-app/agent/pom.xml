@@ -129,6 +129,14 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!--
+                        Run from the repo root so java-dotenv (used by the SAP AI SDK to load
+                        AICORE_SERVICE_KEY) finds the .env file that lives at the repo root,
+                        matching where the JS tooling and the README tell attendees to place it.
+                    -->
+                    <workingDirectory>../..</workingDirectory>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
