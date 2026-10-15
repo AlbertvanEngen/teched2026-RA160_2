@@ -4,13 +4,22 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { HighlightedCode } from './highlight.tsx';
 import type { Message, ToolEntry, TurnGroup } from './types.ts';
 
-marked.use({ gfm: true, breaks: true });
+marked.use({
+  gfm: true,
+  breaks: true,
+  tokenizer: {
+    del() {
+      return undefined;
+    },
+  },
+});
 
 function parseMarkdown(md: string): DocumentFragment {
   const result = marked.parse(md);
   return DOMPurify.sanitize(typeof result === 'string' ? result : '', {
     RETURN_DOM_FRAGMENT: true,
     USE_PROFILES: { html: true },
+    FORBID_TAGS: ['del', 's', 'strike'],
   });
 }
 
