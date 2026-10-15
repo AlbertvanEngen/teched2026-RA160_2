@@ -28,7 +28,7 @@ const DEMO_PROMPTS = [
   {
     label: '3. Compare ground truth',
     prompt:
-      'Compare the signed forecast with 2026 journal-entry ground truth and a 2022–2025 historical-mean baseline built for the same target cells. Report both forecasts and period MAPE across all 12 periods.',
+      'Compare the forecast with 2026 journal-entry ground truth for cost center A1000. Report the forecast, ground truth actuals, and period MAPE across all 12 periods.',
   },
 ];
 

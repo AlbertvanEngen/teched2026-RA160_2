@@ -50,6 +50,20 @@ Open the following files and read the `tool(...)` definitions at the bottom of e
 You will register these three data tools in this exercise.
 Exercise 3 adds RPT, TabPFN, and ground-truth tools after the SQL workflow is established.
 
+### Understanding planning categories in SAP financial data
+
+When querying financial planning data via `query_financial_planning`, entries are partitioned by **`planningCategory`**.
+In SAP financial planning, four distinct categories represent different perspectives on the same financial dimensions:
+
+- **`ACTUAL`**: Realized, historical financial amounts recorded from executed business transactions (what was *actually* spent or earned).
+- **`PLAN`**: Operational planning figures established by business units as targets for future periods.
+- **`BUDGET`**: Approved financial limits / spending allocations authorized by management.
+- **`FORECAST`**: Rolling estimates updated periodically throughout the fiscal year reflecting recent trends.
+
+> **Why this distinction matters:** All four categories live in the same OData entity.
+> If an agent aggregates amounts without filtering by `planningCategory`, it will sum actuals, budgets, plans, and forecasts together — quadrupling or distorting the totals!
+> In **Exercise 3**, you will use historical `ACTUAL` values as training context, combined with `PLAN`, `BUDGET`, and `FORECAST` as predictive features, to **predict future ACTUAL values**.
+
 Each tool is defined with `tool(fn, { name, description, schema })` from `@langchain/core/tools` — the LangChain convention that makes a function visible to the LLM as a callable tool.
 The `description` string and the Zod `schema` together form the function definition the model sees, so it knows _when_ and _how_ to call each tool.
 

@@ -18,7 +18,6 @@ const rpt = (msg: string) => console.log(styleText('cyan', '[RPT] ') + msg);
 const PREDICTION_FLAG_COLUMN = '__is_prediction';
 
 type TaskType = 'classification' | 'regression';
-const RPT_MODEL = 'sap-rpt-1.6';
 
 type PredictionRow = {
   predicted: string | number;
@@ -302,7 +301,7 @@ async function callRpt(
   const dropped = columns.filter((c) => !features.includes(c));
   if (dropped.length) rpt(` Excluded from features: ${dropped.join(', ')}`);
 
-  const rptClient = new RptClient({ modelName: RPT_MODEL });
+  const rptClient = new RptClient({ modelName: 'sap-rpt-1.6' });
   return withParquetBlob(inputTable, features, (file) =>
     rptClient.predictParquet(
       {

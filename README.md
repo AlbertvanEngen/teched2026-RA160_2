@@ -8,7 +8,7 @@ This repository contains the material for the SAP TechEd 2026 session **RA160 �
 
 Experience the SAP AI Core foundation as the orchestration layer for enterprise AI. Our engineers help you extend Joule Agents with models from the foundation's library, ground them in products for SAP Business Data Cloud, and embed them in the flows of SAP S/4HANA. Learn to govern, scale, and monitor AI agents from prototype to production.
 
-In this workshop, you will build a financial data agent that queries a mock S/4HANA OData backend, stores the results in a local scratch database, and uses SAP AI Runtime predictions to forecast future periods — all wired together through SAP AI Core's orchestration layer. Implementations are provided in both **TypeScript** (LangChain + SAP AI SDK) and **Java** (Spring AI + SAP Cloud SDK for AI).
+In this workshop, you will build a financial data agent that queries a mock S/4HANA OData backend, stores the results in a local scratch database, and uses SAP AI Runtime predictions to forecast future periods — all wired together through SAP AI Core's orchestration layer. Implementations are provided in both **TypeScript** (LangChain + SAP Cloud SDK for AI) and **Java** (Spring AI + SAP Cloud SDK for AI).
 
 ## Overview
 

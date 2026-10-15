@@ -19,9 +19,9 @@ pnpm install
 
 Keep credentials in the root `.env` file.
 Do not commit or print that file.
-The SAP AI SDK reads `AICORE_SERVICE_KEY` from the environment.
+The SAP Cloud SDK for AI reads `AICORE_SERVICE_KEY` from the environment.
 
-Start the web application, which also serves the mock OData routes:
+Start the web application, which also serves the mock S/4HANA routes:
 
 ```bash
 pnpm run js-agent
@@ -47,7 +47,7 @@ flowchart LR
     SQL --> Report[SQL reporting and views]
     SQL --> Prediction[Tabular prediction]
     Prediction --> SQL
-    Web --> Mock[Shared mock OData server]
+    Web --> Mock[Shared mock S/4HANA server]
     Agent --> AI[SAP AI Core orchestration]
 ```
 
@@ -87,7 +87,7 @@ It serves financial planning and journal-entry data.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `AICORE_SERVICE_KEY` | None | Authenticates SAP AI SDK calls. |
+| `AICORE_SERVICE_KEY` | None | Authenticates SAP Cloud SDK for AI calls. |
 | `MOCK_SERVER_URL` | `http://localhost:$PORT`, else `http://localhost:3142` | Selects the OData service host. |
 | `PORT` | Mock: `3141`; web: `3142` | Overrides the port of the process being started. |
 | `MOCK_STANDALONE` | Unset | Set to `1` to stop the web server from mounting mock routes. |
