@@ -21,7 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 abstract class ChildProcess {
 
-  private static final int HEALTH_CHECK_RETRIES = 30;
+  private static final int HEALTH_CHECK_RETRIES = 60;
   private static final long HEALTH_CHECK_INTERVAL_MS = 1_000;
 
   private Process process;
@@ -59,7 +59,8 @@ abstract class ChildProcess {
 
     log.info("{} from {}", startMsg, repoRoot);
     try {
-      final ProcessBuilder pb = new ProcessBuilder(command)
+      final String[] effectiveCommand = isWindows() ? wrapForWindows(command) : command;
+      final ProcessBuilder pb = new ProcessBuilder(effectiveCommand)
           .directory(repoRoot.toFile())
           .redirectErrorStream(true);
 
@@ -67,6 +68,7 @@ abstract class ChildProcess {
         pb.environment().put(extraEnv[i], extraEnv[i + 1]);
       }
 
+      log.info("[{}] PATH={}", logPrefix, pb.environment().get(isWindows() ? "Path" : "PATH"));
       process = pb.start();
 
       final Process p = process;
@@ -83,6 +85,10 @@ abstract class ChildProcess {
       logThread.start();
 
       waitForPort(port, logPrefix);
+
+      if (!process.isAlive()) {
+        log.warn("[{}] process exited early with code {}", logPrefix, process.exitValue());
+      }
     } catch (final IOException e) {
       log.error("Failed to start {}", logPrefix, e);
     }
@@ -140,5 +146,18 @@ abstract class ChildProcess {
       dir = parent;
     }
     return null;
+  }
+
+  private static boolean isWindows() {
+    return System.getProperty("os.name", "").toLowerCase().contains("win");
+  }
+
+  /** Wraps a command in {@code cmd /c} on Windows so .cmd shims (pnpm.cmd, node.cmd) resolve. */
+  private static String[] wrapForWindows(final String[] command) {
+    final String[] wrapped = new String[command.length + 2];
+    wrapped[0] = "cmd";
+    wrapped[1] = "/c";
+    System.arraycopy(command, 0, wrapped, 2, command.length);
+    return wrapped;
   }
 }
