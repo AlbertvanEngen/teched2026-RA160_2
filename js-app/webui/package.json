@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --env-file-if-exists=../../.env src/server.ts",
+    "dev": "tsx --env-file-if-exists=../../.env src/server.ts",
     "server": "NODE_ENV=production tsx --env-file-if-exists=../../.env src/server.ts",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b"
