@@ -184,9 +184,6 @@ public class AgentService {
    * @return the answer of the LLM as a String
    */
   private String callChatClient(final String prompt) {
-    // ---------------------------------------- EXERCISE 1 ----------------------------------------
-    // YOUR CODE START
-    /*
     final OrchestrationModuleConfig config = new OrchestrationModuleConfig(CLAUDE_4_6_SONNET);
     final ChatModel chatModel = new OrchestrationChatModel();
     final OrchestrationChatOptions options = addToolCalls(new OrchestrationChatOptions(config));
@@ -204,12 +201,6 @@ public class AgentService {
           new Prompt(messages, options), response);
       messages = result.conversationHistory();
     }
-
-    // YOUR CODE END
-    */
-    // delete the following line
-    return "This could be a chat client response.";
-    // ---------------------------------------- EXERCISE 1 ----------------------------------------
   }
 
   /**
@@ -221,9 +212,6 @@ public class AgentService {
    * @param options the OrchestrationChatOptions to which the tools are added
    */
   private OrchestrationChatOptions addToolCalls(final OrchestrationChatOptions options) {
-    // ---------------------------------------- EXERCISE 2 ----------------------------------------
-    // YOUR CODE START
-    /*
     return options.mutate().toolCallbacks(
         List.of(
             ToolCallbacks.from(
@@ -233,10 +221,6 @@ public class AgentService {
                 rptSinglePredictionTool,
                 getGroundTruthTool,
                 duckDbTool))).build();
-    */
-    // YOUR CODE END
-    return options;
-    // ---------------------------------------- EXERCISE 2 ----------------------------------------
   }
 
   private void addFallbackConfigs(final OrchestrationChatOptions options) {
