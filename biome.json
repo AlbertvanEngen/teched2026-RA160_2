@@ -6,7 +6,8 @@
       "!**/src/generated",
       "!!**/dist",
       "!!**/slides",
-      "!!**/schema"
+      "!!**/schema",
+      "!!**/*.svg"
     ]
   },
   "vcs": {
