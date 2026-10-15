@@ -30,10 +30,6 @@ This is useful for several real-world scenarios:
 - **Model deprecation:** route traffic to a newer model while old integrations are still in use.
 - **Regional availability:** the primary model is unavailable in one region, while the fallback is available globally.
 
-> **Optional improvement:** Using a deliberately broken model name as the failure trigger is a convenient demo technique, but not fully realistic.
-> In production, failures are more likely caused by a deployment being paused or a quota limit being reached.
-> If you want to explore a more realistic scenario, try disabling a model deployment in SAP AI Core and observing that the fallback triggers in the same way.
-
 ## Step 1: Trigger a failure — send a request with a broken config
 
 Open the `agent.ts` file and find the `buildFinancialAgent` function.

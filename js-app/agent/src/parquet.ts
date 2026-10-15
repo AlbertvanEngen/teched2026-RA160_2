@@ -27,7 +27,7 @@ const EXCLUDED_FEATURES = new Set([
   'fiscalyearperiod',
 ]);
 
-// The mock OData services expose the same monetary cell in three currencies.
+// The mock S/4HANA services expose the same monetary cell in three currencies.
 // For amount targets these raw columns are target proxies: retaining a sibling
 // after hiding the target lets a tabular model reconstruct the answer.
 const RAW_CURRENCY_AMOUNT_COLUMNS: Record<string, true> = {

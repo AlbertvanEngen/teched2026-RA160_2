@@ -4,7 +4,7 @@
 
 This repository contains a financial data agent workshop for SAP TechEd 2026 (session RA160).
 The agent queries SAP OData services, loads rows into an in-memory DB workspace, and uses SAP RPT or TabPFN for tabular predictions.
-Implementations are provided in both TypeScript (LangChain + SAP AI SDK) and Java (Spring AI + SAP Cloud SDK for AI).
+Implementations are provided in both TypeScript (LangChain + SAP Cloud SDK for AI) and Java (Spring AI + SAP Cloud SDK for AI).
 
 ## Key source locations
 

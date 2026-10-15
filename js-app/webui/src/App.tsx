@@ -4,13 +4,22 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { HighlightedCode } from './highlight.tsx';
 import type { Message, ToolEntry, TurnGroup } from './types.ts';
 
-marked.use({ gfm: true, breaks: true });
+marked.use({
+  gfm: true,
+  breaks: true,
+  tokenizer: {
+    del() {
+      return undefined;
+    },
+  },
+});
 
 function parseMarkdown(md: string): DocumentFragment {
   const result = marked.parse(md);
   return DOMPurify.sanitize(typeof result === 'string' ? result : '', {
     RETURN_DOM_FRAGMENT: true,
     USE_PROFILES: { html: true },
+    FORBID_TAGS: ['del', 's', 'strike'],
   });
 }
 
@@ -28,7 +37,7 @@ const DEMO_PROMPTS = [
   {
     label: '3. Compare ground truth',
     prompt:
-      'Compare the signed forecast with 2026 journal-entry ground truth and a 2022–2025 historical-mean baseline built for the same target cells. Report both forecasts and period MAPE across all 12 periods.',
+      'Compare the forecast with 2026 journal-entry ground truth for cost center A1000. Report the forecast, ground truth actuals, and period MAPE across all 12 periods.',
   },
 ];
 
