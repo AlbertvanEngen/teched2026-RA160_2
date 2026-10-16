@@ -48,14 +48,14 @@ The SAP Cloud SDK for AI Orchestration service validates and proxies each tool c
 Open [agent/src/main/java/com/sap/teched/demo/agent/AgentService.java](../../agent/src/main/java/com/sap/teched/demo/agent/AgentService.java) and read the field declarations at the top of the class.
 In this exercise we will wire up the following tools:
 
-| Field                    | Tool class                | What it does |
-|--------------------------|---------------------------|--------------|
-| `financialPlanningTool`  | `FinancialPlanningTool`   | Queries the Financial Planning OData service and **appends** rows into the `financial_planning_data` DuckDB table. |
-| `journalEntryTool`       | `JournalEntryTool`        | Queries the Journal Entry OData service and **appends** rows into the `journal_entry_data` DuckDB table. |
-| `duckDbTool`             | `LocalDbTool`             | Runs arbitrary SQL against the in-memory DuckDB workspace (SELECT, GROUP BY, joins, window functions…). |
-| `rptSinglePredictionTool`| `RptSinglePredictionTool` | Runs an SAP RPT forecast using a single DuckDB table, splitting it into context and prediction rows by SQL predicates. |
-| `rptPredictionTool`      | `RptPredictionTool`       | Runs an SAP RPT forecast using two separate DuckDB tables (actuals as context, planning rows to predict). |
-| `getGroundTruthTool`     | `GetGroundTruthTool`      | Fetches real OData data and computes accuracy metrics against a prior RPT prediction table. |
+| Field                     | Tool class                | What it does |
+|---------------------------|---------------------------|--------------|
+| `financialPlanningTool`   | `FinancialPlanningTool`   | Queries the Financial Planning OData service and **appends** rows into the `financial_planning_data` DuckDB table. |
+| `journalEntryTool`        | `JournalEntryTool`        | Queries the Journal Entry OData service and **appends** rows into the `journal_entry_data` DuckDB table. |
+| `localDbTool`             | `LocalDbTool`             | Runs arbitrary SQL against the in-memory DuckDB workspace (SELECT, GROUP BY, joins, window functions…). |
+| `rptPredictionTool`       | `RptPredictionTool`       | Runs an SAP RPT forecast using two separate DuckDB tables (actuals as context, planning rows to predict). |
+| `getGroundTruthTool`      | `GetGroundTruthTool`      | Fetches real OData data and computes accuracy metrics against a prior RPT prediction table. |
+| `rptSinglePredictionTool` | `RptSinglePredictionTool` | Runs an SAP RPT forecast using a single DuckDB table, splitting it into context and prediction rows by SQL predicates. |
 
 We will explain the three RPT tools in depth in Exercise 3 — for now just register them so they are available.
 
@@ -69,13 +69,11 @@ The method's Javadoc becomes part of the function description the model sees, so
 
 ## Step 2: Register the tools on `OrchestrationChatOptions`
 
-Find the `addToolCalls` method in the `AgentService` class.
-The solution code is commented out inside the `/* */` block — your task in the steps below is to put it back in, one piece at a time.
+Find the `addToolCalls` method in the `AgentService` class (marked with `EXERCISE 2a` in the code).
+The solution code is commented out inside the `/* ... */` block — your task in the steps below is to put it back in, one piece at a time.
 Its job is to attach the tools to the `options` object so the LLM knows they exist.
 
-Spring AI provides `ToolCallbacks.from(...)` as a factory that inspects each object for `@Tool`-annotated methods and converts them into the `ToolCallback` descriptors that the underlying model API expects.
 `OrchestrationChatOptions` is immutable, so use its `mutate()` builder to return a new instance with the tool callbacks set.
-Pass the data and SQL tools to it:
 
 ```java
 return options.mutate().toolCallbacks(
@@ -95,14 +93,21 @@ The RPT forecasting tools (`rptSinglePredictionTool`, `rptPredictionTool`, `getG
 ## Step 3: Drive the agentic loop with `ToolCallingManager`
 
 With the tool callbacks registered, we need to run the tool-calling loop ourselves.
-Spring AI's `ToolCallingManager` handles this: it inspects each `ChatResponse` for pending tool calls, executes them, and returns an updated conversation history that you pass back to the model.
+For this, find the `callWithTools` method in the `AgentService` class (marked with `EXERCISE 2b` in the code).
+Spring AI's `ToolCallingManager` handles the main part of the agentic tool loop: it inspects each `ChatResponse` for pending tool calls, executes them, and returns an updated conversation history that you pass back to the model.
+
+We first register the tools with the method from Step 2, create a list of the current messages, and initialise the `ToolCallingManager`.
 
 ```java
+OrchestrationChatOptions optionsWithTools = addToolCalls(options);
+List<Message> currentMessages = new ArrayList<>(messages);
 final ToolCallingManager toolCallingManager = ToolCallingManager.builder().build();
+```
 
-List<Message> messages = new java.util.ArrayList<>(
-    List.of(new SystemMessage(SYSTEM_PROMPT), new UserMessage(prompt)));
+Now we create the actual loop.
+The loop keeps calling the model and executing tools until `hasToolCalls()` returns `false`, at which point the model has produced a final text answer.
 
+```java
 while (true) {
     final ChatResponse response = chatModel.call(new Prompt(messages, options));
     if (!response.hasToolCalls()) {
@@ -114,45 +119,66 @@ while (true) {
 }
 ```
 
-The loop keeps calling the model and executing tools until `hasToolCalls()` returns `false`, at which point the model has produced a final text answer.
+Note that the intermediate tool calls and results are streamed to the browser in the background via `AgentTrace` (which each tool accesses through the `AgentTrace.CURRENT` thread-local), so the user sees the agent's reasoning in real time.
 
-The intermediate tool calls and results are streamed to the browser via `AgentTrace` (which each tool accesses through the `AgentTrace.CURRENT` thread-local), so the user sees the agent's reasoning in real time.
-
-In total, your `callChatClient` method should look like this:
+In total, your `callWithTools` method should look like this:
 
 ```java
-private String callChatClient(final String prompt) {
-    final OrchestrationModuleConfig config = new OrchestrationModuleConfig(CLAUDE_4_6_SONNET);
-    final ChatModel chatModel = new OrchestrationChatModel();
-    final OrchestrationChatOptions options = addToolCalls(new OrchestrationChatOptions(config));
-    final ToolCallingManager toolCallingManager = ToolCallingManager.builder().build();
+private String callWithTools(final ChatModel chatModel, final List<Message> messages, final OrchestrationChatOptions options) {
+  OrchestrationChatOptions optionsWithTools = addToolCalls(options);
+  List<Message> currentMessages = new ArrayList<>(messages);
+  final ToolCallingManager toolCallingManager = ToolCallingManager.builder().build();
 
-    List<Message> messages = new java.util.ArrayList<>(
-        List.of(new SystemMessage(SYSTEM_PROMPT), new UserMessage(prompt)));
-
-    while (true) {
-        final ChatResponse response = chatModel.call(new Prompt(messages, options));
-        if (!response.hasToolCalls()) {
-            return response.getResult().getOutput().getText();
-        }
-        final ToolExecutionResult result = toolCallingManager.executeToolCalls(
-            new Prompt(messages, options), response);
-        messages = result.conversationHistory();
+  while (true) {
+    final ChatResponse response = chatModel.call(new Prompt(currentMessages, optionsWithTools));
+    if (!response.hasToolCalls()) {
+      return response.getResult().getOutput().getText();
     }
+    final ToolExecutionResult result = toolCallingManager.executeToolCalls(
+            new Prompt(currentMessages, optionsWithTools), response);
+    currentMessages = result.conversationHistory();
+  }
 }
 ```
 
+Note that the tools are configured once per request, so there is no shared mutable state between concurrent requests.
 
-## Step 4: Wire `addToolCalls` into `callChatClient`
 
-In the snippet above you can already see how `addToolCalls` is wired in: it is called inline when constructing the options object:
+## Step 4: Wire `callWithTools` into `callChatClient`
 
+We now can call the newly created `callWithTools` method from our `callChatClient` method we build in Exercise 1.
+
+For this, locate the following three lines in the `callChatClient`.
 ```java
-final OrchestrationChatOptions options = addToolCalls(new OrchestrationChatOptions(config));
+final Prompt prompt = new Prompt(messages, options);
+final ChatResponse response = chatModel.call(prompt);
+final String answer = response.getResult().getOutput().getText();
 ```
 
-`addToolCalls` receives the freshly created options, attaches the tool callbacks via `mutate()`, and returns the updated instance.
-The tools are configured once per request, so there is no shared mutable state between concurrent requests.
+**Replace** these three lines with the following single line.
+```java
+final String answer = callWithTools(chatModel, messages, options);
+```
+
+The `callChatClient` method should now look like this.
+
+```java
+private String callChatClient(final String userInput, final String sessionId) {
+    final OrchestrationModuleConfig config = new OrchestrationModuleConfig(CLAUDE_4_6_SONNET);
+    final ChatModel chatModel = new OrchestrationChatModel();
+    final OrchestrationChatOptions options = new OrchestrationChatOptions(config);
+
+    final List<Message> messages = conversationHistories.computeIfAbsent(
+        sessionId,
+        k -> new java.util.ArrayList<>(List.of(new SystemMessage(SYSTEM_PROMPT))));
+    messages.add(new UserMessage(userInput));
+
+    final String answer = callWithTools(chatModel, messages, options);
+
+    messages.add(new AssistantMessage(answer));
+    return answer;
+  }
+```
 
 
 ## Step 5: Start the application and test it
@@ -206,10 +232,10 @@ This transparency is one of the key advantages of the agentic architecture over 
 You have equipped the financial analyst agent with its data and SQL tools.
 Your agent can now:
 
-- Fetch financial planning and journal entry data from SAP OData services like S4/HANA into an in-memory DuckDB workspace.
+- Fetch financial planning and journal entry data from SAP OData services like S4/HANA into an in-memory database.
 - Query, filter, join, and aggregate that data with SQL.
 
-All of this is driven autonomously by the LLM through the agentic tool-calling loop — the only code you wrote was the wiring in `addToolCalls` and the `ToolCallingManager` loop in `callChatClient`.
+All of this is driven autonomously by the LLM through the agentic tool-calling loop — the only code you wrote was the wiring in `addToolCalls` and `callWithTools`.
 
 In Exercise 3 we will add the SAP RPT forecasting tools so the agent can also predict future values and evaluate its own accuracy.
 
