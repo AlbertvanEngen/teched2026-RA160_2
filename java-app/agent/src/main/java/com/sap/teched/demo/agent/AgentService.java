@@ -2,6 +2,7 @@ package com.sap.teched.demo.agent;
 
 import static com.sap.ai.sdk.orchestration.OrchestrationAiModel.CLAUDE_4_6_SONNET;
 
+import com.sap.ai.sdk.orchestration.OrchestrationAiModel;
 import com.sap.ai.sdk.orchestration.OrchestrationModuleConfig;
 import com.sap.ai.sdk.orchestration.spring.OrchestrationChatModel;
 import com.sap.ai.sdk.orchestration.spring.OrchestrationChatOptions;
@@ -13,10 +14,14 @@ import com.sap.teched.demo.tool.FinancialPlanningTool;
 import com.sap.teched.demo.tool.GetGroundTruthTool;
 import com.sap.teched.demo.tool.JournalEntryTool;
 import com.sap.teched.demo.tool.RptPredictionTool;
+
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -148,10 +153,11 @@ public class AgentService {
 
   private final FinancialPlanningTool financialPlanningTool;
   private final JournalEntryTool journalEntryTool;
-  private final LocalDbTool duckDbTool;
+  private final LocalDbTool localDbTool;
   private final RptPredictionTool rptPredictionTool;
   private final GetGroundTruthTool getGroundTruthTool;
   private final RptSinglePredictionTool rptSinglePredictionTool;
+  private final Map<String, List<Message>> conversationHistories = new java.util.concurrent.ConcurrentHashMap<>();
 
   /**
    * Run the agent for the given prompt, streaming SSE events via the emitter.
@@ -167,7 +173,7 @@ public class AgentService {
     final AgentTrace trace = new AgentTrace(emitter, sessionId);
     AgentTrace.CURRENT.set(trace);
     try {
-      final String answer = callChatClient(prompt);
+      final String answer = callChatClient(prompt, sessionId);
       trace.emitDelta(answer != null ? answer : "");
     } finally {
       AgentTrace.CURRENT.remove();
@@ -180,48 +186,47 @@ public class AgentService {
    * Follow the steps in exercises/ex1/README.md or uncomment the code here to make it work.
    * We use the Spring AI integration of the SAP Cloud SDK for AI to do this.
    *
-   * @param prompt the user prompt to send to the LLM
+   * @param userInput the user userInput to send to the LLM
    * @return the answer of the LLM as a String
    */
-  private String callChatClient(final String prompt) {
+  private String callChatClient(final String userInput, final String sessionId) {
     // ---------------------------------------- EXERCISE 1 ----------------------------------------
     // YOUR CODE START
     /*
     final OrchestrationModuleConfig config = new OrchestrationModuleConfig(CLAUDE_4_6_SONNET);
     final ChatModel chatModel = new OrchestrationChatModel();
-    final OrchestrationChatOptions options = addToolCalls(new OrchestrationChatOptions(config));
-    final ToolCallingManager toolCallingManager = ToolCallingManager.builder().build();
+    final OrchestrationChatOptions options = new OrchestrationChatOptions(config);
 
-    List<Message> messages = new java.util.ArrayList<>(
-        List.of(new SystemMessage(SYSTEM_PROMPT), new UserMessage(prompt)));
+    final List<Message> messages = conversationHistories.computeIfAbsent(
+        sessionId,
+        k -> new java.util.ArrayList<>(List.of(new SystemMessage(SYSTEM_PROMPT))));
 
-    while (true) {
-      final ChatResponse response = chatModel.call(new Prompt(messages, options));
-      if (!response.hasToolCalls()) {
-        return response.getResult().getOutput().getText();
-      }
-      final ToolExecutionResult result = toolCallingManager.executeToolCalls(
-          new Prompt(messages, options), response);
-      messages = result.conversationHistory();
-    }
+    messages.add(new UserMessage(userInput));
+    final Prompt prompt = new Prompt(messages, options);
 
+    final ChatResponse response = chatModel.call(prompt);
+    final String answer = response.getResult().getOutput().getText();
+
+    messages.add(new AssistantMessage(answer));
+    return answer;
+     */
     // YOUR CODE END
-    */
     // delete the following line
     return "This could be a chat client response.";
     // ---------------------------------------- EXERCISE 1 ----------------------------------------
   }
 
   /**
-   * EXERCISE 2: Add tool calls.
-   * The below method should add the necessary tools to connect to the OData service etc.
+   * EXERCISE 2a: Add tool calls.
+   * The below method should add the necessary tools to your OrchestrationChatOptions object
+   * to connect to the OData service etc.
    * Follow the steps in exercises/ex2/README.md or uncomment the code here to make it work.
    * We use the Spring AI integration of the SAP Cloud SDK for AI to do this.
    *
    * @param options the OrchestrationChatOptions to which the tools are added
    */
   private OrchestrationChatOptions addToolCalls(final OrchestrationChatOptions options) {
-    // ---------------------------------------- EXERCISE 2 ----------------------------------------
+    // ---------------------------------------- EXERCISE 2a ----------------------------------------
     // YOUR CODE START
     /*
     return options.mutate().toolCallbacks(
@@ -229,18 +234,48 @@ public class AgentService {
             ToolCallbacks.from(
                 financialPlanningTool,
                 journalEntryTool,
-                rptPredictionTool,
+                localDbTool,
                 rptSinglePredictionTool,
-                getGroundTruthTool,
-                duckDbTool))).build();
-    */
+                rptPredictionTool,
+                getGroundTruthTool))).build();
+     */
     // YOUR CODE END
+    // delete the following line
     return options;
-    // ---------------------------------------- EXERCISE 2 ----------------------------------------
+    // ---------------------------------------- EXERCISE 2a ----------------------------------------
   }
 
-  private void addFallbackConfigs(final OrchestrationChatOptions options) {
-    var workingConfig = new OrchestrationModuleConfig(CLAUDE_4_6_SONNET);
-    options.mutate().fallbackConfigs(List.of(workingConfig));
+  /**
+   * EXERCISE 2b: Add the agentic loop.
+   * The below method should add the agentic loop to call the tools you registered before.
+   * Follow the steps in exercises/ex2/README.md or uncomment the code here to make it work.
+   * We use the Spring AI integration of the SAP Cloud SDK for AI to do this.
+   *
+   * @param chatModel the chatModel used to ma ke the call
+   * @param messages the initial list of messages
+   * @param options the OrchestrationChatOptions including the registered tools
+   */
+  private String callWithTools(final ChatModel chatModel, final List<Message> messages, final OrchestrationChatOptions options) {
+    // ---------------------------------------- EXERCISE 2b ----------------------------------------
+    // YOUR CODE START
+    /*
+    OrchestrationChatOptions optionsWithTools = addToolCalls(options);
+    List<Message> currentMessages = new ArrayList<>(messages);
+    final ToolCallingManager toolCallingManager = ToolCallingManager.builder().build();
+
+    while (true) {
+      final ChatResponse response = chatModel.call(new Prompt(currentMessages, optionsWithTools));
+      if (!response.hasToolCalls()) {
+        return response.getResult().getOutput().getText();
+      }
+      final ToolExecutionResult result = toolCallingManager.executeToolCalls(
+          new Prompt(currentMessages, optionsWithTools), response);
+      currentMessages = result.conversationHistory();
+     */
+      // YOUR CODE END
+      // delete the following line
+    return "";
+      // ---------------------------------------- EXERCISE 2b ----------------------------------------
   }
+
 }
