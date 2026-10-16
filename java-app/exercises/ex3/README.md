@@ -33,8 +33,8 @@ The three RPT tools in `AgentService` each serve a different scenario:
 
 | Field               | Tool class              | When to use |
 |---------------------|-------------------------|-------------|
-| `rptFromSourcesTool`| `ForecastFromSourcesTool` | Actuals and planning rows are in **separate** DuckDB tables (e.g., `journal_entry_data` as context, `financial_planning_data` as prediction input). RPT automatically discovers the shared columns. |
-| `rptPredictionTool` | `RptPredictionTool`     | **Dual-source** mode: same as above but more explicit control. Provide the context table, prediction table, target column, and task type directly. Columns that appear in both tables are sent to RPT; a `source` column (`actual` / `plan`) is added automatically so RPT can distinguish the two sets. |
+| `rptSinglePredictionTool`| `RptSinglePredictionTool` | **Single-table** mode: all data is already in one DuckDB table. Supply a `predictionWhere` SQL predicate to select the rows whose target should be predicted (e.g. future fiscal periods), and optionally a `contextWhere` for known-truth rows — if omitted, every row not matching `predictionWhere` becomes context. |
+| `rptPredictionTool` | `RptPredictionTool`     | **Dual-source** mode: actuals and planning rows are in **separate** DuckDB tables (e.g., `journal_entry_data` as context, `financial_planning_data` as prediction input). Only columns shared between both tables are sent to RPT; a `source` column (`actual` / `plan`) is added automatically so RPT can distinguish the two sets. |
 | `getGroundTruthTool`| `GetGroundTruthTool`    | After a prediction is written into an output table, compare it against real OData data. Fetches journal entries or planning ACTUAL rows, joins on the dimensions you specify, and writes a comparison table with `pct_of_actual`, `pct_below_actual`, `pct_above_actual`, MAPE, MAE, and RMSE columns. |
 
 ## Step 2: Understand the typical RPT workflow

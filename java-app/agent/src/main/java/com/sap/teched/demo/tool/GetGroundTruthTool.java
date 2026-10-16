@@ -45,6 +45,7 @@ public class GetGroundTruthTool {
           "Compare RPT predictions against ground truth from the OData backend. "
               + "Journal entries and planning ACTUAL rows share one underlying truth per cell — "
               + "|journal sum| equals planning ACTUAL for the same dimensions. "
+              + "Ground truth data covers fiscal years 2018-2028; only report it as unavailable if a query actually returns no rows. "
               + "Fetches actual values from OData (journal_entry or planning_actual), aggregates "
               + "them to the same grain as the prediction table, joins on groupBy dimensions, and "
               + "writes a comparison table with predicted vs ground-truth values plus percentage "

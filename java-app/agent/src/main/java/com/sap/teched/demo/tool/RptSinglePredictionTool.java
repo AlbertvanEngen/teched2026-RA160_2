@@ -63,7 +63,12 @@ public class RptSinglePredictionTool {
               + "Predictions are written into outputTable as predicted_<targetColumn> plus "
               + "confidence_<targetColumn> and confidence_interval_lower/upper_<targetColumn>, "
               + "which you can aggregate with query_local_db. "
-              + "When actuals and planning are in separate tables, use run_rpt_prediction instead.")
+              + "When actuals and planning are in separate tables, use run_rpt_prediction instead. "
+              + "Guardrails: "
+              + "RPT operates at line-item grain — aggregate the output table rather than comparing against pre-aggregated totals. "
+              + "Filter planningCategory before calling this tool — loading all four categories quadruples row counts. "
+              + "Run a SQL preflight (year/category totals) before calling this tool and a plausibility check on the output; "
+              + "if totals look ~10x off, revisit the filter setup.")
   public String runRptPredictionSingle(
       @ToolParam(description = "Local DB table or view to read from") final String tableName,
       @ToolParam(description = "SQL predicate (no WHERE keyword) selecting rows to predict, "
