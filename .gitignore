@@ -7,4 +7,4 @@ dist
 *.tsbuildinfo
 specs/
 *.edmx
-js-app/tabpfn/src/spec/
+js-app/tabpfn/src/spec/tabpfn-predict*.json

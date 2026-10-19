@@ -61,35 +61,39 @@ async function tabpfnFromRows(
   const categoricalFeatures = features.flatMap((column, index) =>
     categoricalColumns.has(column) ? [index] : [],
   );
-  const taskConfig: TaskConfig = {
-    task: taskType,
-    predict_params:
-      taskType === 'classification'
-        ? { output_type: outputType === 'probas' ? 'probas' : 'preds' }
-        : {
+  const tabpfnConfig =
+    categoricalFeatures.length > 0
+      ? { categorical_features_indices: categoricalFeatures }
+      : undefined;
+  const taskConfig: TaskConfig =
+    taskType === 'classification'
+      ? {
+          task: 'classification',
+          predict_params: {
+            output_type: outputType === 'probas' ? 'probas' : 'preds',
+          },
+          ...(tabpfnConfig ? { tabpfn_config: tabpfnConfig } : {}),
+        }
+      : {
+          task: 'regression',
+          predict_params: {
             output_type: REGRESSION_OUTPUT_TYPES.includes(
               outputType as RegressionOutputType,
             )
               ? (outputType as RegressionOutputType)
               : 'mean',
           },
-    ...(categoricalFeatures.length > 0
-      ? {
-          tabpfn_config: {
-            categorical_features_indices: categoricalFeatures,
-          },
-        }
-      : {}),
-  };
+          ...(tabpfnConfig ? { tabpfn_config: tabpfnConfig } : {}),
+        };
 
   const response = await new TabpfnClient('tabpfn-3.5-plus').predict(
     {
       task_config: taskConfig,
-      x_train: contextRows.map((row) =>
+      X_train: contextRows.map((row) =>
         features.map((column) => toTabpfnValue(row[column])),
       ),
       y_train: contextRows.map((row) => toTabpfnValue(row[targetColumn])),
-      x_test: predictionRows.map((row) =>
+      X_test: predictionRows.map((row) =>
         features.map((column) => toTabpfnValue(row[column])),
       ),
     },

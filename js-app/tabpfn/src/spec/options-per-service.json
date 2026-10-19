@@ -1,0 +1,10 @@
+{
+  "src/spec/tabpfn-predict-json.json": {
+    "packageName": "tabpfn",
+    "directoryName": "tabpfn"
+  },
+  "src/spec/tabpfn-predict-multipart.json": {
+    "packageName": "tabpfn-multipart",
+    "directoryName": "tabpfn-multipart"
+  }
+}

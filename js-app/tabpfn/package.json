@@ -34,6 +34,13 @@
   ],
   "scripts": {
     "build": "tsc",
+    "generate": "openapi-generator --generateESM --clearOutputDir -i ./src/spec/tabpfn-predict-json.json -o ./src/client -s ./src/spec/options-per-service.json && openapi-generator --generateESM -i ./src/spec/tabpfn-predict-multipart.json -o ./src/client -s ./src/spec/options-per-service.json",
+    "pregenerate": "pnpm postprocess-spec",
+    "postgenerate": "pnpm update-imports && pnpm make-tabpfn-internal && pnpm make-tabpfn-multipart-internal && pnpm lint:fix",
+    "postprocess-spec": "redocly bundle ./src/spec/tabpfnopenapispecs.yaml --overlay=./src/spec/tabpfn-predict-overlay.yaml --remove-unused-components --output ./src/spec/tabpfn-predict.json && node ./scripts/postprocess-tabpfn-spec.ts ./src/spec/tabpfn-predict.json",
+    "update-imports": "node ./scripts/update-imports.ts ./src/client",
+    "make-tabpfn-internal": "node ./scripts/postgenerate-tabpfn.ts ./src/client/tabpfn/inference-api.ts",
+    "make-tabpfn-multipart-internal": "node ./scripts/postgenerate-tabpfn.ts ./src/client/tabpfn-multipart/inference-api.ts",
     "postinstall": "pnpm build",
     "test": "node --test 'src/*.test.ts'",
     "lint": "biome check .",
@@ -47,6 +54,7 @@
     "@sap-cloud-sdk/util": "catalog:"
   },
   "devDependencies": {
+    "@redocly/cli": "^2.64.0",
     "@sap-cloud-sdk/openapi-generator": "catalog:",
     "typescript": "catalog:"
   }

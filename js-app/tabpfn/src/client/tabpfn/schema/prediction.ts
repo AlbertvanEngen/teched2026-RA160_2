@@ -4,23 +4,42 @@
  * This is a generated file powered by the SAP Cloud SDK for JavaScript.
  */
 
-import type { CellValue } from './cell-value.js';
-import type { ClassificationTopKPrediction } from './classification-top-k-prediction.js';
-import type { RegressionFullPrediction } from './regression-full-prediction.js';
 /**
- * The predictions. Shape depends on the task and `output_type`.
- * - classification / probas: list of rows; each row is a list of class probabilities.
- * - classification / preds: flat list of predicted labels (one per test row).
- * - classification / top_k: object with `classes` and `values` arrays (one inner list per test row).
- * - regression / mean, median, mode: flat list of numbers (one per test row).
- * - regression / quantiles: list of lists, one inner list per requested quantile.
- * - regression / main: object with point estimates and quantiles.
- * - regression / full: object keyed by mean, median, mode, quantiles, and distribution.
+ * Shape depends on the task and `output_type`. Non-finite numbers are serialised as null.
  */
 export type Prediction =
-  | number[][]
-  | CellValue[]
-  | number[][]
-  | ClassificationTopKPrediction
-  | Record<string, any>
-  | RegressionFullPrediction;
+  | (number | null)[][]
+  | (string | number | boolean)[]
+  | ({
+      /**
+       * Class labels in ascending order.
+       */
+      classes: (string | number | boolean)[];
+      /**
+       * `[row][rank]` → position in `classes`.
+       */
+      values: number[][];
+      /**
+       * `[row][rank]` → that class's probability.
+       */
+      probabilities: (number | null)[][];
+    } & Record<string, any>)
+  | (number | null)[]
+  | (number | null)[][]
+  | ({
+      mean: (number | null)[];
+      median: (number | null)[];
+      mode: (number | null)[];
+      /**
+       * `[quantile][row]`.
+       */
+      quantiles: (number | null)[][];
+      /**
+       * `full` only. `[row][bucket]` over the predicted distribution.
+       */
+      logits?: (number | null)[][];
+      /**
+       * `full` only. Bucket borders; one more than buckets.
+       */
+      borders?: (number | null)[];
+    } & Record<string, any>);

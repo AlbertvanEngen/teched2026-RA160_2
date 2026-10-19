@@ -3,15 +3,11 @@ import {
   getFoundationModelDeploymentId,
   getResourceGroup,
 } from '@sap-ai-sdk/ai-api/internal.js';
-import { OpenApiRequestBuilder } from '@sap-ai-sdk/core';
 import type { HttpDestinationOrFetchOptions } from '@sap-cloud-sdk/connectivity';
-import type { PredictResponsePayload } from './client/tabpfn/index.ts';
-import { TabpfnApi } from './internal.ts';
-import type {
-  MultipartPayload,
-  PredictionData,
-  TabpfnRequestOptions,
-} from './types.ts';
+import type { PredictRequest, PredictResponse } from './client/tabpfn/index.ts';
+import type { PredictMultipart } from './client/tabpfn-multipart/index.ts';
+import { InferenceApi, MultipartInferenceApi } from './internal.ts';
+import type { TabpfnRequestOptions } from './types.ts';
 
 /**
  * Representation of a TabPFN client to make tabular predictions.
@@ -41,13 +37,13 @@ export class TabpfnClient {
    * @returns Prediction response.
    */
   async predict(
-    predictionData: PredictionData,
+    predictionData: PredictRequest,
     requestConfig: TabpfnRequestOptions = {},
-  ): Promise<PredictResponsePayload> {
+  ): Promise<PredictResponse> {
     const { resourceGroup, deploymentId } =
       await this.getResourceGroupAndDeploymentId();
 
-    return TabpfnApi.predict(predictionData)
+    return InferenceApi.predict(predictionData)
       .setBasePath(`/inference/deployments/${deploymentId}`)
       .addCustomHeaders({ 'ai-resource-group': resourceGroup || 'default' })
       .addCustomRequestConfiguration(requestConfig)
@@ -62,27 +58,19 @@ export class TabpfnClient {
    * @returns Prediction response.
    */
   async predictFiles(
-    payload: MultipartPayload,
+    payload: PredictMultipart,
     requestConfig: TabpfnRequestOptions = {},
-  ): Promise<PredictResponsePayload> {
-    const formData = new FormData();
-    formData.append('x_train', toFile(payload.x_train, 'x_train'));
-    formData.append('y_train', toFile(payload.y_train, 'y_train'));
-    formData.append('x_test', toFile(payload.x_test, 'x_test'));
-    formData.append('request', JSON.stringify(payload.request));
-
+  ): Promise<PredictResponse> {
     const { resourceGroup, deploymentId } =
       await this.getResourceGroupAndDeploymentId();
 
-    return new OpenApiRequestBuilder<PredictResponsePayload>(
-      'post',
-      '/predict',
-      {
-        body: formData,
-        headerParameters: { 'content-type': 'multipart/form-data' },
-      },
-      `/inference/deployments/${deploymentId}`,
-    )
+    return MultipartInferenceApi.predict({
+      ...payload,
+      x_train: toFile(payload.x_train, 'x_train'),
+      y_train: toFile(payload.y_train, 'y_train'),
+      x_test: toFile(payload.x_test, 'x_test'),
+    })
+      .setBasePath(`/inference/deployments/${deploymentId}`)
       .addCustomHeaders({ 'ai-resource-group': resourceGroup || 'default' })
       .addCustomRequestConfiguration(requestConfig)
       .execute(this.destination);

@@ -1,23 +1,21 @@
 export type {
-  ClassificationOutputType,
+  ClassifierConfig,
+  ClassifierMetadata,
+  ClassifierOutputType,
+  ClassifierPredictParams,
+  ClassifierTabPFNConfig,
   FitMode,
-  InferencePrecision,
-  PredictParams,
-  PredictResponseMetadata,
-  PredictResponsePayload,
-  RegressionOutputType,
-  TabpfnConfig,
-  TaskConfig,
-  TaskType,
+  PredictRequest,
+  PredictResponse,
+  RegressorConfig,
+  RegressorMetadata,
+  RegressorOutputType,
+  RegressorPredictParams,
+  RegressorTabPFNConfig,
 } from './client/tabpfn/schema/index.ts';
+export type { PredictMultipart } from './client/tabpfn-multipart/schema/index.ts';
 export * from './client.ts';
 export type {
-  CellValue,
-  ColumnOrientedData,
-  MultipartPayload,
-  PredictionData,
-  RowOrientedData,
   TabpfnRequestOptions,
-  TrainingFeatures,
-  TrainingTarget,
+  TaskConfig,
 } from './types.ts';

@@ -5,10 +5,7 @@
  */
 
 /**
- * Preprocessing/caching strategy used by the model. Default: `fit_preprocessors`.
+ * Representation of the 'FitMode' schema.
  */
 export type FitMode =
-  | 'low_memory'
-  | 'fit_preprocessors'
-  | 'fit_with_cache'
-  | 'batched';
+  'low_memory' | 'fit_preprocessors' | 'fit_with_cache' | 'batched';
