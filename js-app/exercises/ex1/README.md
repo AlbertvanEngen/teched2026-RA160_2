@@ -8,7 +8,7 @@ You'll use the [SAP Cloud SDK for AI (JavaScript)](https://github.com/SAP/ai-sdk
 By the end of this exercise, your agent will be able to send a prompt to an LLM via SAP AI Core and return a response to the browser.
 You'll understand how the `OrchestrationClient` class from `@sap-ai-sdk/langchain` replaces direct vendor API calls, how a model config array enables fallback (more on that in Exercise 4), and how LangChain's `createAgent()` function, running on LangGraph's runtime, drives the full request–response loop.
 
-If you have any trouble solving the exercise, the solution code is commented out inside the [agent.ts](../../agent/src/agent.ts) file — look for the `/* */` blocks.
+If you have any trouble solving the exercise, the solution code is commented out in the starter code at [agent/src/agent.ts](../../agent/src/agent.ts) — look for the `/* */` blocks.
 
 ## Background: What is SAP Orchestration?
 
@@ -19,7 +19,7 @@ In LangChain terms, this means you use the `OrchestrationClient` class (instead 
 
 ## Step 1: Familiarize yourself with the project structure
 
-Before writing any code, take a few minutes to read the files you'll be working with.
+Before writing any code, take a few minutes to read the files involved in this exercise.
 
 The project structure under `js-app/` is:
 
@@ -43,7 +43,7 @@ Open [agent/src/agent.ts](../../agent/src/agent.ts) and read it top to bottom.
 Notice the following:
 
 1. The **`buildFinancialAgent()`** function is the function you will implement.
-   It is currently a stub. Build it out piece by piece in the following steps.
+   It contains the starter configuration for the steps in this exercise.
 
 2. The [system-prompt.ts](../../agent/src/system-prompt.ts) file defines **`SYSTEM_PROMPT`**.
    The `systemPromptForTools(tools)` function in `agent.ts` wraps the prompt with a tool-boundary
@@ -60,7 +60,7 @@ Notice the following:
 
 Find the `buildFinancialAgent()` function in the [agent.ts](../../agent/src/agent.ts) file.
 The solution code is commented out inside the `/* */` block.
-Restore it one piece at a time by following the steps in this exercise.
+Restore it one piece at a time using the instructions below.
 
 The `OrchestrationClient` class is the LangChain-compatible model class provided by the SAP Cloud SDK for AI.
 It accepts an array of model config objects, where each object describes one LLM to try in priority order.
@@ -88,8 +88,8 @@ The SDK reads credentials, resource group, and deployment details automatically 
 Find the `createAgent()` function call in `buildFinancialAgent()`.
 It currently has four placeholder values. Replace each placeholder with the variable computed above it:
 
-- Replace `model: {} as never` with `orchestrationClient`, the `OrchestrationClient` instance you created in Step 2.
-  This assigns the configured model client to the `model` parameter in the agent configuration.
+- Set `model` to `orchestrationClient`, the `OrchestrationClient` instance you created in Step 2.
+  This assigns the configured model client to the agent's `model` parameter.
 - Replace `systemPrompt: 'TODO'` with `systemPrompt`, the value already computed by `systemPromptForTools(tools)`.
 - Replace `tools: []` with `tools`, so the tools you register in Exercise 2 reach the agent.
 - Replace `middleware: []` with `middleware`, which enables orchestration prompt caching.

@@ -37,7 +37,7 @@ Replace the first model config with one that references a model name that does n
 
 ```typescript
 const orchestrationClient = new OrchestrationClient({
-  promptTemplating: { model: { name: 'broken_model_name' } },
+  promptTemplating: { model: { name: 'broken-model-name' } },
 });
 ```
 
@@ -48,7 +48,8 @@ pnpm run js-agent
 ```
 
 Ask any question in the UI.
-You should eventually see an error response — the Orchestration service cannot resolve `"broken_model_name"` to a deployment and returns an error, which the agent surfaces to the browser.
+The failure may take up to about a minute because the request must travel through the Orchestration service before the unavailable model is rejected.
+You should eventually see an error response — the Orchestration service cannot resolve `"broken-model-name"` to a deployment and returns an error, which the agent surfaces to the browser.
 Check the terminal for the underlying error details.
 
 ## Step 2: Add a working config as a fallback
@@ -57,13 +58,13 @@ Now restore a working config as the second entry in the array:
 
 ```typescript
 const orchestrationClient = new OrchestrationClient([
-  { promptTemplating: { model: { name: 'broken_model_name' } } },
-  { promptTemplating: { model: { name: 'anthropic--claude-4.6-sonnet' } } },
+  { promptTemplating: { model: { name: 'broken-model-name' } } },
+  { promptTemplating: { model: { name: 'anthropic--claude-4.6-sonnet', params: { reasoning_effort: 'low' } } } },
 ]);
 ```
 
 The array is tried left-to-right.
-If the first config fails (as it will here, because `"broken_model_name"` does not exist), the Orchestration service automatically retries with the second config.
+If the first config fails (as it will here, because `"broken-model-name"` does not exist), the Orchestration service automatically retries with the second config.
 Your application code does not change — the failover is handled entirely server-side by AI Core Orchestration.
 
 ## Step 3: Test it
@@ -102,7 +103,7 @@ const orchestrationClient = new OrchestrationClient([
     promptTemplating: {
       model: {
         name: 'anthropic--claude-4.6-sonnet',
-        params: { reasoning_effort: 'high' },
+        params: { reasoning_effort: 'low' },
       },
     },
   },

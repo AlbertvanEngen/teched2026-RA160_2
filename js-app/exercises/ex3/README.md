@@ -58,6 +58,7 @@ To help you navigate the exercise, here is a quick reference for the key terms u
 - **Target Column vs. Feature Columns:**
   - *Target column:* The specific column to predict (e.g., `amountInCompanyCodeCurrency` for `ACTUAL`).
   - *Feature columns:* The attributes the model learns from (e.g., `costCenter`, `glAccount`, `ledger`, and amounts for `PLAN`, `BUDGET`, `FORECAST`).
+  - *Feature rows:* Rows that provide the input values the model can use to make a prediction. In this exercise, they contain attributes such as cost center, account, and the `PLAN`, `BUDGET`, and `FORECAST` amounts; feature rows may be historical context rows or future prediction rows.
 - **Parquet Format:** A compact, high-performance binary columnar data format. The TypeScript SDK packages rows into a Parquet blob and transmits it to SAP RPT, avoiding the overhead of large JSON payloads. If you prefer to use JSON data in your own clients, the Cloud SDK for AI will transparently compress the payload with `gzip` before sending it to SAP RPT.
 - **Ground Truth:** Real, verified actual values from completed business operations. In real life, future ground truth is unknown until the year ends; in our mock environment, 2026 actuals exist so we can test how accurate our forecast was.
 - **MAPE (Mean Absolute Percentage Error):** A standard forecast evaluation metric measuring percentage error.
@@ -71,9 +72,9 @@ Open the following files and read the `tool(...)` definitions:
 
 | File | Tool name | What it does |
 | ---- | --------- | ------------ |
-| [`rpt-tool.ts`](../../agent/src/tools/rpt-tool.ts) | `run_rpt_prediction` | Runs SAP RPT on a SQL table or view and writes predicted values into an output table. `predictionWhere` and `contextWhere` separate prediction rows from context rows. |
-| [`tabpfn-tool.ts`](../../agent/src/tools/tabpfn-tool.ts) | `run_tabpfn_prediction` | Runs TabPFN on a SQL table or view and writes predictions into an output table. Especially well-suited for tabular data with categorical or mixed-type features. |
-| [`get-ground-truth-tool.ts`](../../agent/src/tools/get-ground-truth-tool.ts) | `get_ground_truth` | Compares a completed prediction against real OData actuals. Computes per-row percentage deviations and summary metrics including MAPE. |
+| [`rpt-tool.ts:417`](../../agent/src/tools/rpt-tool.ts#L417) | `run_rpt_prediction` | Runs SAP RPT on a SQL table or view and writes predicted values into an output table. `predictionWhere` and `contextWhere` separate prediction rows from context rows. |
+| [`tabpfn-tool.ts:231`](../../agent/src/tools/tabpfn-tool.ts#L231) | `run_tabpfn_prediction` | Runs TabPFN on a SQL table or view and writes predictions into an output table. Especially well-suited for tabular data with categorical or mixed-type features. |
+| [`get-ground-truth-tool.ts:411`](../../agent/src/tools/get-ground-truth-tool.ts#L411) | `get_ground_truth` | Compares a completed prediction against real OData actuals. Computes per-row percentage deviations and summary metrics including MAPE. |
 
 ---
 
@@ -122,7 +123,7 @@ A complete forecast workflow follows this sequence:
 
 ## Step 4: How `callRpt` works in `rpt-tool.ts`
 
-Open [`agent/src/tools/rpt-tool.ts`](../../agent/src/tools/rpt-tool.ts) and locate the `callRpt()` function (around line 294).
+Open [`agent/src/tools/rpt-tool.ts:294`](../../agent/src/tools/rpt-tool.ts#L294) and locate the `callRpt()` function.
 
 Unlike row-by-row JSON APIs, the TypeScript SDK uses a **Parquet-based API**: it serializes the SQL view into a binary Parquet blob and transmits it to SAP RPT in a single request:
 
@@ -160,6 +161,10 @@ Key aspects of this implementation:
 - The `task_type: "regression"` property indicates continuous numeric prediction (monetary spend).
 - The `explanations: { top_column_scores: 5 }` property requests feature-importance scores, identifying which columns had the strongest influence on the forecast.
 - The `resilience({ timeout: 60000 })` function wraps the HTTP request with client-side timeout and circuit-breaker handling.
+
+### Try changing the prediction configuration
+
+Before continuing, inspect the `run_rpt_prediction` schema and the `prediction_config` in `callRpt()`. The tool does not hard-code a business column: the agent supplies `targetColumn` and `taskType` for each request. For this exercise, use `amountInCompanyCodeCurrency` as the target and `regression` because the target is a continuous monetary amount. Notice how the implementation passes that choice to RPT as the target column and prediction task.
 
 ---
 
@@ -236,7 +241,7 @@ In-Memory SQL View
 1. Filter context & prediction rows
        │
        ▼
-2. Set target column to NULL for prediction rows
+2. Set the target values to NULL for prediction rows
        │
        ▼
 3. Serialize combined table to Parquet binary blob

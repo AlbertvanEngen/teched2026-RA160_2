@@ -43,9 +43,9 @@ Open the following files and read the `tool(...)` definitions at the bottom of e
 
 | File                                                     | Tool name                  | What it does                                                                                                                                  |
 | -------------------------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`odata-tools.ts`](../../agent/src/tools/odata-tools.ts) | `query_financial_planning` | Fetches financial planning entries from the OData API and **appends** them into a named session table.                                        |
-| [`odata-tools.ts`](../../agent/src/tools/odata-tools.ts) | `query_journal_entry`      | Fetches journal entry items from the OData API and **appends** them into a named session table.                                               |
-| [`sql-tool.ts`](../../agent/src/tools/sql-tool.ts)       | `run_sql`                  | Executes SQL against the session's in-memory workspace — `SELECT` for reporting, `CREATE OR REPLACE VIEW` to define virtual tables, and more. |
+| [`odata-tools.ts:104`](../../agent/src/tools/odata-tools.ts#L104) | `query_financial_planning` | Fetches financial planning entries from the OData API and **appends** them into a named session table. |
+| [`odata-tools.ts:174`](../../agent/src/tools/odata-tools.ts#L174) | `query_journal_entry` | Fetches journal entry items from the OData API and **appends** them into a named session table. |
+| [`sql-tool.ts:7`](../../agent/src/tools/sql-tool.ts#L7) | `run_sql` | Executes SQL against the session's in-memory workspace — `SELECT` for reporting, `CREATE OR REPLACE VIEW` to define virtual tables, and more. |
 
 You will register these three data tools in this exercise.
 Exercise 3 adds RPT, TabPFN, and ground-truth tools after the SQL workflow is established.
@@ -64,7 +64,8 @@ In SAP financial planning, four distinct categories represent different perspect
 > If an agent aggregates amounts without filtering by `planningCategory`, it will sum actuals, budgets, plans, and forecasts together — quadrupling or distorting the totals!
 > In **Exercise 3**, you will use historical `ACTUAL` values as training context, combined with `PLAN`, `BUDGET`, and `FORECAST` as predictive features, to **predict future ACTUAL values**.
 
-Each tool is defined with the `tool(fn, { name, description, schema })` function from `@langchain/core/tools` — the LangChain convention that makes a function visible to the LLM as a callable tool.
+Each tool is defined with the `tool(fn, { name, description, schema })` helper from `@langchain/core/tools`.
+The helper packages your function with the name, description, and input schema that LangChain sends to the LLM as its tool definition.
 The `description` string and the Zod `schema` together form the function definition the model sees, so it knows _when_ and _how_ to call each tool.
 
 > **Tip:** Open the `odata-tools.ts` file and read the `description` and `schema` fields of `queryFinancialPlanningTool`.

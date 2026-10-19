@@ -4,6 +4,10 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   plugins: [react()],
   server: {
+    forwardConsole: {
+      unhandledErrors: true,
+      logLevels: ['log', 'info', 'warn', 'error', 'debug'],
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:3142',
