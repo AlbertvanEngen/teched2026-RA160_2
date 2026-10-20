@@ -3,6 +3,7 @@ import {
   getFinancialAgent,
   sessionContext,
   touchSession,
+  visibleReasoning,
 } from 'financial-mock-agent';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
@@ -51,25 +52,6 @@ app.post('/api/agent/run', async (c) => {
   // --- JS agent (default) ---
   // Dynamic imports so LangChain packages are not loaded when using the Java proxy.
   const { AIMessage, ToolMessage } = await import('@langchain/core/messages');
-
-  function extractReasoning(
-    message: import('@langchain/core/messages').AIMessage,
-  ): string[] {
-    if (!Array.isArray(message.content)) return [];
-    const thoughts: string[] = [];
-    for (const block of message.content as Array<{
-      type: string;
-      reasoning?: string;
-      thinking?: string;
-    }>) {
-      if (block.type === 'reasoning' && block.reasoning) {
-        thoughts.push(block.reasoning);
-      } else if (block.type === 'thinking' && block.thinking) {
-        thoughts.push(block.thinking);
-      }
-    }
-    return thoughts;
-  }
 
   function extractTextContent(
     message: import('@langchain/core/messages').AIMessage,
@@ -174,7 +156,7 @@ app.post('/api/agent/run', async (c) => {
             // Reasoning content in `values` snapshots is cumulative. Compare
             // each model message and block with its prior snapshot so clients
             // receive only newly appended reasoning.
-            const thoughts = extractReasoning(message);
+            const thoughts = visibleReasoning(message);
             for (const [blockIndex, thought] of thoughts.entries()) {
               const reasoningKey = `${message.id ?? messageIndex}:${blockIndex}`;
               const previousThought = emittedThinking.get(reasoningKey);

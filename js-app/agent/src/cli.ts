@@ -4,6 +4,7 @@ import {
   createFinancialAgent,
   createSession,
   sessionContext,
+  visibleReasoning,
 } from './agent.ts';
 
 const promptArgument =
@@ -32,44 +33,13 @@ await sessionContext.run(sessionId, async () => {
   );
   let finalContent = '';
 
-  function logContent(content: AIMessage['content']): string {
+  function textContent(content: AIMessage['content']): string {
     if (typeof content === 'string') return content;
     if (!Array.isArray(content)) return JSON.stringify(content);
-    let text = '';
-    for (const block of content) {
-      if (typeof block !== 'object' || block === null || !('type' in block))
-        continue;
-      if (
-        block.type === 'reasoning' &&
-        'reasoning' in block &&
-        typeof block.reasoning === 'string'
-      ) {
-        console.log(
-          styleText(
-            'dim',
-            `[thinking] ${block.reasoning.slice(0, 500)}${block.reasoning.length > 500 ? '…' : ''}`,
-          ),
-        );
-      } else if (
-        block.type === 'thinking' &&
-        'thinking' in block &&
-        typeof block.thinking === 'string'
-      ) {
-        console.log(
-          styleText(
-            'dim',
-            `[thinking] ${block.thinking.slice(0, 500)}${block.thinking.length > 500 ? '…' : ''}`,
-          ),
-        );
-      } else if (
-        block.type === 'text' &&
-        'text' in block &&
-        typeof block.text === 'string'
-      ) {
-        text = block.text;
-      }
-    }
-    return text;
+    return content
+      .filter((block) => block.type === 'text')
+      .map((block) => block.text)
+      .join('');
   }
 
   for await (const chunk of stream) {
@@ -85,6 +55,14 @@ await sessionContext.run(sessionId, async () => {
     const last = messages[messages.length - 1];
 
     if (AIMessage.isInstance(last)) {
+      for (const thought of visibleReasoning(last)) {
+        console.log(
+          styleText(
+            'dim',
+            `[thinking] ${thought.slice(0, 500)}${thought.length > 500 ? '…' : ''}`,
+          ),
+        );
+      }
       const toolCalls = last.tool_calls ?? [];
       for (const toolCall of toolCalls) {
         console.log(
@@ -94,7 +72,7 @@ await sessionContext.run(sessionId, async () => {
         );
       }
       if (last.content) {
-        const text = logContent(last.content);
+        const text = textContent(last.content);
         if (!toolCalls.length && text) {
           finalContent = text;
         }

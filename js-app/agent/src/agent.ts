@@ -101,6 +101,7 @@ export function createFinancialAgent() {
   return getFinancialAgent();
 }
 
+export { visibleReasoning } from './reasoning-content.ts';
 export {
   clearSession,
   createSession,
