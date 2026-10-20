@@ -5,8 +5,8 @@ packages:
   - mock-server
 
 catalog:
-  '@biomejs/biome': ^2.5.14
-  '@langchain/core': ^1.2.13
+  '@biomejs/biome': ^2.5.15
+  '@langchain/core': ^1.2.18
   '@sap-cloud-sdk/connectivity': ^4.9.1
   '@sap-cloud-sdk/http-client': ^4.9.1
   '@sap-cloud-sdk/generator': ^4.9.1
