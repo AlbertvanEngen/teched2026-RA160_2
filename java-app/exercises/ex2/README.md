@@ -183,7 +183,8 @@ private String callChatClient(final String userInput, final String sessionId) {
 
 ## Step 5: Start the application and test it
 
-Restart the application: press `CTRL + c` while in your terminal and then run `pnpm run java-agent` again.
+To restart the application, press `CTRL + c` while in your terminal and press `y` to agree to end the subprocesses.
+Then run `pnpm run java-agent` again.
 
 Navigate to the UI and ask a question that requires data:
 
@@ -217,10 +218,12 @@ Try the following prompts to explore the agent's tool-calling behaviour using it
 
 - **Multi-step aggregation:**
   > "Compare actual journal entry spend vs. planning ACTUAL for cost center A1000 in 2023."
+  
   The agent needs to load both OData tables and join them in DuckDB.
 
 - **Cross-year comparison:**
   > "How did total planned spend for cost center A1000 change between 2022 and 2024?"
+  
   The agent should load multiple years of planning data and aggregate with `GROUP BY ledgerFiscalYear`.
 
 In each case, watch the trace panel to the left to see exactly which tools are called and with what arguments.

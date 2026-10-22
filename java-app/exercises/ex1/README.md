@@ -15,18 +15,6 @@ If you have any trouble solving the exercise, you can find the code to solve it 
 Also, feel free to ask the presenters in your session for help at any time. 
 
 
-## Before you start: explore the code
-
-Open [agent/src/main/java/com/sap/teched/demo/agent/AgentService.java](../../agent/src/main/java/com/sap/teched/demo/agent/AgentService.java) and take a minute to read through it before writing anything.
-
-A few things to notice:
-
-- **`SYSTEM_PROMPT`** — the long string constant at the top of the class. This is the standing instruction that shapes your application's agent's behaviour for every request: which tools it has, how to use them, how to present results. You do not need to change it; just know it is there and that you will pass it to the LLM as part of every call.
-- **Field declarations** — below `SYSTEM_PROMPT` you will see the tool beans injected by Spring (`financialPlanningTool`, `journalEntryTool`, etc.). These are the data and forecasting tools the agent will gain access to in later exercises. For now, you can ignore them.
-- **`run()`** — the public entry point called by the `AgentController` (the part of the application that governs the application flow) when a prompt arrives from the browser. It sets up an `AgentTrace` for streaming information to the front end and delegates to `callChatClient`. You do not need to change this method.
-- **`callChatClient()`** — this is where your work starts. It currently contains a commented-out solution block (`/* ... */`). Your task is to implement it step by step using the instructions below.
-
-
 ## Background: What is SAP AI Core Orchestration?
 
 The SAP Cloud SDK for AI provides an _Orchestration_ layer that sits in front of multiple LLM providers (OpenAI, Anthropic, etc.) available through SAP AI Core's Generative AI Hub.
@@ -34,8 +22,49 @@ Instead of talking to a vendor API directly, your code uses a single harmonized 
 
 In Spring AI terms, this means we use `OrchestrationChatModel` (instead of, say, `OpenAiChatModel`) and we configure our model choice through `OrchestrationModuleConfig` (instead of an API key and model string).
 
+## Step 1: Explore the code
 
-## Step 1: Create an `OrchestrationModuleConfig`
+Before writing any code, take a few minutes to read the files involved in this exercise.
+
+The relevant source tree under `java-app/` is:
+
+```text
+java-app/
+├── agent/
+│   └── src/main/java/com/sap/teched/demo/
+│       ├── agent/
+│       │   ├── AgentService.java     ← you will implement the agent here
+│       │   └── AgentTrace.java       ← streams tool-call events to the frontend
+│       ├── web/
+│       │   └── AgentController.java  ← REST endpoints; no changes needed
+│       ├── tool/                     ← the tools our agent will use (see Ex.2)
+│       ├── odata/
+│       │   └── S4ODataService.java   ← OData client wrapping the SAP Cloud SDK
+│       └── db/
+│           └── DuckDbConnection.java  ← in-memory DuckDB workspace
+├── webui/                             ← React frontend shared with the JS app (no changes needed)
+└── exercises/                         ← exercise guides
+```
+
+Open [agent/src/main/java/com/sap/teched/demo/agent/AgentService.java](../../agent/src/main/java/com/sap/teched/demo/agent/AgentService.java) and look through it.
+A few things to notice:
+
+- **`SYSTEM_PROMPT`** — the long string constant at the top of the class. This is the standing instruction that shapes the agent's behaviour for every request: which tools it has, how to use them, how to present results. You do not need to change it; just know it is there and that you will pass it to the LLM as part of every call.
+- **Field declarations** — below `SYSTEM_PROMPT` you will see the tool beans injected by Spring (`financialPlanningTool`, `journalEntryTool`, etc.). These are the data and forecasting tools the agent will gain access to in later exercises. For now, you can ignore them.
+- **`run()`** — the public entry point called by `AgentController` when a prompt arrives from the browser. It sets up an `AgentTrace` for streaming information to the frontend and delegates to `callChatClient`. You do not need to change this method.
+- **`callChatClient()`** — this is where your work starts. It currently contains a commented-out solution block (`/* ... */`). Your task is to implement it step by step using the instructions below.
+- There are additional methods below that. We will tackle them in future exercises.
+
+The UI of our demo application looks like this.
+![The financial agent chat UI — empty state before any prompts](img/ex1-ui-empty.png)
+There is an input panel on the bottom and in the middle of the screen you can find some demo sentences (one for each of the first three exercises).
+On the left hand side you will see an overview of the tools that are run once we enable them in Exercise 2.
+Notice that if you run the application right now, you will be able to interact with the UI already.
+But since we did not implement the agentic behaviour yet, you will only get a pre-defined output of `"This could be a chat client response."`
+We will change that in this exercise.
+
+
+## Step 2: Create an `OrchestrationModuleConfig`
 
 Open [agent/src/main/java/com/sap/teched/demo/agent/AgentService.java](../../agent/src/main/java/com/sap/teched/demo/agent/AgentService.java) and find the `callChatClient` method.
 The solution code is commented out inside the `/* ... */` block — your task in the steps below is to put it back in, one piece at a time.
@@ -51,7 +80,7 @@ final OrchestrationModuleConfig config = new OrchestrationModuleConfig(CLAUDE_4_
 You can swap this constant for any other model supported by Orchestration (e.g., `GPT_4O`) once you have the basic flow working.
 
 
-## Step 2: Create an `OrchestrationChatModel`
+## Step 3: Create an `OrchestrationChatModel`
 
 Next, create the `ChatModel` that Spring AI will use to talk to Orchestration:
 
@@ -63,7 +92,7 @@ final ChatModel chatModel = new OrchestrationChatModel();
 It reads SAP AI Core connection details (service key, resource group, deployment) automatically from the environment, so no credentials appear in your code.
 
 
-## Step 3: Wrap the configuration in `OrchestrationChatOptions`
+## Step 4: Wrap the configuration in `OrchestrationChatOptions`
 
 `OrchestrationChatOptions` is the Spring AI `ChatOptions` implementation that carries our `OrchestrationModuleConfig` into the request.
 Create it from the config object you built in Step 1:
@@ -75,7 +104,7 @@ final OrchestrationChatOptions options = new OrchestrationChatOptions(config);
 Think of this as the call-level override: the same `ChatModel` can be reused for different models or settings by passing different `options` objects each time.
 
 
-## Step 4: Build the `Prompt`
+## Step 5: Build the `Prompt`
 
 A `Prompt` is the complete input sent to the LLM. It consists of a list of messages and, optionally, call-level options.
 We need two messages:
@@ -96,7 +125,7 @@ final Prompt prompt = new Prompt(messages, options);
 The order matters: by convention the system message comes first so the model processes it before the user turn.
 
 
-## Step 5: Call the LLM and return its response
+## Step 6: Call the LLM and return its response
 
 Now call the LLM and extract the text content from the response:
 
@@ -109,7 +138,7 @@ final String answer = response.getResult().getOutput().getText();
 `response.getResult().getOutput().getText()` extracts the text of the most recent (and in the beginning only) assistant turn.
 
 
-## Step 6: Give the agent memory across turns
+## Step 7: Give the agent memory across turns
 
 Right now `callChatClient` rebuilds the message list from scratch on every call — only the system prompt and the current user message are sent to the LLM.
 That means the agent has no idea what was said in any previous turn of the same conversation.
@@ -137,7 +166,7 @@ messages.add(new AssistantMessage(answer));
 
 Because the history list is stored by reference in `conversationHistories`, mutations to `messages` are automatically retained — no explicit `put` is needed after each turn.
 
-## Step 7: Adding the `return` Statement and Recap
+## Step 8: Adding the `return` Statement and Recap
 
 We are now ready to finish up the `callChatClient` method.
 The only thing that is missing is returning the answer we got from the LLM so that it is forwarded to the front end.
@@ -169,10 +198,13 @@ In total, your `callChatClient` method should look like this:
 }
 ```
 
-## Step 8: Start the application and test it
+## Step 9: Start the application and test it
+
+Please make sure that all your changes are saved.
+Visual Studio Code is configured to not save automatically, so you need to save every file you cchange by hand (easiest is to press `CTRL + s` while in the file).
 
 Start the application with the following command.
-(If it was already running, stop the previous run by pressing `CTRL + c` first.)
+(If it was already running, stop the previous run by pressing `CTRL + c` first and pressing `y` to agree to end the subprocesses.)
 
 ```bash
 pnpm run java-agent
@@ -189,7 +221,7 @@ Then, without reloading the page, follow up with:
 The agent should answer the second question using context from the first — proof that the history is working.
 
 
-## Step 9: Understanding what just happened
+## Step 10: Understanding what just happened
 
 When you submitted the query, the following happened:
 
@@ -203,7 +235,7 @@ The entire setup — credentials, resource groups, deployment IDs — was read a
 This is the same pattern you would use in a production BTP application: no secrets in code, just configuration in the environment.
 
 
-## Step 10: Try different models
+## Step 11: Try different models
 
 The only thing you need to change to switch models is the constant passed to the `OrchestrationModuleConfig` constructor.
 Try replacing `CLAUDE_4_6_SONNET` with another constant, restart, and ask the same question again.
@@ -211,7 +243,8 @@ Notice how the phrasing, response times, and verbosity of the answer changes —
 
 Available constants are defined in `OrchestrationAiModel` (e.g., `GPT_4O`, `GPT_4O_MINI`).
 
-To restart the application after your code changes, press `CTRL + c` while in your terminal and then run `pnpm run java-agent` again.
+To restart the application after your code changes, press `CTRL + c` while in your terminal and press `y` to agree to end the subprocesses.
+Then run `pnpm run java-agent` again.
 Your application should be back up on the same address in your browser within seconds.
 
 

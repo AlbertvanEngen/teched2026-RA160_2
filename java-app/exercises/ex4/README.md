@@ -58,7 +58,8 @@ final OrchestrationChatOptions options = addToolCalls(new OrchestrationChatOptio
 // ... rest of the loop unchanged
 ```
 
-Restart the application (press `CTRL + c` while in your terminal and then run `pnpm run java-agent` again) and ask any query.
+To restart the application, press `CTRL + c` while in your terminal and press `y` to agree to end the subprocesses.
+Then run `pnpm run java-agent` again.
 You should see `TypeError: network error` in the UI and an `OrchestrationClientException` in the terminal because `"broken_model_name"` cannot be resolved to a deployment.
 
 

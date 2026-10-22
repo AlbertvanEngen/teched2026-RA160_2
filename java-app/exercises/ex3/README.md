@@ -183,11 +183,13 @@ So our application already has access to it and we can immediately start using i
 
 ## Step 6: Start the application and test a forecast
 
-Restart the application: press `CTRL + c` while in your terminal and then run `pnpm run java-agent` again.
+To restart the application, press `CTRL + c` while in your terminal and press `y` to agree to end the subprocesses.
+Then run `pnpm run java-agent` again.
 
 Ask the agent to produce a forecast:
 
 > "Forecast the planned spend for cost center A1000 in fiscal year 2026, using the 2022–2024 ACTUAL history as context."
+
 Watch the agent trace panel. You should see a sequence like:
 
 1. `query_financial_planning` — loads `planningCategory = ACTUAL` rows for 2022–2024.
@@ -205,7 +207,7 @@ Without restarting, ask the agent to compare its prediction to reality:
 
 The agent should call `get_ground_truth` on the prediction table it just wrote, fetch real journal entries from OData, and return a comparison table showing `pct_of_actual`, `pct_below_actual`, and `pct_above_actual`.
 
-> **Note on the data:** Ground truth exists for fiscal years 2018–2028 in the mock S4/HANA server.
+**Note on the data:** Ground truth exists for fiscal years 2018–2028 in the mock S4/HANA server.
 
 This step is of course only for demo purposes.
 In a real world example you probably would not have access to the ground truth, that is exactly why you need the prediction.
