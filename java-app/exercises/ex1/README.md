@@ -27,7 +27,7 @@ A few things to notice:
 - **`callChatClient()`** — this is where your work starts. It currently contains a commented-out solution block (`/* ... */`). Your task is to implement it step by step using the instructions below.
 
 
-## Background: What is the orchestration service?
+## Background: What is the Orchestration Service?
 
 The [orchestration service](https://help.sap.com/docs/ai-launchpad/sap-ai-launchpad/orchestration-4953dc10c6dd48fe85f37b41109dffe2?locale=en-US&q=orchestration) sits in front of multiple LLM providers (OpenAI, Anthropic, etc.) available through SAP AI Core's Generative AI Hub.
 Instead of talking to a vendor API directly, your code uses a single harmonized API — which handles content filtering, data masking, templating, grounding, and more.

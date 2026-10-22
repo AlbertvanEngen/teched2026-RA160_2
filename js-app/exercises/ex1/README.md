@@ -10,7 +10,7 @@ You'll understand how the `OrchestrationClient` class from `@sap-ai-sdk/langchai
 
 If you have any trouble solving the exercise, the solution code is commented out in the starter code at [agent/src/agent.ts](../../agent/src/agent.ts) — look for the `/* */` blocks.
 
-## Background: What is the orchestration service?
+## Background: What is the Orchestration Service?
 
 The [orchestration service](https://help.sap.com/docs/ai-launchpad/sap-ai-launchpad/orchestration-4953dc10c6dd48fe85f37b41109dffe2?locale=en-US&q=orchestration) sits in front of multiple LLM providers (OpenAI, Anthropic, Google, and others) available through SAP AI Core's Generative AI Hub.
 Instead of talking to a vendor API directly, your code uses a single harmonized API that handles content filtering, data masking, templating, grounding, and more.
