@@ -2,8 +2,10 @@
 extend-exclude = [
   "java-app/agent/src/main/java/com/sap/teched/poc/generated/",
   "js-app/agent/src/generated/",
+  "workshop/*.age",
 ]
 
 [default.extend-words]
 mape = "mape"
+encrypter = "encrypter"
 teched = "teched"

@@ -40,6 +40,18 @@ git clone https://github.com/SAP-samples/teched2025-AI160.git
 
 Choose between [JavaScript](js-app/exercises/README.md) or [Java](java-app/exercises/README.md) by clicking the respective links.
 
+### Prepare Workshop Credentials (Organizers)
+
+Place the dedicated, short-lived workshop service key in the ignored root `.env` file, then run:
+
+```sh
+pnpm workshop:encrypt
+```
+
+Generate a strong random passphrase. The command validates `AICORE_SERVICE_KEY` and prompts twice for that passphrase; it only rejects empty or mismatched input because character count does not prove entropy. It creates `workshop/service-key.age`, the encrypted payload to commit to the repository. The passphrase is never persisted by the script; distribute it out of band.
+
+The command refuses to overwrite the payload. Use `pnpm workshop:encrypt --force` only when rotating the workshop credential, and revoke the service key immediately after the workshop.
+
 ## Contributing
 Please read the [CONTRIBUTING.md](./CONTRIBUTING.md) to understand the contribution guidelines.
 

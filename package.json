@@ -14,7 +14,9 @@
     "lint:markdown-links:all": "tsx scripts/check-markdown-links.ts --all",
     "typecheck": "pnpm -r typecheck",
     "build": "pnpm -r run --if-present -r build",
-    "test": "pnpm -r test",
+    "test": "tsx --test scripts/workshop-credentials.test.ts && pnpm -r test",
+    "workshop:setup": "tsx scripts/workshop-credentials.ts setup",
+    "workshop:encrypt": "tsx scripts/workshop-credentials.ts encrypt",
     "setup-ai-core-deployments": "tsx --env-file-if-exists=.env scripts/setup-ai-core-deployments.ts",
     "mock-server": "pnpm --filter purchase-order-mock-server dev",
     "webui": "MOCK_SERVER_URL=http://localhost:3142 pnpm --filter financial-agent-webui dev",
@@ -43,6 +45,7 @@
     "@biomejs/biome": "catalog:",
     "@sap-ai-sdk/ai-api": "^2.16.0",
     "@types/node": "^24.19.0",
+    "age-encryption": "^0.3.1",
     "markdownlint-cli2": "catalog:",
     "tinyexec": "catalog:",
     "tsx": "catalog:"
