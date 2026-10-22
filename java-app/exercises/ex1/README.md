@@ -101,7 +101,7 @@ Create it from the config object you built in Step 1:
 final OrchestrationChatOptions options = new OrchestrationChatOptions(config);
 ```
 
-Think of this as the call-level override: the same `ChatModel` can be reused for different models or settings by passing different `options` objects each time.
+Think of this as the default configuration: the same `ChatModel` can be reused for different models or settings by passing different `options` objects each time.
 
 
 ## Step 5: Build the `Prompt`
@@ -135,7 +135,7 @@ final String answer = response.getResult().getOutput().getText();
 ```
 
 `chatModel.call(prompt)` sends the request to Orchestration synchronously and waits for the complete response.
-`response.getResult().getOutput().getText()` extracts the text of the most recent (and in the beginning only) assistant turn.
+`response.getResult().getOutput().getText()` extracts the text of the most recent assistant turn.
 
 
 ## Step 7: Give the agent memory across turns
@@ -238,10 +238,10 @@ This is the same pattern you would use in a production BTP application: no secre
 ## Step 11: Try different models
 
 The only thing you need to change to switch models is the constant passed to the `OrchestrationModuleConfig` constructor.
-Try replacing `CLAUDE_4_6_SONNET` with another constant, restart, and ask the same question again.
+Try replacing `CLAUDE_4_6_SONNET` with another constant, for example `GEMINI_3_8_FLASH`, restart, and ask the same question again.
 Notice how the phrasing, response times, and verbosity of the answer changes — the system prompt is identical, only the model is different.
 
-Available constants are defined in `OrchestrationAiModel` (e.g., `GPT_4O`, `GPT_4O_MINI`).
+Available constants are defined in the `OrchestrationAiModel` class of the Cloud SDK for AI.
 
 To restart the application after your code changes, press `CTRL + c` while in your terminal and press `y` to agree to end the subprocesses.
 Then run `pnpm run java-agent` again.

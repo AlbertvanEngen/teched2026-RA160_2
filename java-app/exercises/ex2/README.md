@@ -28,14 +28,17 @@ Your application executes the tool, sends the result back, and the model continu
 This back-and-forth is called the **agentic loop**. Schematically:
 
 ```
-User prompt
-    │
-    ▼
- LLM ──── needs data ────► Tool execution
-    ◄──── tool result ─────┘
-    │ (repeat as needed)
-    ▼
- Final answer streamed to UI
+CLIENT SIDE                         SERVER SIDE
+
+  User prompt ──────────────────────► LLM
+                                       │
+  Tool execution ◄─── tool call ───────┤
+        │                              │
+        └──────── tool result ───────► LLM
+                                       │
+             (repeat as needed)        │
+                                       │
+  Final result UI ◄── streamed answer ─┘
 ```
 
 Spring AI can drive this loop with `ToolCallingManager`: after each LLM call, you check whether the response contains tool calls; if it does, `ToolCallingManager.executeToolCalls(...)` runs them and returns an updated conversation history; you feed that back to the model and repeat until the model produces a plain-text answer.
