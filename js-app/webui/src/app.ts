@@ -1,4 +1,5 @@
 import {
+  clearFinancialSession,
   createSession,
   getFinancialAgent,
   sessionContext,
@@ -14,6 +15,10 @@ const agent = getFinancialAgent();
 app.post('/api/session', (c) => {
   const sessionId = createSession();
   return c.json({ sessionId });
+});
+app.delete('/api/session/:sessionId', async (c) => {
+  await clearFinancialSession(c.req.param('sessionId'));
+  return c.body(null, 204);
 });
 
 // When JAVA_AGENT_URL is set, proxy /api/agent/run to the Java Spring Boot backend

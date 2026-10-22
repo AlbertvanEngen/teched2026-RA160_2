@@ -11,9 +11,12 @@ export const runSqlTool = tool(
         `${styleText('magenta', '[SQL] ')}${styleText('dim', `SQL: ${sql}`)}`,
       );
       const rows = await runQuery(sql);
-      // Register view names created by CREATE OR REPLACE VIEW / CREATE VIEW
-      const viewMatch = sql.match(/CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+(\w+)/i);
-      if (viewMatch) registerSessionObject(viewMatch[1]);
+      // Track tables and views created by DDL so session reset can remove them.
+      for (const match of sql.matchAll(
+        /\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP(?:ORARY)?\s+)?(?:TABLE|VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?([A-Za-z_][A-Za-z0-9_]*)/gi,
+      )) {
+        registerSessionObject(match[1]);
+      }
       const msg =
         rows.length > 0
           ? `${rows.length} rows returned`
