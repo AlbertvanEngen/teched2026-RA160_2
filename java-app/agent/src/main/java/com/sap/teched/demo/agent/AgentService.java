@@ -35,10 +35,10 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 /**
  * The financial analyst agent.
  *
- * <p>Wraps the SAP AI SDK Orchestration service through its Spring AI integration, registers the
- * four tools (financial planning query, journal entry query, DuckDB SQL, tabular forecast) and
- * lets the model drive the tool-calling loop. Intermediate tool calls and results are streamed live
- * to the client via {@link AgentTrace}.
+ * <p>Wraps the orchestration service through the SAP Cloud SDK for AI's Spring AI
+ * integration, registers the four tools (financial planning query, journal entry query, DuckDB
+ * SQL, tabular forecast) and lets the model drive the tool-calling loop. Intermediate tool calls
+ * and results are streamed live to the client via {@link AgentTrace}.
  */
 @Service
 @Slf4j

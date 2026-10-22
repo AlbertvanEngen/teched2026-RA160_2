@@ -7,7 +7,7 @@ You'll use the [SAP Cloud SDK for AI (Java)](https://github.com/SAP/ai-sdk-java)
 
 In this task we will wire up a so-called _chat client_ so the application can send a prompt to an LLM and receive a response.
 In order to do this, we will perform the following steps:
-- Connect your application to SAP AI Core via the Orchestration service.
+- Connect your application to SAP AI Core via the orchestration service.
 - Choose which LLM to use.
 - Assemble a conversation — a system instruction and the user's question — and send it to the LLM.
 
@@ -27,9 +27,9 @@ A few things to notice:
 - **`callChatClient()`** — this is where your work starts. It currently contains a commented-out solution block (`/* ... */`). Your task is to implement it step by step using the instructions below.
 
 
-## Background: What is SAP AI Core Orchestration?
+## Background: What is the orchestration service?
 
-The SAP Cloud SDK for AI provides an _Orchestration_ layer that sits in front of multiple LLM providers (OpenAI, Anthropic, etc.) available through SAP AI Core's Generative AI Hub.
+The [orchestration service](https://help.sap.com/docs/ai-launchpad/sap-ai-launchpad/orchestration-4953dc10c6dd48fe85f37b41109dffe2?locale=en-US&q=orchestration) sits in front of multiple LLM providers (OpenAI, Anthropic, etc.) available through SAP AI Core's Generative AI Hub.
 Instead of talking to a vendor API directly, your code uses a single harmonized API — which handles content filtering, data masking, templating, grounding, and more.
 
 In Spring AI terms, this means we use `OrchestrationChatModel` (instead of, say, `OpenAiChatModel`) and we configure our model choice through `OrchestrationModuleConfig` (instead of an API key and model string).
@@ -195,7 +195,7 @@ When you submitted the query, the following happened:
 
 1. The browser posted the prompt text to `AgentController`, which called `AgentService.run()`.
 2. `run()` called `callChatClient(prompt, sessionId)`.
-3. `callChatClient` looked up (or created) the history list for this session, appended the user message, and sent the full history to Claude 4.6 Sonnet via SAP Orchestration on AI Core.
+3. `callChatClient` looked up (or created) the history list for this session, appended the user message, and sent the full history to Claude 4.6 Sonnet via the orchestration service.
 4. The LLM's response was appended to the history and streamed back to the browser.
 5. On the next message, the history already contains the prior user + assistant turns, so the model has full context.
 

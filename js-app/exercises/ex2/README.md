@@ -34,7 +34,7 @@ LangGraph drives this loop automatically.
 When you pass the `tools` array to the `createAgent()` function, LangGraph intercepts tool-call responses, invokes the matching function, injects the result back into the conversation, and calls the LLM again — looping until the model produces a plain-text answer.
 No manual loop is needed in your code.
 
-Your tools execute locally in your application process — the Orchestration service wraps only the LLM calls, not tool execution.
+Your tools execute locally in your application process — the orchestration service wraps only the LLM calls, not tool execution.
 Orchestration can apply content filtering to the LLM's input and output when you configure a `filtering` module, but this exercise does not configure one.
 
 ## Step 1: Get to know the tools
