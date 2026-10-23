@@ -30,15 +30,46 @@ The agent follows a deliberate reasoning pattern:
 
 ### Clone the Repository
 
-Clone the repository using your preferred Git client. If you’re using the Git command line interface, run the following command:
+Clone the repository using  the Git command line interface.
+For this, open Powershell by clicking on the Windows icon in the task bar and writing `terminal` in the search bar.
+Click on the terminal app icon to open it.
+
+![How to find the terminal](img/terminal.png)
+
+Now run the following commands in the terminal:
 
 ```bash
-git clone https://github.com/SAP-samples/teched2025-AI160.git
+cd .\Desktop\
+git clone https://github.com/SAP-samples/teched2026-RA160.git
 ```
+
+This should create a folder with the name `teched2026-RA160` with the demo material on your desktop. 
+
+In the terminal, you can now move into the new folder via the following command. 
+You will install the requirements from here once you choose a programming language (in the next step). 
+
+```bash
+cd .\teched2026-RA160\
+```
+
+Now, open _Visual Studio Code_ via the icon on your Desktop.
+In Visual Studio Code, click `File --> Open Folder...` and an Explorer window should open.
+
+![How to open a folder in VS Code](img/vsc.png)
+
+In the Explorer, click on `Desktop` in the left-hand side panel and then click on the folder named `teched2026-RA160` and `Select folder`.
+The demo material should now open in Visual Studio Code.
+
+![Select the correct folder for VS Code](img/folder.png)
+
+
 
 ### Select Your Programming Language
 
-Choose between [JavaScript](js-app/exercises/README.md) or [Java](java-app/exercises/README.md) by clicking the respective links.
+Choose between [JavaScript](js-app/exercises/README.md) or [Java](java-app/exercises/README.md) by clicking the respective links and continuing there.
+
+> Note: If at any point during the demo a pop-up like the following appears, simply click on `Allow`.
+![Pop-up example](img/pop-up.png)
 
 ## Contributing
 Please read the [CONTRIBUTING.md](./CONTRIBUTING.md) to understand the contribution guidelines.
