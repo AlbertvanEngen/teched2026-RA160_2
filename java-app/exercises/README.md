@@ -18,7 +18,7 @@ During the workshop, configure the shared SAP AI Core credentials from the repos
 pnpm workshop:setup
 ```
 
-Enter the passphrase provided by the instructor. The command decrypts and validates the workshop service key, then truncates the ignored root `.env` file and writes exactly one compact `AICORE_SERVICE_KEY` assignment. Any other existing `.env` entries are removed.
+Enter the passphrase provided by the instructor, on success the command writes the decrypted service key to the root `.env` file.
 
 If you use your own SAP AI Core instance, store its service key as one line in the root `.env` file:
 

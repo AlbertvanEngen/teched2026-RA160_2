@@ -6,6 +6,7 @@ import { describe, it } from 'node:test';
 import {
   createCredentialFile,
   decryptServiceKey,
+  decryptServiceKeyWithRetry,
   encryptServiceKey,
   normalizeServiceKey,
   readServiceKeyFromEnv,
@@ -34,6 +35,69 @@ describe('workshop credentials', () => {
       SERVICE_KEY,
     );
     await assert.rejects(decryptServiceKey(ciphertext, 'wrong-passphrase'));
+  });
+
+  it('re-prompts for the passphrase until decryption succeeds', async () => {
+    const ciphertext = await encryptServiceKey(
+      SERVICE_KEY,
+      'correct-passphrase',
+      10,
+    );
+    const passphrases = ['wrong-passphrase', 'other-wrong-passphrase'];
+
+    const serviceKey = await decryptServiceKeyWithRetry(
+      ciphertext,
+      async (message) => {
+        assert.equal(message, 'Workshop passphrase:');
+        return passphrases.shift() ?? 'correct-passphrase';
+      },
+    );
+
+    assert.equal(serviceKey, SERVICE_KEY);
+  });
+
+  it('gives up after three rejected passphrases', async () => {
+    const ciphertext = await encryptServiceKey(
+      SERVICE_KEY,
+      'correct-passphrase',
+      10,
+    );
+    let attempts = 0;
+
+    await assert.rejects(
+      decryptServiceKeyWithRetry(ciphertext, async () => {
+        attempts += 1;
+        return `wrong-passphrase-${attempts}`;
+      }),
+      (error: unknown) =>
+        error instanceof Error &&
+        /Could not decrypt the workshop service key after 3 attempts/.test(
+          error.message,
+        ),
+    );
+    assert.equal(attempts, 3);
+  });
+
+  it('does not count a cancelled prompt as a rejected passphrase', async () => {
+    const ciphertext = await encryptServiceKey(
+      SERVICE_KEY,
+      'correct-passphrase',
+      10,
+    );
+    let attempts = 0;
+
+    await assert.rejects(
+      decryptServiceKeyWithRetry(ciphertext, async () => {
+        attempts += 1;
+        if (attempts === 1) return 'wrong-passphrase';
+        const error = new Error('User force closed the prompt with SIGINT');
+        error.name = 'ExitPromptError';
+        throw error;
+      }),
+      (error: unknown) =>
+        error instanceof Error && error.name === 'ExitPromptError',
+    );
+    assert.equal(attempts, 2);
   });
 
   it('rejects malformed, incomplete, or Java-incompatible service keys', () => {

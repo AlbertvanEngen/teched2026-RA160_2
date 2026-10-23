@@ -10,8 +10,8 @@ import {
 } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { stdin, stdout } from 'node:process';
-import * as readline from 'node:readline';
 import { parseEnv } from 'node:util';
+import { password } from '@inquirer/prompts';
 import { Decrypter, Encrypter } from 'age-encryption';
 
 const REPO_ROOT = resolve(import.meta.dirname, '..');
@@ -287,54 +287,41 @@ async function atomicWrite(
   await replaceFiles([{ path, data, mode }]);
 }
 
+const MAX_PASSPHRASE_ATTEMPTS = 3;
+
 async function readHidden(prompt: string): Promise<string> {
-  if (!stdin.isTTY || !stdout.isTTY || stdin.setRawMode === undefined) {
+  if (!stdin.isTTY || !stdout.isTTY) {
     throw new UsageError('Run this command in an interactive terminal.');
   }
+  return password({
+    message: prompt,
+    mask: '*',
+    validate: (value) =>
+      value.length === 0 ? 'The workshop passphrase cannot be empty.' : true,
+  });
+}
 
-  const wasRaw = stdin.isRaw;
-  let value = '';
-  let listenerAttached = false;
-  const {
-    promise: input,
-    resolve: resolveInput,
-    reject: rejectInput,
-  } = Promise.withResolvers<string>();
-  const onKeypress = (text: string, key: readline.Key) => {
-    if (key.ctrl && key.name === 'c') {
-      rejectInput(new UsageError('Setup cancelled.'));
-      return;
-    }
-    if (key.name === 'return' || key.name === 'enter') {
-      resolveInput(value);
-      return;
-    }
-    if (key.name === 'backspace') {
-      if (value.length > 0) {
-        value = [...value].slice(0, -1).join('');
-        stdout.write('\b \b');
+export async function decryptServiceKeyWithRetry(
+  ciphertext: Uint8Array,
+  prompt: (message: string) => Promise<string>,
+): Promise<string> {
+  for (let attempt = 1; ; attempt += 1) {
+    const passphrase = await prompt('Workshop passphrase:');
+    try {
+      return await decryptServiceKey(ciphertext, passphrase);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'ExitPromptError') {
+        throw error;
       }
-      return;
+      if (attempt >= MAX_PASSPHRASE_ATTEMPTS) {
+        throw new UsageError(
+          `Could not decrypt the workshop service key after ${MAX_PASSPHRASE_ATTEMPTS} attempts. Ask a workshop instructor for the correct passphrase.`,
+        );
+      }
+      console.error(
+        `Passphrase was not accepted (attempt ${attempt} of ${MAX_PASSPHRASE_ATTEMPTS}). Try again.`,
+      );
     }
-    if (!key.ctrl && !key.meta && text) {
-      value += text;
-      stdout.write('*'.repeat([...text].length));
-    }
-  };
-
-  stdout.write(`${prompt}: `);
-  try {
-    readline.emitKeypressEvents(stdin);
-    stdin.on('keypress', onKeypress);
-    listenerAttached = true;
-    stdin.setRawMode(true);
-    stdin.resume();
-    return await input;
-  } finally {
-    if (listenerAttached) stdin.off('keypress', onKeypress);
-    stdin.setRawMode(wasRaw);
-    stdin.pause();
-    stdout.write('\n');
   }
 }
 
@@ -375,11 +362,11 @@ async function createPayload(force: boolean): Promise<void> {
     throw error;
   }
   const serviceKey = readServiceKeyFromEnv(envContents);
-  const passphrase = await readHidden('Workshop passphrase');
+  const passphrase = await readHidden('Workshop passphrase:');
   if (passphrase.length === 0) {
     throw new UsageError('The workshop passphrase cannot be empty.');
   }
-  const confirmation = await readHidden('Confirm workshop passphrase');
+  const confirmation = await readHidden('Confirm workshop passphrase:');
   if (confirmation !== passphrase) {
     throw new UsageError('The workshop passphrases do not match.');
   }
@@ -407,18 +394,7 @@ async function installPayload(): Promise<void> {
     throw error;
   }
 
-  const passphrase = await readHidden('Workshop passphrase');
-  if (!passphrase)
-    throw new UsageError('The workshop passphrase cannot be empty.');
-
-  let serviceKey: string;
-  try {
-    serviceKey = await decryptServiceKey(ciphertext, passphrase);
-  } catch {
-    throw new UsageError(
-      'Could not decrypt the workshop service key. Check the passphrase and try again.',
-    );
-  }
+  const serviceKey = await decryptServiceKeyWithRetry(ciphertext, readHidden);
 
   let currentEnv = '';
   try {
@@ -463,6 +439,11 @@ async function main(): Promise<void> {
 
 if (resolve(process.argv[1] ?? '') === import.meta.filename) {
   main().catch((error: unknown) => {
+    if (error instanceof Error && error.name === 'ExitPromptError') {
+      console.error('\nCancelled.');
+      process.exitCode = 130;
+      return;
+    }
     const message = error instanceof Error ? error.message : String(error);
     console.error(`Error: ${message}`);
     process.exitCode = 1;

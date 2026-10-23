@@ -43,6 +43,7 @@
   "type": "module",
   "devDependencies": {
     "@biomejs/biome": "catalog:",
+    "@inquirer/prompts": "^8.7.3",
     "@sap-ai-sdk/ai-api": "^2.16.0",
     "@types/node": "^24.19.0",
     "age-encryption": "^0.3.1",
