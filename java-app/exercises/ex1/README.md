@@ -59,7 +59,7 @@ A few things to notice:
 
 The UI of our demo application looks like this.
 ![The financial agent chat UI — empty state before any prompts](img/ex1-ui-empty.png)
-There is an input panel on the bottom and in the middle of the screen you can find some demo sentences (one for each of the first three exercises).
+There is an input panel on the bottom and in the middle of the screen you can find some demo sentences (which will only work once you have completed the first 3 exercises).
 On the left hand side you will see an overview of the tools that are run once we enable them in Exercise 2.
 Notice that if you run the application right now, you will be able to interact with the UI already.
 But since we did not implement the agentic behaviour yet, you will only get a pre-defined output of `This could be a chat client response.`
