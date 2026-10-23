@@ -1,7 +1,7 @@
 # Exercise 2 - Equipping the Agent: Tool Calls and the Agentic Loop
 
 In this exercise, you will add tools to the agent so it can query real financial data and run SQL aggregations.
-You'll learn how Spring AI's tool-calling mechanism works and how the SAP Cloud SDK for AI Orchestration service handles the back-and-forth between the LLM and your tools.
+You'll learn how Spring AI's tool-calling mechanism works and how the [orchestration service](https://help.sap.com/docs/ai-launchpad/sap-ai-launchpad/orchestration-4953dc10c6dd48fe85f37b41109dffe2?locale=en-US&q=orchestration) handles the back-and-forth between the LLM and your tools.
 
 In order to make this work, you will have to first conclude [Exercise 1](../ex1/README.md).
 If you haven't done so, please finish that exercise first.
@@ -40,7 +40,7 @@ User prompt
 
 Spring AI can drive this loop with `ToolCallingManager`: after each LLM call, you check whether the response contains tool calls; if it does, `ToolCallingManager.executeToolCalls(...)` runs them and returns an updated conversation history; you feed that back to the model and repeat until the model produces a plain-text answer.
 
-The SAP Cloud SDK for AI Orchestration service validates and proxies each tool call, so no tool result ever bypasses the content filters you configure in `OrchestrationModuleConfig`.
+The orchestration service validates and proxies each tool call, so no tool result ever bypasses the content filters you configure in `OrchestrationModuleConfig`.
 
 
 ## Step 1: Get to know the tools

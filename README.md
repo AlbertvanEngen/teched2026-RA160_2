@@ -6,9 +6,9 @@
 
 This repository contains the material for the SAP TechEd 2026 session **RA160 – Build business differentiation with SAP AI Core**.
 
-Experience the SAP AI Core foundation as the orchestration layer for enterprise AI. Our engineers help you extend Joule Agents with models from the foundation's library, ground them in products for SAP Business Data Cloud, and embed them in the flows of SAP S/4HANA. Learn to govern, scale, and monitor AI agents from prototype to production.
+Experience SAP AI Core as the orchestration layer for enterprise AI. Our engineers help you extend Joule Agents with models from SAP Cloud SDK for AI, ground them in products for SAP Business Data Cloud, and embed them in the flows of SAP S/4HANA. Learn to govern, scale, and monitor AI agents from prototype to production.
 
-In this workshop, you will build a financial data agent that queries a mock S/4HANA OData backend, stores the results in a local scratch database, and uses SAP AI Runtime predictions to forecast future periods — all wired together through SAP AI Core's orchestration layer. 
+In this workshop, you will build a financial data agent that queries a mock S/4HANA OData backend, stores the results in a local scratch database, and uses RPT / TabPFN on SAP AI Core to forecast future periods — all wired together through the [orchestration service](https://help.sap.com/docs/ai-launchpad/sap-ai-launchpad/orchestration-4953dc10c6dd48fe85f37b41109dffe2?locale=en-US&q=orchestration). 
 Implementations are provided in both **TypeScript** (LangChain + SAP Cloud SDK for AI) and **Java** (Spring AI + SAP Cloud SDK for AI).
 
 ## Overview
@@ -17,7 +17,7 @@ The agent follows a deliberate reasoning pattern:
 
 1. **Load** — OData tools call the mock S/4HANA services and stage the rows in a per-session in-memory workspace.
 2. **Analyse** — An SQL tool runs deterministic filtering, joins, and aggregations over the staged data.
-3. **Predict** — Forecasting tools submit the workspace tables to SAP AI Runtime (RPT / TabPFN) and retrieve predictions.
+3. **Predict** — Forecasting tools submit the workspace tables to RPT / TabPFN on SAP AI Core and retrieve predictions.
 4. **Evaluate** — A ground-truth tool re-fetches actuals from the mock backend and compares them against the forecast.
 
 ## Requirements

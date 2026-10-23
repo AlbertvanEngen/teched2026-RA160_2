@@ -10,9 +10,9 @@ You'll understand how the `OrchestrationClient` class from `@sap-ai-sdk/langchai
 
 If you have any trouble solving the exercise, the solution code is commented out in the starter code at [agent/src/agent.ts](../../agent/src/agent.ts) — look for the `/* */` blocks.
 
-## Background: What is SAP Orchestration?
+## Background: What is the Orchestration Service?
 
-The SAP Cloud SDK for AI provides an _Orchestration_ layer that sits in front of multiple LLM providers (OpenAI, Anthropic, Google, and others) available through SAP AI Core's Generative AI Hub.
+The [orchestration service](https://help.sap.com/docs/ai-launchpad/sap-ai-launchpad/orchestration-4953dc10c6dd48fe85f37b41109dffe2?locale=en-US&q=orchestration) sits in front of multiple LLM providers (OpenAI, Anthropic, Google, and others) available through SAP AI Core's Generative AI Hub.
 Instead of talking to a vendor API directly, your code uses a single harmonized API that handles content filtering, data masking, templating, grounding, and more.
 
 In LangChain terms, this means you use the `OrchestrationClient` class (instead of, say, the `ChatOpenAI` class) and configure your model choice through a plain config object rather than an API key and model string.
@@ -155,7 +155,7 @@ When you submitted the query, the following happened:
 
 1. The browser posted the prompt to the web server, which forwarded it to `getFinancialAgent()`.
 2. The agent invoked the `OrchestrationClient` instance with the system prompt and user message.
-3. The `OrchestrationClient` instance sent the request to the configured model via SAP Orchestration on AI Core.
+3. The `OrchestrationClient` instance sent the request to the configured model via the orchestration service.
 4. The model's response was streamed back to the browser.
 
 The entire setup — credentials, resource groups, and deployment IDs — was read automatically from the environment by the `OrchestrationClient` instance.
