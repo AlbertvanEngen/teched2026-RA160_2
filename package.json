@@ -41,7 +41,7 @@
   "type": "module",
   "devDependencies": {
     "@biomejs/biome": "catalog:",
-    "@sap-ai-sdk/ai-api": "^2.16.0",
+    "@sap-ai-sdk/ai-api": "^2.17.0",
     "@types/node": "^24.19.0",
     "markdownlint-cli2": "catalog:",
     "tinyexec": "catalog:",

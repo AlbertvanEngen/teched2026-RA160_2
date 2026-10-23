@@ -1,10 +1,14 @@
 import { createServer as createHttpServer } from 'node:http';
 import path from 'node:path';
 import { getRequestListener } from '@hono/node-server';
+import { prefetchAiCore } from 'financial-mock-agent/prefetch';
 import { createServer as createViteServer } from 'vite';
 
 const PORT = Number(process.env.PORT ?? 3142);
 const isDev = process.env.NODE_ENV !== 'production';
+if (!process.env.JAVA_AGENT_URL) {
+  prefetchAiCore();
+}
 
 if (isDev) {
   const vite = await createViteServer({
