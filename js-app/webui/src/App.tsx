@@ -438,6 +438,7 @@ export default function App() {
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [running, setRunning] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
   // null = not running, '' = running but no tool yet, otherwise latest tool label
   const [activeToolName, setActiveToolName] = useState<string | null>(null);
@@ -446,17 +447,31 @@ export default function App() {
   const chatRef = useRef<HTMLDivElement>(null);
   const idRef = useRef(0);
   const sessionRef = useRef<string | null>(null);
+  const sessionPromiseRef = useRef<Promise<string> | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const nextId = useCallback(() => String(++idRef.current), []);
 
   const ensureSession = useCallback(async (): Promise<string> => {
     if (sessionRef.current) return sessionRef.current;
-    const res = await fetch('/api/session', { method: 'POST' });
-    if (!res.ok) throw new Error('Failed to create session');
-    const { sessionId } = (await res.json()) as { sessionId: string };
-    sessionRef.current = sessionId;
-    return sessionId;
+    if (!sessionPromiseRef.current) {
+      sessionPromiseRef.current = (async () => {
+        const res = await fetch('/api/session', { method: 'POST' });
+        if (!res.ok) throw new Error('Failed to create session');
+        const { sessionId } = (await res.json()) as { sessionId: string };
+        sessionRef.current = sessionId;
+        return sessionId;
+      })();
+    }
+
+    const pendingSession = sessionPromiseRef.current;
+    try {
+      return await pendingSession;
+    } finally {
+      if (sessionPromiseRef.current === pendingSession) {
+        sessionPromiseRef.current = null;
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -482,7 +497,7 @@ export default function App() {
 
   const runPrompt = useCallback(
     async (prompt: string) => {
-      if (!prompt || running) return;
+      if (!prompt || running || resetting) return;
 
       setError(null);
       setRunning(true);
@@ -696,7 +711,7 @@ export default function App() {
         setActiveTurnId(null);
       }
     },
-    [running, nextId, ensureSession],
+    [running, resetting, nextId, ensureSession],
   );
 
   const submit = useCallback(async () => {
@@ -736,8 +751,9 @@ export default function App() {
     [running],
   );
 
-  const resetDemo = useCallback(() => {
-    if (running) return;
+  const resetDemo = useCallback(async () => {
+    if (running || resetting) return;
+    setResetting(true);
     setMessages([]);
     setTurns([]);
     setInput('');
@@ -746,9 +762,24 @@ export default function App() {
     setActiveToolName(null);
     setActiveToolIds(new Set());
     idRef.current = 0;
-    sessionRef.current = null;
-    void ensureSession();
-  }, [running, ensureSession]);
+
+    try {
+      const sessionId = sessionRef.current ?? (await sessionPromiseRef.current);
+      sessionRef.current = null;
+      if (sessionId) {
+        const res = await fetch(
+          `/api/session/${encodeURIComponent(sessionId)}`,
+          { method: 'DELETE' },
+        );
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
+      }
+      await ensureSession();
+    } catch (err) {
+      setError(`Failed to reset session: ${String(err)}`);
+    } finally {
+      setResetting(false);
+    }
+  }, [running, resetting, ensureSession]);
 
   const isEmpty = messages.length === 0;
 
@@ -772,11 +803,11 @@ export default function App() {
         <button
           type="button"
           className="shell-bar__reset"
-          onClick={resetDemo}
-          disabled={running}
+          onClick={() => void resetDemo()}
+          disabled={running || resetting}
           aria-label="Reset demo and show prompt buttons"
         >
-          ↻ Reset demo
+          {resetting ? 'Resetting…' : '↻ Reset demo'}
         </button>
       </header>
 
@@ -832,7 +863,7 @@ export default function App() {
                       className="suggestion-btn"
                       title={prompt}
                       onClick={() => pasteDemoPrompt(prompt)}
-                      disabled={running}
+                      disabled={running || resetting}
                       aria-label={`Paste query: ${label}`}
                     >
                       {label}
@@ -890,13 +921,13 @@ export default function App() {
                   onKeyDown={handleKey}
                   placeholder="Ask about budgets, costs, or forecasts…"
                   aria-label="Message input"
-                  disabled={running}
+                  disabled={running || resetting}
                 />
                 <button
                   type="button"
                   className="btn-send"
                   onClick={() => void submit()}
-                  disabled={running || !input.trim()}
+                  disabled={running || resetting || !input.trim()}
                   aria-label="Send message"
                 >
                   <svg

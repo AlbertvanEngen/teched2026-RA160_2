@@ -1,34 +1,17 @@
 import { randomUUID } from 'node:crypto';
-import { type DuckDBConnection, DuckDBInstance } from '@duckdb/node-api';
+import type { DuckDBConnection } from '@duckdb/node-api';
+import { sessionContext, withSessionDatabase } from './session-db.ts';
 
 export function isValidIdentifier(name: string) {
   return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name);
 }
 
-let instance: Awaited<ReturnType<typeof DuckDBInstance.create>> | null = null;
-
-// In-memory session workspace (DuckDB). Serialize operations to prevent concurrent DDL races.
-let queue: Promise<unknown> = Promise.resolve();
-
-function serialize<T>(fn: () => Promise<T>): Promise<T> {
-  const next = queue.then(fn, fn);
-  queue = next.then(
-    () => undefined,
-    () => undefined,
-  );
-  return next;
-}
-
-async function getInstance() {
-  if (!instance) {
-    instance = await DuckDBInstance.create(':memory:');
+function requireSessionId(): string {
+  const sessionId = sessionContext.getStore();
+  if (!sessionId) {
+    throw new Error('Database access requires an active session');
   }
-  return instance;
-}
-
-async function openConnection(): Promise<DuckDBConnection> {
-  const db = await getInstance();
-  return db.connect();
+  return sessionId;
 }
 
 const QUERY_TIMEOUT_MS = 15_000;
@@ -53,8 +36,8 @@ function normalizeDecimal(val: unknown): unknown {
 export async function runQuery(
   sql: string,
 ): Promise<Record<string, unknown>[]> {
-  return serialize(async () => {
-    const conn = await openConnection();
+  return withSessionDatabase(requireSessionId(), async (database) => {
+    const conn = await database.connect();
     let handle: ReturnType<typeof setTimeout> | undefined;
     const timer = new Promise<never>((_, reject) => {
       handle = setTimeout(
@@ -71,16 +54,13 @@ export async function runQuery(
         ),
       );
     } finally {
-      if (handle) clearTimeout(handle);
+      clearTimeout(handle);
       conn.closeSync();
     }
   });
 }
 
-/**
- * Reserves a unique name for an internal table and drops that table on dispose.
- * Use with `await using`; the caller creates the table.
- */
+/** Reserves a unique name for an internal table and drops that table on dispose. */
 export function scratchTable(prefix: string) {
   const name = `${prefix}_${randomUUID().replaceAll('-', '_')}`;
   return {
@@ -94,35 +74,10 @@ export function scratchTable(prefix: string) {
 export async function withConnection<T>(
   fn: (conn: DuckDBConnection) => Promise<T>,
 ): Promise<T> {
-  return serialize(async () => {
-    const conn = await openConnection();
+  return withSessionDatabase(requireSessionId(), async (database) => {
+    const conn = await database.connect();
     try {
       return await fn(conn);
-    } finally {
-      conn.closeSync();
-    }
-  });
-}
-
-export async function dropObjects(names: string[]): Promise<void> {
-  if (names.length === 0) return;
-  await serialize(async () => {
-    const conn = await openConnection();
-    try {
-      for (const name of names) {
-        const escapedName = name.replaceAll("'", "''");
-        const reader = await conn.runAndReadAll(
-          `SELECT table_type FROM information_schema.tables WHERE table_name = '${escapedName}'`,
-        );
-        const [{ table_type: tableType } = {}] = reader.getRowObjects() as {
-          table_type?: string;
-        }[];
-        if (tableType === 'VIEW') {
-          await conn.run(`DROP VIEW ${name}`);
-        } else if (tableType) {
-          await conn.run(`DROP TABLE ${name}`);
-        }
-      }
     } finally {
       conn.closeSync();
     }

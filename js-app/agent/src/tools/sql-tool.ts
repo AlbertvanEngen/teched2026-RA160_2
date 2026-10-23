@@ -2,7 +2,6 @@ import { styleText } from 'node:util';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { runQuery } from '../db.ts';
-import { registerSessionObject } from '../session-store.ts';
 
 export const runSqlTool = tool(
   async ({ sql }) => {
@@ -11,9 +10,6 @@ export const runSqlTool = tool(
         `${styleText('magenta', '[SQL] ')}${styleText('dim', `SQL: ${sql}`)}`,
       );
       const rows = await runQuery(sql);
-      // Register view names created by CREATE OR REPLACE VIEW / CREATE VIEW
-      const viewMatch = sql.match(/CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+(\w+)/i);
-      if (viewMatch) registerSessionObject(viewMatch[1]);
       const msg =
         rows.length > 0
           ? `${rows.length} rows returned`
