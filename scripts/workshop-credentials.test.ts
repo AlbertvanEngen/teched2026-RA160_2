@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtempDisposable, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
@@ -151,46 +151,39 @@ describe('workshop credentials', () => {
   });
 
   it('safely replaces the encrypted payload with the provided passphrase', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'workshop-credentials-'));
+    await using disposabbleDir = await mkdtempDisposable(
+      join(tmpdir(), 'workshop-credentials-'),
+    );
+    const directory = disposabbleDir.path;
     const payloadPath = join(directory, 'service-key.age');
     const passphrase = 'correct horse battery staple';
-    try {
-      await writeFile(payloadPath, 'old payload');
+    await writeFile(payloadPath, 'old payload');
 
-      await assert.rejects(
-        createCredentialFile(SERVICE_KEY, payloadPath, passphrase, false, 10),
-        /--force/,
-      );
-      await assert.rejects(
-        createCredentialFile(
-          'invalid service key',
-          payloadPath,
-          passphrase,
-          true,
-          10,
-        ),
-        /not valid JSON/,
-      );
-      await assert.rejects(
-        createCredentialFile(SERVICE_KEY, payloadPath, '', true, 10),
-        /cannot be empty/,
-      );
-      assert.equal(await readFile(payloadPath, 'utf8'), 'old payload');
-
-      await createCredentialFile(
-        SERVICE_KEY,
+    await assert.rejects(
+      createCredentialFile(SERVICE_KEY, payloadPath, passphrase, false, 10),
+      /--force/,
+    );
+    await assert.rejects(
+      createCredentialFile(
+        'invalid service key',
         payloadPath,
         passphrase,
         true,
         10,
-      );
-      assert.equal(
-        await decryptServiceKey(await readFile(payloadPath), passphrase),
-        SERVICE_KEY,
-      );
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+      ),
+      /not valid JSON/,
+    );
+    await assert.rejects(
+      createCredentialFile(SERVICE_KEY, payloadPath, '', true, 10),
+      /cannot be empty/,
+    );
+    assert.equal(await readFile(payloadPath, 'utf8'), 'old payload');
+
+    await createCredentialFile(SERVICE_KEY, payloadPath, passphrase, true, 10);
+    assert.equal(
+      await decryptServiceKey(await readFile(payloadPath), passphrase),
+      SERVICE_KEY,
+    );
   });
 
   it('truncates the environment file to one compact service-key assignment', () => {
