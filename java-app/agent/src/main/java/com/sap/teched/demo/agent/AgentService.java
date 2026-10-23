@@ -2,6 +2,7 @@ package com.sap.teched.demo.agent;
 
 import static com.sap.ai.sdk.orchestration.OrchestrationAiModel.CLAUDE_4_6_SONNET;
 
+import com.sap.ai.sdk.orchestration.OrchestrationAiModel;
 import com.sap.ai.sdk.orchestration.OrchestrationModuleConfig;
 import com.sap.ai.sdk.orchestration.spring.OrchestrationChatModel;
 import com.sap.ai.sdk.orchestration.spring.OrchestrationChatOptions;
@@ -13,10 +14,14 @@ import com.sap.teched.demo.tool.FinancialPlanningTool;
 import com.sap.teched.demo.tool.GetGroundTruthTool;
 import com.sap.teched.demo.tool.JournalEntryTool;
 import com.sap.teched.demo.tool.RptPredictionTool;
+
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -48,32 +53,18 @@ public class AgentService {
       Tools:
       - query_financial_planning / query_journal_entry fetch from OData and APPEND into the fixed \
         tables financial_planning_data / journal_entry_data. Always push all relevant filters \
-        server-side (costCenter, ledgerFiscalYear, fiscalPeriod, planningCategory, companyCode, \
-        profitCenter, top). Tables are created on first use and accumulate across calls.
+        server-side. Tables are created on first use and accumulate across calls.
       - query_local_db is your primary reporting tool: filter, join, GROUP BY, and aggregate \
         loaded tables with SUM/AVG/COUNT/MIN/MAX — use it liberally to answer questions from \
         loaded data.
       - run_rpt_prediction / run_rpt_prediction_single are SAP RPT, a tabular foundation model. \
-        They take context rows with known values plus rows to predict, and write the predicted \
-        values into an output table you name. Output columns include predicted_<targetColumn>, \
-        confidence_<targetColumn>, confidence_interval_lower_<targetColumn>, and \
-        confidence_interval_upper_<targetColumn>. \
-        Use query_local_db afterwards to aggregate predictions and uncertainty. \
-        run_rpt_prediction (dual-source mode) takes two separate tables: contextTable (actuals / \
-        journal entries) provides known-truth rows, predictionTable (planning / budgets) provides \
-        rows to predict — only shared columns are used and a source column (actual/plan) is added. \
-        run_rpt_prediction_single (single-table mode) uses predictionWhere (and optional \
-        contextWhere) to split one table into context and prediction rows — e.g. future fiscal \
-        periods or rows missing the target value.
-      - get_ground_truth compares an RPT prediction table against ground truth from the OData \
-        backend (journal entries or planning ACTUAL rows). It joins on groupBy dimensions and \
-        writes predicted vs actual values plus percentage metrics \
-        (pct_of_actual, pct_below_actual, pct_above_actual, MAPE). \
-        targetColumn must be the base column name (e.g. amountInGlobalCurrency), not a \
-        predicted_* column; the tool derives predicted_<targetColumn>.
+        They write predictions into an output table; use query_local_db afterwards to aggregate. \
+        Consult each tool's description for when to use which mode.
+      - get_ground_truth compares an RPT prediction table against real OData data and writes \
+        percentage accuracy metrics. Consult the tool description for required parameters.
 
       Presentation:
-      - When comparing forecasts to actuals, lead with percentages — not raw currency variances.
+      - When comparing forecasts to actuals, lead with percentages — not raw currency variances. \
         Use pct_of_actual (forecast as % of |ground truth|), pct_below_actual (% under spend), \
         and pct_above_actual (% over spend). Each is positive or null — never quote a negative \
         "% below".
@@ -84,9 +75,6 @@ public class AgentService {
         confidence_<targetColumn> for classification and \
         confidence_interval_lower/upper_<targetColumn> for regression. Put currency totals in a \
         one-line summary; do not make variance columns the headline.
-      - Ground truth exists for fiscal years 2018-2028. Only say it is unavailable if a query \
-        actually returns no rows. Do not substitute a prior year's actuals and call it ground truth \
-        unless the user explicitly asked for a year-over-year benchmark — label that clearly as YoY.
 
       Data integrity and units:
       - query_financial_planning and query_journal_entry both APPEND on every call. Repeating the \
@@ -103,55 +91,20 @@ public class AgentService {
       - If the answer already exists in the data, read it with query_local_db. Adding a prediction \
         to an answerable SQL question just adds noise.
       - If the answer does not exist in the data — a forecast, a projection, a recommended plan \
-        value, a period nobody has filled in yet — run_rpt_prediction is the primary forecast. \
-        A hand-rolled SQL trend (window functions, LAG/LEAD, moving averages) is allowed only as \
-        an explicitly labeled baseline for comparison against RPT — never as the primary answer \
-        and never unlabeled.
-      - A baseline is only a fair comparison if it runs at the same grain as RPT. RPT predicts \
-        individual line items, so build the baseline over line items too and aggregate afterwards — \
-        do not fit a trend on pre-aggregated monthly totals and compare against RPT's summed \
-        line-level output.
+        value, a period nobody has filled in yet — use run_rpt_prediction as the primary forecast. \
+        A hand-rolled SQL trend is allowed only as an explicitly labeled baseline for comparison \
+        against RPT — never as the primary answer and never unlabeled.
       - When you do predict, RPT's output is the answer. Aggregate its output table to the \
-        granularity the user asked for and present that, rather than reporting raw line-level \
-        predictions or relegating them beside numbers you derived yourself.
-      - Forecast guardrails:
-        - For next-year planning forecasts, use planning ACTUAL history as context and target-year \
-          rows as prediction input.
-        - Filter planningCategory for totals and forecasting; only load multiple categories when \
-          the task explicitly compares categories, and then group by planningCategory.
-        - Do not use signed journal rows as context for a positive planning-target forecast unless \
-          explicitly requested.
-        - Run a quick SQL preflight (year/category totals) before prediction and a plausibility \
-          check after; if totals are clearly off-scale (e.g. ~10x), fix the setup and rerun.
-        - If results look exactly 100x scaled, normalize only when corroborated by data, and state \
-          that explicitly.
-
-      Tables share: companyCode, costCenter, profitCenter, glAccount, ledger, ledgerFiscalYear, \
-      fiscalPeriod (001–012), fiscalYearPeriod (e.g. 2024007 = year 2024, period 007).
-      Filter by year: fiscalYearPeriod LIKE '2024%'. Filter by Q3 2024: \
-      fiscalYearPeriod >= '2024007' AND fiscalYearPeriod <= '2024009'.
-
-      Data sources (single shared truth — journal postings and planning rows are projections of \
-      the same underlying amounts):
-      - Financial planning: budgets, forecasts, actuals, plans — fiscal year 2018–2028, \
-        fiscalPeriod 001–012. Each cell (company × costCenter × glAccount × fiscalYear × \
-        fiscalPeriod) has four planning category rows: BUDGET, FORECAST, ACTUAL, PLAN. They share \
-        the same canonical amount — ACTUAL matches |journal entry sum| for the same dimensions. \
-        Each category row is split into 1–2 line items. Loading without a planningCategory filter \
-        returns all four categories and quadruples the total.
-      - Journal entries: posted accounting transactions — fiscal year 2018–2028, fiscalPeriod \
-        001–012. Expense accounts (510000, 610000, 620000, 630000) carry negative amounts; income \
-        accounts are positive. Each cell is split into 5–7 line items, all of which sum to the \
-        same canonical amount as the corresponding planning ACTUAL rows. Compare magnitudes with \
-        ABS() when evaluating against planning amounts.
+        granularity the user asked for and present that.
       """;
 
   private final FinancialPlanningTool financialPlanningTool;
   private final JournalEntryTool journalEntryTool;
-  private final LocalDbTool duckDbTool;
+  private final LocalDbTool localDbTool;
   private final RptPredictionTool rptPredictionTool;
   private final GetGroundTruthTool getGroundTruthTool;
   private final RptSinglePredictionTool rptSinglePredictionTool;
+  private final Map<String, List<Message>> conversationHistories = new java.util.concurrent.ConcurrentHashMap<>();
 
   /**
    * Run the agent for the given prompt, streaming SSE events via the emitter.
@@ -167,7 +120,7 @@ public class AgentService {
     final AgentTrace trace = new AgentTrace(emitter, sessionId);
     AgentTrace.CURRENT.set(trace);
     try {
-      final String answer = callChatClient(prompt);
+      final String answer = callChatClient(prompt, sessionId);
       trace.emitDelta(answer != null ? answer : "");
     } finally {
       AgentTrace.CURRENT.remove();
@@ -180,48 +133,47 @@ public class AgentService {
    * Follow the steps in exercises/ex1/README.md or uncomment the code here to make it work.
    * We use the Spring AI integration of the SAP Cloud SDK for AI to do this.
    *
-   * @param prompt the user prompt to send to the LLM
+   * @param userInput the user userInput to send to the LLM
    * @return the answer of the LLM as a String
    */
-  private String callChatClient(final String prompt) {
+  private String callChatClient(final String userInput, final String sessionId) {
     // ---------------------------------------- EXERCISE 1 ----------------------------------------
     // YOUR CODE START
     /*
     final OrchestrationModuleConfig config = new OrchestrationModuleConfig(CLAUDE_4_6_SONNET);
     final ChatModel chatModel = new OrchestrationChatModel();
-    final OrchestrationChatOptions options = addToolCalls(new OrchestrationChatOptions(config));
-    final ToolCallingManager toolCallingManager = ToolCallingManager.builder().build();
+    final OrchestrationChatOptions options = new OrchestrationChatOptions(config);
 
-    List<Message> messages = new java.util.ArrayList<>(
-        List.of(new SystemMessage(SYSTEM_PROMPT), new UserMessage(prompt)));
+    final List<Message> messages = conversationHistories.computeIfAbsent(
+        sessionId,
+        k -> new java.util.ArrayList<>(List.of(new SystemMessage(SYSTEM_PROMPT))));
 
-    while (true) {
-      final ChatResponse response = chatModel.call(new Prompt(messages, options));
-      if (!response.hasToolCalls()) {
-        return response.getResult().getOutput().getText();
-      }
-      final ToolExecutionResult result = toolCallingManager.executeToolCalls(
-          new Prompt(messages, options), response);
-      messages = result.conversationHistory();
-    }
+    messages.add(new UserMessage(userInput));
+    final Prompt prompt = new Prompt(messages, options);
 
+    final ChatResponse response = chatModel.call(prompt);
+    final String answer = response.getResult().getOutput().getText();
+
+    messages.add(new AssistantMessage(answer));
+    return answer;
+     */
     // YOUR CODE END
-    */
     // delete the following line
     return "This could be a chat client response.";
     // ---------------------------------------- EXERCISE 1 ----------------------------------------
   }
 
   /**
-   * EXERCISE 2: Add tool calls.
-   * The below method should add the necessary tools to connect to the OData service etc.
+   * EXERCISE 2a: Add tool calls.
+   * The below method should add the necessary tools to your OrchestrationChatOptions object
+   * to connect to the OData service etc.
    * Follow the steps in exercises/ex2/README.md or uncomment the code here to make it work.
    * We use the Spring AI integration of the SAP Cloud SDK for AI to do this.
    *
    * @param options the OrchestrationChatOptions to which the tools are added
    */
   private OrchestrationChatOptions addToolCalls(final OrchestrationChatOptions options) {
-    // ---------------------------------------- EXERCISE 2 ----------------------------------------
+    // ---------------------------------------- EXERCISE 2a ----------------------------------------
     // YOUR CODE START
     /*
     return options.mutate().toolCallbacks(
@@ -229,18 +181,48 @@ public class AgentService {
             ToolCallbacks.from(
                 financialPlanningTool,
                 journalEntryTool,
-                rptPredictionTool,
+                localDbTool,
                 rptSinglePredictionTool,
-                getGroundTruthTool,
-                duckDbTool))).build();
-    */
+                rptPredictionTool,
+                getGroundTruthTool))).build();
+     */
     // YOUR CODE END
+    // delete the following line
     return options;
-    // ---------------------------------------- EXERCISE 2 ----------------------------------------
+    // ---------------------------------------- EXERCISE 2a ----------------------------------------
   }
 
-  private void addFallbackConfigs(final OrchestrationChatOptions options) {
-    var workingConfig = new OrchestrationModuleConfig(CLAUDE_4_6_SONNET);
-    options.mutate().fallbackConfigs(List.of(workingConfig));
+  /**
+   * EXERCISE 2b: Add the agentic loop.
+   * The below method should add the agentic loop to call the tools you registered before.
+   * Follow the steps in exercises/ex2/README.md or uncomment the code here to make it work.
+   * We use the Spring AI integration of the SAP Cloud SDK for AI to do this.
+   *
+   * @param chatModel the chatModel used to ma ke the call
+   * @param messages the initial list of messages
+   * @param options the OrchestrationChatOptions including the registered tools
+   */
+  private String callWithTools(final ChatModel chatModel, final List<Message> messages, final OrchestrationChatOptions options) {
+    // ---------------------------------------- EXERCISE 2b ----------------------------------------
+    // YOUR CODE START
+    /*
+    OrchestrationChatOptions optionsWithTools = addToolCalls(options);
+    List<Message> currentMessages = new ArrayList<>(messages);
+    final ToolCallingManager toolCallingManager = ToolCallingManager.builder().build();
+
+    while (true) {
+      final ChatResponse response = chatModel.call(new Prompt(currentMessages, optionsWithTools));
+      if (!response.hasToolCalls()) {
+        return response.getResult().getOutput().getText();
+      }
+      final ToolExecutionResult result = toolCallingManager.executeToolCalls(
+          new Prompt(currentMessages, optionsWithTools), response);
+      currentMessages = result.conversationHistory();
+     */
+      // YOUR CODE END
+      // delete the following line
+    return "";
+      // ---------------------------------------- EXERCISE 2b ----------------------------------------
   }
+
 }

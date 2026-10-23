@@ -1,10 +1,10 @@
-# Exercise 4 - Resilience with Fallback Configs: Handling Model Failures Gracefully
+# Exercise 4 - Fallback Configs: Recovering from Model Failures Gracefully
 
-In this exercise, you will use the SAP Orchestration service's **fallback module** feature to make your agent resilient to model-level failures.
+In this exercise, you will use the SAP Orchestration service's **fallback module** feature to keep your agent working when a model is unavailable.
 You will first deliberately break the configuration to see what an unhandled failure looks like, and then add a fallback so the agent recovers automatically.
 
 This exercise is self-contained — it does not build on `addToolCalls` and can be done independently of Exercises 2 and 3.
-You will write a short, standalone test method directly in `AgentService` (or in a scratch class of your choice) to keep things focused.
+You will write a short, standalone test method directly in `AgentService` to keep things focused.
 
 ## Overview
 
@@ -37,86 +37,91 @@ This is useful for several real-world scenarios:
 
 ## Step 1: Trigger a failure — send a request with a broken config
 
-Open `AgentService.java` and find `callChatClient`.
+Open `AgentService.java` and find `callChatClient` (the method we populated in Exercises 1 and 2).
 
 First, create a config that references a model name that does not exist (the best place to do this is the beginning of the `callChatClient` method):
 
 ```java
 final var brokenConfig =
-    new OrchestrationModuleConfig()
-        .withLlmConfig(new OrchestrationAiModel("broken_model_name", Map.of(), "latest"));
+    new OrchestrationModuleConfig(new OrchestrationAiModel("broken_model_name", Map.of(), "latest"));
 ```
 
 `OrchestrationAiModel` takes a model name, a map of model parameters, and a version string.
 Passing `"broken_model_name"` as the model name produces a config that the Orchestration service cannot fulfil — the named deployment does not exist.
 
-Now use this broken config in a call:
+Now use this broken config instead of the working one:
 
 ```java
 final ChatModel chatModel = new OrchestrationChatModel();
+final OrchestrationChatOptions options = addToolCalls(new OrchestrationChatOptions(brokenConfig)); // <-- broken config
 
-final OrchestrationChatOptions options = new OrchestrationChatOptions(brokenConfig); // <-- the broken config is added here
-
-final Prompt p =
-    new Prompt(
-        List.of(new SystemMessage(SYSTEM_PROMPT), new UserMessage(prompt)), options);
-
-return chatClient.prompt(p).call().content();
+// ... rest of the loop unchanged
 ```
 
-Restart the application and ask any query.
-You should see `TypeError: network error` in the UI and an `OrchestrationClientException` in the terminal running the demp because `"broken_model_name"` cannot be resolved to a deployment.
+Restart the application (press `CTRL + c` while in your terminal and then run `pnpm run java-agent` again) and ask any query.
+You should see `TypeError: network error` in the UI and an `OrchestrationClientException` in the terminal because `"broken_model_name"` cannot be resolved to a deployment.
 
 
 ## Step 2: Add a working config as a fallback
 
-Now add a valid `OrchestrationModuleConfig` and register it as a fallback on the `OrchestrationChatOptions` object:
+Now create a valid `OrchestrationModuleConfig` and register it as a fallback using `mutate()`:
 
 ```java
-final var workingConfig = new OrchestrationModuleConfig().withLlmConfig(GPT_4O);
+final var workingConfig = new OrchestrationModuleConfig(CLAUDE_4_6_SONNET);
 
-options.setFallbackConfigs(List.of(workingConfig));
+final OrchestrationChatOptions optionsWithFallback =
+    options.mutate().fallbackConfigs(List.of(workingConfig)).build();
 ```
 
-`setFallbackConfigs` takes a `List<OrchestrationModuleConfig>`.
-The service tries each in order: if the first (broken) config fails, it automatically retries with the second (working) config.
-Your application code does not change — the failover is handled entirely by AI Core Orchestration.
+`mutate().fallbackConfigs(...).build()` returns a new `OrchestrationChatOptions` instance with the fallback list attached — `OrchestrationChatOptions` is immutable so you need the builder.
+
+Now use the `optionsWithFallback` in your `callWithTools()` instead.
+
+```java
+final String answer = callWithTools(chatModel, messages, optionsWithFallback);
+```
+
+The service tries each config mentioned in `optionsWithFallback` in order: if the first (broken) config fails, it automatically retries with the second (working) config.
+Your application logic does not change — the failover is handled entirely by AI Core Orchestration.
 
 Your complete fallback example should look like this:
 
 ```java
-final var brokenConfig =
-    new OrchestrationModuleConfig()
-        .withLlmConfig(new OrchestrationAiModel("broken_model_name", Map.of(), "latest"));
+  private String callChatClient(final String userInput, final String sessionId) {
+    final var brokenConfig =
+        new OrchestrationModuleConfig(new OrchestrationAiModel("broken_model_name", Map.of(), "latest"));
+    final var workingConfig = new OrchestrationModuleConfig(CLAUDE_4_6_SONNET);
 
-final var workingConfig = new OrchestrationModuleConfig().withLlmConfig(GPT_4O);
+    final ChatModel chatModel = new OrchestrationChatModel();
+    final OrchestrationChatOptions options = addToolCalls(new OrchestrationChatOptions(brokenConfig));
 
-final OrchestrationModuleConfig config = new OrchestrationModuleConfig().withLlmConfig(GPT_4O);
-final ChatModel chatModel = new OrchestrationChatModel();
-final ChatClient chatClient = ChatClient.builder(chatModel).build();
+    final OrchestrationChatOptions optionsWithFallback =
+        options.mutate().fallbackConfigs(List.of(workingConfig)).build();
 
-final OrchestrationChatOptions options = new OrchestrationChatOptions(brokenConfig);
+    final List<Message> messages = conversationHistories.computeIfAbsent(
+        sessionId,
+        k -> new java.util.ArrayList<>(List.of(new SystemMessage(SYSTEM_PROMPT))));
 
-options.setFallbackConfigs(List.of(workingConfig));
+    messages.add(new UserMessage(userInput));
 
-final Prompt p =
-    new Prompt(
-        List.of(new SystemMessage(SYSTEM_PROMPT), new UserMessage(prompt)), options);
+    final String answer = callWithTools(chatModel, messages, optionsWithFallback);
 
-return chatClient.prompt(p).call().content();
+    messages.add(new AssistantMessage(answer));
+    return answer;
+}
 ```
 
 
 ## Step 3: Test it
 
 Restart the application and enter a query again.
-This time the call should succeed and return a response from GPT-4o — even though the primary config was deliberately broken.
+This time the call should succeed and return a response from the working model — even though the primary config was deliberately broken.
 
 You will not see any change in the response format.
 Fallback is transparent: the caller (your Java code, and the user via the UI) receives a normal `ChatResponse` regardless of which config in the list ultimately handled the request.
 
 > **Tip:** You can chain as many fallbacks as you like by adding more entries to the list.
-> The service tries them left-to-right and stops at the first success.
+> The service tries them top-to-bottom and stops at the first success.
 
 
 ## Step 4: Understanding what happens under the hood
@@ -134,10 +139,10 @@ Other error types — network failures, malformed requests — are not retried b
 
 ## Summary
 
-You have made the financial analyst agent resilient to model-level failures using the SAP Orchestration fallback module feature.
+You have configured the financial analyst agent to recover from model-level failures using the SAP Orchestration fallback module feature.
 Key takeaways:
 
-- `setFallbackConfigs(List.of(...))` on `OrchestrationChatOptions` registers one or more fallback configs tried in order.
+- `mutate().fallbackConfigs(List.of(...)).build()` on `OrchestrationChatOptions` registers one or more fallback configs tried in order.
 - Failover is handled server-side by the Orchestration service — no retry logic in your Spring code.
 - Works identically for streaming and non-streaming calls.
 - The primary config is tried first; fallbacks are only reached on LLM-layer errors.

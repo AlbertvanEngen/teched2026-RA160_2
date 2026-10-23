@@ -105,7 +105,14 @@ public class RptPredictionTool {
               + "Predictions are written into outputTable as predicted_<targetColumn> plus confidence_<targetColumn> "
               + "and confidence_interval_lower/upper_<targetColumn> columns. "
               + "After the call, use query_local_db to aggregate results. "
-              + "For a single table split by WHERE predicates, use run_rpt_prediction_single instead.")
+              + "For a single table split by WHERE predicates, use run_rpt_prediction_single instead. "
+              + "Guardrails: "
+              + "For next-year planning forecasts, use planning ACTUAL history as context and target-year PLAN rows as predictionTable. "
+              + "Filter planningCategory when loading context and prediction data — loading all four categories at once quadruples row counts and degrades prediction quality. "
+              + "Do not use signed journal-entry rows as context for a positive planning-target forecast unless explicitly requested. "
+              + "Run a SQL preflight (year/category totals) before calling this tool and a plausibility check on the output; "
+              + "if totals look ~10x off, revisit the data setup. "
+              + "RPT operates at line-item grain — aggregate its output table rather than comparing against pre-aggregated totals.")
   public String runRptPrediction(
       @ToolParam(description = "DuckDB table with known target values, e.g. journal_entry_data")
           final String contextTable,

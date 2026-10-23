@@ -7,14 +7,14 @@ This exercise is self-contained — it does not depend on the tools from Exercis
 
 ## What you'll learn
 
-By the end of this exercise, you'll understand how passing an array of model configs to `OrchestrationClient` enables automatic failover — no retry logic, no error-handling code in your application.
+By the end of this exercise, you'll understand how passing an array of model configurations to the `OrchestrationClient` class enables automatic failover — no retry logic, no error-handling code in your application.
 You'll see the failure mode first-hand before adding the fallback, so you understand exactly what the feature protects against.
 
 If you have any trouble, each step below shows the complete config to paste into the `agent.ts` file.
 
 ## Background: What are fallback configs?
 
-Each entry in the array you pass to `OrchestrationClient` describes one Orchestration call configuration: which LLM to use, and optionally which content filters, data masking rules, and other settings to apply.
+Each entry in the array you pass to the `OrchestrationClient` class describes one Orchestration call configuration: which LLM to use, and optionally which content filters, data masking rules, and other settings to apply.
 Normally you create one entry and let the agent use it for every request.
 
 But what happens when the model you chose is temporarily unavailable, has hit its quota limit, or simply does not exist in the cluster your customer is using?
@@ -30,18 +30,14 @@ This is useful for several real-world scenarios:
 - **Model deprecation:** route traffic to a newer model while old integrations are still in use.
 - **Regional availability:** the primary model is unavailable in one region, while the fallback is available globally.
 
-> **Optional improvement:** Using a deliberately broken model name as the failure trigger is a convenient demo technique, but not fully realistic.
-> In production, failures are more likely caused by a deployment being paused or a quota limit being reached.
-> If you want to explore a more realistic scenario, try disabling a model deployment in SAP AI Core and observing that the fallback triggers in the same way.
-
 ## Step 1: Trigger a failure — send a request with a broken config
 
-Open the `agent.ts` file and find the `buildFinancialAgent` function.
+Open the `agent.ts` file and find the `buildFinancialAgent()` function.
 Replace the first model config with one that references a model name that does not exist:
 
 ```typescript
-const model = new OrchestrationClient({
-  promptTemplating: { model: { name: 'broken_model_name' } }
+const orchestrationClient = new OrchestrationClient({
+  promptTemplating: { model: { name: 'broken-model-name' } },
 });
 ```
 
@@ -52,7 +48,8 @@ pnpm run js-agent
 ```
 
 Ask any question in the UI.
-You should eventually see an error response — the Orchestration service cannot resolve `"broken_model_name"` to a deployment and returns an error, which the agent surfaces to the browser.
+The failure may take up to about a minute because the request must travel through the Orchestration service before the unavailable model is rejected.
+You should eventually see an error response — the Orchestration service cannot resolve `"broken-model-name"` to a deployment and returns an error, which the agent surfaces to the browser.
 Check the terminal for the underlying error details.
 
 ## Step 2: Add a working config as a fallback
@@ -60,14 +57,14 @@ Check the terminal for the underlying error details.
 Now restore a working config as the second entry in the array:
 
 ```typescript
-const model = new OrchestrationClient([
-  { promptTemplating: { model: { name: 'broken_model_name' } } },
-  { promptTemplating: { model: { name: 'anthropic--claude-4.6-sonnet' } } },
+const orchestrationClient = new OrchestrationClient([
+  { promptTemplating: { model: { name: 'broken-model-name' } } },
+  { promptTemplating: { model: { name: 'anthropic--claude-4.6-sonnet', params: { reasoning_effort: 'low' } } } },
 ]);
 ```
 
 The array is tried left-to-right.
-If the first config fails (as it will here, because `"broken_model_name"` does not exist), the Orchestration service automatically retries with the second config.
+If the first config fails (as it will here, because `"broken-model-name"` does not exist), the Orchestration service automatically retries with the second config.
 Your application code does not change — the failover is handled entirely server-side by AI Core Orchestration.
 
 ## Step 3: Test it
@@ -86,7 +83,7 @@ Fallback is transparent to the caller: the agent and the user receive a normal r
 
 ## Step 4: Understanding what happens under the hood
 
-When `OrchestrationClient` sends a request, all configs in the array are included in the request payload.
+When the `OrchestrationClient` instance sends a request, all configs in the array are included in the request payload.
 The SAP Orchestration service on AI Core handles the retry logic server-side.
 This means:
 
@@ -101,12 +98,12 @@ Other error types — network failures, malformed requests — are not retried b
 Now that you have verified the fallback, restore the `agent.ts` file to a clean state with two working configs:
 
 ```typescript
-const model = new OrchestrationClient([
+const orchestrationClient = new OrchestrationClient([
   {
     promptTemplating: {
       model: {
         name: 'anthropic--claude-4.6-sonnet',
-        params: { reasoning_effort: 'high' },
+        params: { reasoning_effort: 'low' },
       },
     },
   },
@@ -122,7 +119,7 @@ The first config sets `reasoning_effort: 'high'` so the Claude model applies dee
 You have made the financial analyst agent resilient to model-level failures using the SAP Orchestration fallback feature.
 Key takeaways:
 
-- Passing multiple entries to `OrchestrationClient([...])` registers fallback configs tried in priority order.
+- Passing multiple entries to the `OrchestrationClient([...])` constructor call registers fallback configurations in priority order.
 - Failover is handled server-side by the Orchestration service — no retry logic needed in your TypeScript code.
 - The feature works identically for streaming and non-streaming calls.
 - The first config is tried first; fallbacks are only reached on LLM-layer errors.

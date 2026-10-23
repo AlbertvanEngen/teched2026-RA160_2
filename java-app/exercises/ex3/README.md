@@ -8,12 +8,11 @@ If you haven't done so, please finish that exercise first.
 
 ## Overview
 
-In this task we will extend `addToolCalls` in `AgentService` with three forecasting tools and implement the `callRpt` method in `RptPredictionTool` so you can see the SAP AI SDK's RPT client in action.
+In this task we will implement the `callRpt` method in `RptPredictionTool` so you can see the SAP Cloud SDK for AI's RPT client in action.
 In order to do this, we will perform the following steps:
 - Understand what SAP RPT is and why it is different from a hand-rolled statistical forecast.
 - Learn what each of the three RPT tools does and when the model should pick each one.
-- Register the tools by appending them to the existing `ToolCallbacks.from(...)` call.
-- Get to know the three-object model used to call RPT via the SAP AI SDK.
+- Get to know the three-object model used to call RPT via the SAP Cloud SDK for AI.
 - Implement the `callRpt` method step by step.
 - Test an end-to-end forecast and a ground-truth evaluation.
 
@@ -34,8 +33,8 @@ The three RPT tools in `AgentService` each serve a different scenario:
 
 | Field               | Tool class              | When to use |
 |---------------------|-------------------------|-------------|
-| `rptFromSourcesTool`| `ForecastFromSourcesTool` | Actuals and planning rows are in **separate** DuckDB tables (e.g., `journal_entry_data` as context, `financial_planning_data` as prediction input). RPT automatically discovers the shared columns. |
-| `rptPredictionTool` | `RptPredictionTool`     | **Dual-source** mode: same as above but more explicit control. Provide the context table, prediction table, target column, and task type directly. Columns that appear in both tables are sent to RPT; a `source` column (`actual` / `plan`) is added automatically so RPT can distinguish the two sets. |
+| `rptSinglePredictionTool`| `RptSinglePredictionTool` | **Single-table** mode: all data is already in one DuckDB table. Supply a `predictionWhere` SQL predicate to select the rows whose target should be predicted (e.g. future fiscal periods), and optionally a `contextWhere` for known-truth rows — if omitted, every row not matching `predictionWhere` becomes context. |
+| `rptPredictionTool` | `RptPredictionTool`     | **Dual-source** mode: actuals and planning rows are in **separate** DuckDB tables (e.g., `journal_entry_data` as context, `financial_planning_data` as prediction input). Only columns shared between both tables are sent to RPT; a `source` column (`actual` / `plan`) is added automatically so RPT can distinguish the two sets. |
 | `getGroundTruthTool`| `GetGroundTruthTool`    | After a prediction is written into an output table, compare it against real OData data. Fetches journal entries or planning ACTUAL rows, joins on the dimensions you specify, and writes a comparison table with `pct_of_actual`, `pct_below_actual`, `pct_above_actual`, MAPE, MAE, and RMSE columns. |
 
 ## Step 2: Understand the typical RPT workflow
@@ -57,34 +56,9 @@ Steps 3–5 use the three tools you are about to add.
 The agent drives the entire sequence autonomously — your only job is to build and register the tools.
 
 
-## Step 3: Register the RPT tools
-
-Open `AgentService.addToolCalls`.
-You currently have six tools in the `ToolCallbacks.from(...)` call.
-Append the three RPT tools:
-
-```java
-options.setToolCallbacks(
-    List.of(
-        ToolCallbacks.from(
-            financialPlanningTool,
-            journalEntryTool,
-            duckDbTool,
-            forecastTool,
-            rptFromSourcesTool,
-            rptPredictionTool,
-            getGroundTruthTool,
-            createViewTool,
-            dropTableTool)));
-```
-
-That is the only change needed in `AgentService`.
-`ToolCallbacks.from(...)` will inspect all three new beans for `@Tool` methods and register their descriptions with the model automatically.
-
-
 ## Step 4: Get to know the RPT request model
 
-Before implementing `callRpt`, it helps to understand the three-object model the SAP AI SDK uses to build an RPT request.
+Before implementing `callRpt`, it helps to understand the three-object model the SAP Cloud SDK for AI uses to build an RPT request.
 The pattern is intentionally similar to what you saw in Exercise 1 with the Orchestration client:
 
 | RPT SDK object | Orchestration equivalent | Purpose |
@@ -116,7 +90,7 @@ Remove the `throw new UnsupportedOperationException(...)` stub and implement the
 final var targetColConfig =
     TargetColumnConfig.create()
         .name(targetColumn)
-        .predictionPlaceholder(PredictionPlaceholder.create("[PREDICT]"))
+        .predictionPlaceholder(PredictionPlaceholder.create(RptSinglePredictionTool.PLACEHOLDER))
         .taskType("classification".equalsIgnoreCase(taskType) ? CLASSIFICATION : REGRESSION);
 ```
 
@@ -165,11 +139,11 @@ final var request =
 ### Step 5.4: Call RPT and return the response
 
 ```java
-return RptClient.forModel(SAP_RPT_1_5).tableCompletion(request);
+return RptClient.forModel(SAP_RPT_1_6).tableCompletion(request);
 ```
 
-- `RptClient.forModel(SAP_RPT_1_5)` — creates a client targeting SAP-RPT-1.5.
-  `SAP_RPT_1_5` is a constant from `RptModel`, statically imported at the top of the file.
+- `RptClient.forModel(SAP_RPT_1_6)` — creates a client targeting SAP-RPT-1.6.
+  `SAP_RPT_1_6` is a constant from `RptModel`, statically imported at the top of the file.
   Connection details (resource group, deployment) are read from the environment automatically — no credentials in code.
 - `.tableCompletion(request)` — sends the request synchronously.
   RPT fills in every row that contained the placeholder sentinel and returns a `PredictResponsePayload` with one `predictions` entry per prediction row.
@@ -185,7 +159,7 @@ private PredictResponsePayload callRpt(
     final var targetColConfig =
         TargetColumnConfig.create()
             .name(targetColumn)
-            .predictionPlaceholder(PredictionPlaceholder.create("[PREDICT]"))
+            .predictionPlaceholder(PredictionPlaceholder.create(RptSinglePredictionTool.PLACEHOLDER))
             .taskType("classification".equalsIgnoreCase(taskType) ? CLASSIFICATION : REGRESSION);
 
     final var predictionConfig =
@@ -199,9 +173,12 @@ private PredictResponsePayload callRpt(
             .rows(rptRows)
             .parseDataTypes(true);
 
-    return RptClient.forModel(SAP_RPT_1_5).tableCompletion(request);
+    return RptClient.forModel(SAP_RPT_1_6).tableCompletion(request);
 }
 ```
+
+Remember that we already registered the `RptPredictionTool` in Exercise 2.
+So our application already has access to it and we can immediately start using it.
 
 
 ## Step 6: Start the application and test a forecast
@@ -228,22 +205,21 @@ Without restarting, ask the agent to compare its prediction to reality:
 
 The agent should call `get_ground_truth` on the prediction table it just wrote, fetch real journal entries from OData, and return a comparison table showing `pct_of_actual`, `pct_below_actual`, and `pct_above_actual`.
 
-> **Note on the data:** Ground truth exists for fiscal years 2018–2028 in the mock OData server.
-> If the agent says ground truth is unavailable, check that it is actually querying 2026 and not a different year.
+> **Note on the data:** Ground truth exists for fiscal years 2018–2028 in the mock S4/HANA server.
 
-This step is of course only for demo purposes here.
+This step is of course only for demo purposes.
 In a real world example you probably would not have access to the ground truth, that is exactly why you need the prediction.
 
 ## Step 8: Understanding what RPT does under the hood
 
 When `run_rpt_prediction` is called, the following happens inside `RptPredictionTool`:
 
-1. Both DuckDB tables are read into memory as lists of rows.
+1. Both local database tables are read into memory as lists of rows.
 2. Only columns that appear in **both** tables are forwarded to RPT (irrelevant columns are dropped).
 3. A `source` column is added: `"actual"` for context rows (target value kept), `"plan"` for prediction rows (target value replaced with a placeholder sentinel).
-4. The combined row list is sent to `RptClient.forModel(SAP_RPT_1_5).tableCompletion(request)`.
+4. The combined row list is sent to `RptClient.forModel(SAP_RPT_1_6).tableCompletion(request)`.
 5. RPT returns a `predictions` list — one entry per prediction row, containing the filled-in target value.
-6. The predictions are written back into DuckDB as `predicted_<targetColumn>` (plus confidence columns), one row per original prediction row.
+6. The predictions are written back into the local database as `predicted_<targetColumn>` (plus confidence columns), one row per original prediction row.
 
 The last item above is why you always call `query_local_db` _after_ `run_rpt_prediction` rather than before: the predictions do not exist until RPT has run.
 
@@ -258,4 +234,4 @@ Your agent can now:
 
 RPT does the heavy lifting — your role is to give the agent the tools and let the system prompt guide it on when to use them.
 
-Continue to [Exercise 4 - Resilience with Fallback Configs: Handling Model Failures Gracefully](../ex4/README.md).
+Continue to [Exercise 4 - Fallback Configs: Recovering from Model Failures Gracefully](../ex4/README.md).

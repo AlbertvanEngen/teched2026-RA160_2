@@ -4,31 +4,31 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --env-file-if-exists=../../.env src/server.ts",
+    "dev": "tsx --env-file-if-exists=../../.env src/server.ts",
     "server": "NODE_ENV=production tsx --env-file-if-exists=../../.env src/server.ts",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "@hono/node-server": "^2.1.1",
+    "@hono/node-server": "^2.1.5",
     "@langchain/core": "catalog:",
-    "dompurify": "^3.4.16",
+    "dompurify": "^3.4.17",
     "financial-mock-agent": "workspace:*",
-    "hono": "^4.13.9",
-    "langchain": "^1.5.14",
-    "marked": "^18.0.14",
+    "hono": "^4.13.13",
+    "langchain": "^1.5.18",
+    "marked": "^18.1.1",
     "purchase-order-mock-server": "workspace:*",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "shiki": "^4.5.0",
     "tsx": "catalog:",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.1.1",
+    "@vitejs/plugin-react": "^6.1.2",
     "typescript": "catalog:",
-    "vite": "^8.3.1"
+    "vite": "^8.3.4"
   }
 }

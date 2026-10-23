@@ -5,17 +5,29 @@ You'll use the [SAP Cloud SDK for AI (Java)](https://github.com/SAP/ai-sdk-java)
 
 ## Overview
 
-In this task we will wire up the `callChatClient` method in `AgentService` so the agent can send a prompt to an LLM and receive a response.
+In this task we will wire up a so-called _chat client_ so the application can send a prompt to an LLM and receive a response.
 In order to do this, we will perform the following steps:
-- Create a `ChatModel` connected to SAP AI Core via the Orchestration service.
-- Configure which LLM to use.
-- Build a `ChatClient` from that model.
-- Assemble a `Prompt` with a system message and user message, and call the LLM.
+- Connect your application to SAP AI Core via the Orchestration service.
+- Choose which LLM to use.
+- Assemble a conversation — a system instruction and the user's question — and send it to the LLM.
 
 If you have any trouble solving the exercise, you can find the code to solve it in comments inside the `callChatClient` method in `AgentService.java`.
+Also, feel free to ask the presenters in your session for help at any time. 
 
 
-## Background: What is SAP Orchestration?
+## Before you start: explore the code
+
+Open [agent/src/main/java/com/sap/teched/demo/agent/AgentService.java](../../agent/src/main/java/com/sap/teched/demo/agent/AgentService.java) and take a minute to read through it before writing anything.
+
+A few things to notice:
+
+- **`SYSTEM_PROMPT`** — the long string constant at the top of the class. This is the standing instruction that shapes your application's agent's behaviour for every request: which tools it has, how to use them, how to present results. You do not need to change it; just know it is there and that you will pass it to the LLM as part of every call.
+- **Field declarations** — below `SYSTEM_PROMPT` you will see the tool beans injected by Spring (`financialPlanningTool`, `journalEntryTool`, etc.). These are the data and forecasting tools the agent will gain access to in later exercises. For now, you can ignore them.
+- **`run()`** — the public entry point called by the `AgentController` (the part of the application that governs the application flow) when a prompt arrives from the browser. It sets up an `AgentTrace` for streaming information to the front end and delegates to `callChatClient`. You do not need to change this method.
+- **`callChatClient()`** — this is where your work starts. It currently contains a commented-out solution block (`/* ... */`). Your task is to implement it step by step using the instructions below.
+
+
+## Background: What is SAP AI Core Orchestration?
 
 The SAP Cloud SDK for AI provides an _Orchestration_ layer that sits in front of multiple LLM providers (OpenAI, Anthropic, etc.) available through SAP AI Core's Generative AI Hub.
 Instead of talking to a vendor API directly, your code uses a single harmonized API — which handles content filtering, data masking, templating, grounding, and more.
@@ -26,17 +38,17 @@ In Spring AI terms, this means we use `OrchestrationChatModel` (instead of, say,
 ## Step 1: Create an `OrchestrationModuleConfig`
 
 Open [agent/src/main/java/com/sap/teched/demo/agent/AgentService.java](../../agent/src/main/java/com/sap/teched/demo/agent/AgentService.java) and find the `callChatClient` method.
-The solution code is commented out inside the `/* */` block — your task in the steps below is to put it back in, one piece at a time.
+The solution code is commented out inside the `/* ... */` block — your task in the steps below is to put it back in, one piece at a time.
 
-The `OrchestrationModuleConfig` holds the configuration for your Orchestration call — most importantly, which LLM to route to.
-Create one and set GPT-4o as the model:
+The `OrchestrationModuleConfig` holds the configuration for your Orchestration call: mainly which LLM to route to, but also additional optional settings like content filters, data masking rules, and more.
+Create one and set _Claude 4.6 Sonnet_ as the model.
 
 ```java
-final OrchestrationModuleConfig config = new OrchestrationModuleConfig().withLlmConfig(GPT_4O);
+final OrchestrationModuleConfig config = new OrchestrationModuleConfig(CLAUDE_4_6_SONNET);
 ```
 
-`GPT_4O` is a constant from `OrchestrationAiModel` and is already statically imported at the top of the file.
-You can swap this constant for any other model supported by Orchestration (e.g., `CLAUDE_4_SONNET`) once you have the basic flow working.
+`CLAUDE_4_6_SONNET` is a constant from `OrchestrationAiModel` and is already statically imported at the top of the file.
+You can swap this constant for any other model supported by Orchestration (e.g., `GPT_4O`) once you have the basic flow working.
 
 
 ## Step 2: Create an `OrchestrationChatModel`
@@ -50,21 +62,8 @@ final ChatModel chatModel = new OrchestrationChatModel();
 `OrchestrationChatModel` is a Spring AI `ChatModel` implementation provided by the SAP Cloud SDK for AI.
 It reads SAP AI Core connection details (service key, resource group, deployment) automatically from the environment, so no credentials appear in your code.
 
-> **Note:** `ChatModel` is the low-level Spring AI interface for sending a `Prompt` and getting a `ChatResponse`.
-> We will wrap it in a `ChatClient` in the next step to get the fluent, builder-style API.
 
-
-## Step 3: Build a `ChatClient`
-
-`ChatClient` is Spring AI's high-level, fluent API for LLM calls — it lets you chain `.prompt()`, `.system()`, `.options()`, `.tools()`, and `.call()` in a readable pipeline.
-Build one from the `ChatModel` you just created:
-
-```java
-final ChatClient chatClient = ChatClient.builder(chatModel).build();
-```
-
-
-## Step 4: Wrap the configuration in `OrchestrationChatOptions`
+## Step 3: Wrap the configuration in `OrchestrationChatOptions`
 
 `OrchestrationChatOptions` is the Spring AI `ChatOptions` implementation that carries our `OrchestrationModuleConfig` into the request.
 Create it from the config object you built in Step 1:
@@ -73,98 +72,144 @@ Create it from the config object you built in Step 1:
 final OrchestrationChatOptions options = new OrchestrationChatOptions(config);
 ```
 
-Think of this as the call-level override: the same `ChatClient` can be reused for different models or settings by passing different `options` objects each time.
+Think of this as the call-level override: the same `ChatModel` can be reused for different models or settings by passing different `options` objects each time.
 
 
-## Step 5: Build the `Prompt`
+## Step 4: Build the `Prompt`
 
 A `Prompt` is the complete input sent to the LLM. It consists of a list of messages and, optionally, call-level options.
 We need two messages:
 
-1. A **`SystemMessage`** that sets the agent's persona and rules (the `SYSTEM_PROMPT` constant defined at the top of `AgentService`).
-2. A **`UserMessage`** that contains the actual question typed in the UI.
+1. A `SystemMessage` that sets the agent's persona and rules (the `SYSTEM_PROMPT` constant defined at the top of `AgentService`).
+2. A `UserMessage` that contains the actual question typed in the UI.
 
-Assemble both into a `Prompt` together with the `options` object:
+Assemble both into a `Prompt` together with the `options` object from Step 3.
 
 ```java
-final Prompt p =
-    new Prompt(
-        List.of(new SystemMessage(SYSTEM_PROMPT), new UserMessage(prompt)), options);
+List<Message> messages = new java.util.ArrayList<>(
+    List.of(new SystemMessage(SYSTEM_PROMPT)));
+messages.add(new UserMessage(userInput));
+
+final Prompt prompt = new Prompt(messages, options);
 ```
 
 The order matters: by convention the system message comes first so the model processes it before the user turn.
 
 
-## Step 6: Call the LLM and return its response
+## Step 5: Call the LLM and return its response
 
 Now call the LLM and extract the text content from the response:
 
 ```java
-return chatClient.prompt(p).call().content();
+final ChatResponse response = chatModel.call(prompt);
+final String answer = response.getResult().getOutput().getText();
 ```
 
-`.prompt(p)` passes our fully assembled `Prompt` to the client.
-`.call()` sends the request to Orchestration synchronously and waits for the complete response.
-`.content()` extracts the text of the first (and in this case only) assistant turn.
+`chatModel.call(prompt)` sends the request to Orchestration synchronously and waits for the complete response.
+`response.getResult().getOutput().getText()` extracts the text of the most recent (and in the beginning only) assistant turn.
+
+
+## Step 6: Give the agent memory across turns
+
+Right now `callChatClient` rebuilds the message list from scratch on every call — only the system prompt and the current user message are sent to the LLM.
+That means the agent has no idea what was said in any previous turn of the same conversation.
+
+To fix this you need to:
+
+1. On each call, retrieve the history for the current session, append the new user message, and pass the full list to the LLM.
+2. After the LLM responds, append the assistant's reply to the history so future calls can see it.
+
+Replace the line that defines the `List<Message> messages` with the following.
+This code retrieves or creates the history for this session (depending on if it already exists or not).
+Notice that the system message is inserted once as the very first message, when the history is initially created.
+
+```java
+final List<Message> messages = conversationHistories.computeIfAbsent(
+    sessionId,
+    k -> new java.util.ArrayList<>(List.of(new SystemMessage(SYSTEM_PROMPT))));
+```
+
+Additionally, we need to add the LLM's answer to the list of messages. In order to do this, add the following line to the bottom of your method body (right below the definition of `final String answer`).
+
+```java
+messages.add(new AssistantMessage(answer));
+```
+
+Because the history list is stored by reference in `conversationHistories`, mutations to `messages` are automatically retained — no explicit `put` is needed after each turn.
+
+## Step 7: Adding the `return` Statement and Recap
+
+We are now ready to finish up the `callChatClient` method.
+The only thing that is missing is returning the answer we got from the LLM so that it is forwarded to the front end.
+
+```java
+return answer;
+```
 
 In total, your `callChatClient` method should look like this:
 
 ```java
-private String callChatClient(final String prompt) {
-    final OrchestrationModuleConfig config = new OrchestrationModuleConfig().withLlmConfig(GPT_4O);
-
+  private String callChatClient(final String userInput, final String sessionId) {
+    final OrchestrationModuleConfig config = new OrchestrationModuleConfig(CLAUDE_4_6_SONNET);
     final ChatModel chatModel = new OrchestrationChatModel();
-
-    final ChatClient chatClient = ChatClient.builder(chatModel).build();
-
     final OrchestrationChatOptions options = new OrchestrationChatOptions(config);
 
-    final Prompt p =
-        new Prompt(
-            List.of(new SystemMessage(SYSTEM_PROMPT), new UserMessage(prompt)), options);
+    final List<Message> messages = conversationHistories.computeIfAbsent(
+        sessionId,
+        k -> new java.util.ArrayList<>(List.of(new SystemMessage(SYSTEM_PROMPT))));
 
-    return chatClient.prompt(p).call().content();
+    messages.add(new UserMessage(userInput));
+    final Prompt prompt = new Prompt(messages, options);
+
+    final ChatResponse response = chatModel.call(prompt);
+    final String answer = response.getResult().getOutput().getText();
+
+    messages.add(new AssistantMessage(answer));
+    return answer;
 }
 ```
 
+## Step 8: Start the application and test it
 
-## Step 7: Start the application and test it
-
-Start the application with:
+Start the application with the following command.
+(If it was already running, stop the previous run by pressing `CTRL + c` first.)
 
 ```bash
 pnpm run java-agent
 ```
 
-Navigate to **http://localhost:3142/** in your browser to see the frontend of our application. You should see an input field for text. Try a query like the following:
+Navigate to **http://localhost:3142/** in your browser to see the frontend of our application. You should see an input field for text. Try a multi-turn conversation like the following:
 
-> "What financial planning data is available?"
+> "Who are you and what can you do?"
 
-You should see the agent respond with a plain text answer.
-At this point the agent has no tools yet, so it can only answer from its built-in knowledge and the system prompt — it cannot actually query any data source.
-We will fix that in Exercise 2.
+Then, without reloading the page, follow up with:
+
+> "Summarise what you just told me in one sentence."
+
+The agent should answer the second question using context from the first — proof that the history is working.
 
 
-## Step 8: Understanding what just happened
+## Step 9: Understanding what just happened
 
 When you submitted the query, the following happened:
 
 1. The browser posted the prompt text to `AgentController`, which called `AgentService.run()`.
-2. `run()` then called `callChatClient(prompt)`.
-3. `callChatClient` sent the system prompt + user message to GPT-4o via SAP Orchestration on AI Core.
-4. The LLM's response text was streamed back to the browser.
+2. `run()` called `callChatClient(prompt, sessionId)`.
+3. `callChatClient` looked up (or created) the history list for this session, appended the user message, and sent the full history to Claude 4.6 Sonnet via SAP Orchestration on AI Core.
+4. The LLM's response was appended to the history and streamed back to the browser.
+5. On the next message, the history already contains the prior user + assistant turns, so the model has full context.
 
 The entire setup — credentials, resource groups, deployment IDs — was read automatically from the environment by `OrchestrationChatModel` thanks to the SAP Cloud SDK for AI.
 This is the same pattern you would use in a production BTP application: no secrets in code, just configuration in the environment.
 
 
-## Step 9: Try different models
+## Step 10: Try different models
 
-The only thing you need to change to switch models is the constant passed to `withLlmConfig(...)`.
-Try replacing `GPT_4O` with another constant, restart, and ask the same question again.
+The only thing you need to change to switch models is the constant passed to the `OrchestrationModuleConfig` constructor.
+Try replacing `CLAUDE_4_6_SONNET` with another constant, restart, and ask the same question again.
 Notice how the phrasing, response times, and verbosity of the answer changes — the system prompt is identical, only the model is different.
 
-Available constants are defined in `OrchestrationAiModel` (e.g., `CLAUDE_4_SONNET`, `GPT_4O_MINI`).
+Available constants are defined in `OrchestrationAiModel` (e.g., `GPT_4O`, `GPT_4O_MINI`).
 
 To restart the application after your code changes, press `CTRL + c` while in your terminal and then run `pnpm run java-agent` again.
 Your application should be back up on the same address in your browser within seconds.
@@ -173,7 +218,7 @@ Your application should be back up on the same address in your browser within se
 ## Summary
 
 You have successfully connected a Spring Boot application to an LLM via SAP AI Core using the SAP Cloud SDK for AI.
-Your agent can now receive a user prompt, prepend the system instructions, and return the LLM's answer.
+Your agent can now receive a user prompt, maintain a per-session conversation history, and return the LLM's answer — meaning follow-up questions are answered with full context of the prior turns.
 
 In Exercise 2 we will give the agent access to its tools — OData services, a local SQL database, and an AI forecasting model — so it can actually query, aggregate, and forecast financial data.
 

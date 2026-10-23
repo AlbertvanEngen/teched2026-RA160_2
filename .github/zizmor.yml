@@ -1,0 +1,4 @@
+rules:
+  # TODO: re-enabled after next zizmor release
+  unpinned-uses:
+    disable: true

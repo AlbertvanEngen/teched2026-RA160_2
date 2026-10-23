@@ -1,7 +1,7 @@
 # Exercise 2 - Equipping the Agent: Tool Calls and the Agentic Loop
 
 In this exercise, you will add tools to the agent so it can query real financial data, run SQL aggregations, and reason across multiple data sources.
-You'll learn how LangChain's `createAgent()`, running on LangGraph's runtime, drives the back-and-forth between the LLM and your locally executed tools.
+You'll learn how LangChain's `createAgent()` function, running on LangGraph's runtime, drives the back-and-forth between the LLM and your locally executed tools.
 
 Complete [Exercise 1](../ex1/README.md) before starting this exercise.
 
@@ -31,7 +31,7 @@ User prompt
 ```
 
 LangGraph drives this loop automatically.
-When you pass `tools` to `createAgent()`, LangGraph intercepts tool-call responses, invokes the matching function, injects the result back into the conversation, and calls the LLM again — looping until the model produces a plain-text answer.
+When you pass the `tools` array to the `createAgent()` function, LangGraph intercepts tool-call responses, invokes the matching function, injects the result back into the conversation, and calls the LLM again — looping until the model produces a plain-text answer.
 No manual loop is needed in your code.
 
 Your tools execute locally in your application process — the Orchestration service wraps only the LLM calls, not tool execution.
@@ -43,14 +43,29 @@ Open the following files and read the `tool(...)` definitions at the bottom of e
 
 | File                                                     | Tool name                  | What it does                                                                                                                                  |
 | -------------------------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`odata-tools.ts`](../../agent/src/tools/odata-tools.ts) | `query_financial_planning` | Fetches financial planning entries from the OData API and **appends** them into a named session table.                                        |
-| [`odata-tools.ts`](../../agent/src/tools/odata-tools.ts) | `query_journal_entry`      | Fetches journal entry items from the OData API and **appends** them into a named session table.                                               |
-| [`sql-tool.ts`](../../agent/src/tools/sql-tool.ts)       | `run_sql`                  | Executes SQL against the session's in-memory workspace — `SELECT` for reporting, `CREATE OR REPLACE VIEW` to define virtual tables, and more. |
+| [`odata-tools.ts:104`](../../agent/src/tools/odata-tools.ts#L104) | `query_financial_planning` | Fetches financial planning entries from the OData API and **appends** them into a named session table. |
+| [`odata-tools.ts:174`](../../agent/src/tools/odata-tools.ts#L174) | `query_journal_entry` | Fetches journal entry items from the OData API and **appends** them into a named session table. |
+| [`sql-tool.ts:7`](../../agent/src/tools/sql-tool.ts#L7) | `run_sql` | Executes SQL against the session's in-memory workspace — `SELECT` for reporting, `CREATE OR REPLACE VIEW` to define virtual tables, and more. |
 
 You will register these three data tools in this exercise.
 Exercise 3 adds RPT, TabPFN, and ground-truth tools after the SQL workflow is established.
 
-Each tool is defined with `tool(fn, { name, description, schema })` from `@langchain/core/tools` — the LangChain convention that makes a function visible to the LLM as a callable tool.
+### Understanding planning categories in SAP financial data
+
+When the `query_financial_planning` tool queries financial planning data, entries are partitioned by the **`planningCategory`** property.
+In SAP financial planning, four distinct categories represent different perspectives on the same financial dimensions:
+
+- **`ACTUAL`**: Realized, historical financial amounts recorded from executed business transactions (what was *actually* spent or earned).
+- **`PLAN`**: Operational planning figures established by business units as targets for future periods.
+- **`BUDGET`**: Approved financial limits / spending allocations authorized by management.
+- **`FORECAST`**: Rolling estimates updated periodically throughout the fiscal year reflecting recent trends.
+
+> **Why this distinction matters:** All four categories live in the same OData entity.
+> If an agent aggregates amounts without filtering by `planningCategory`, it will sum actuals, budgets, plans, and forecasts together — quadrupling or distorting the totals!
+> In **Exercise 3**, you will use historical `ACTUAL` values as training context, combined with `PLAN`, `BUDGET`, and `FORECAST` as predictive features, to **predict future ACTUAL values**.
+
+Each tool is defined with the `tool(fn, { name, description, schema })` helper from `@langchain/core/tools`.
+The helper packages your function with the name, description, and input schema that LangChain sends to the LLM as its tool definition.
 The `description` string and the Zod `schema` together form the function definition the model sees, so it knows _when_ and _how_ to call each tool.
 
 > **Tip:** Open the `odata-tools.ts` file and read the `description` and `schema` fields of `queryFinancialPlanningTool`.
@@ -59,7 +74,7 @@ The `description` string and the Zod `schema` together form the function definit
 
 ## Step 2: Register the tools on the agent
 
-Go back to `buildFinancialAgent` in `agent.ts`.
+Go back to the `buildFinancialAgent()` function in `agent.ts`.
 Replace the empty `tools` array with the three data tools:
 
 ```typescript
@@ -70,16 +85,16 @@ const tools = [
 ];
 ```
 
-Each tool in the array is passed to `createAgent()`, which registers its name, description, and schema with the model automatically.
+Each tool in the array is passed to the `createAgent()` function, which registers its name, description, and schema with the model automatically.
 When the model issues a tool-call message naming one of these tools, LangGraph routes it to the corresponding function in your application.
 
-## Step 3: Verify the full `buildFinancialAgent` function
+## Step 3: Verify the full `buildFinancialAgent()` function
 
-After Step 2, the relevant parts of `buildFinancialAgent` should look like this:
+After Step 2, the relevant parts of the `buildFinancialAgent()` function should look like this:
 
 ```typescript
 function buildFinancialAgent() {
-  const model = new OrchestrationClient([
+  const orchestrationClient = new OrchestrationClient([
     {
       promptTemplating: {
         model: {
@@ -101,7 +116,7 @@ function buildFinancialAgent() {
   const middleware = [orchestrationPromptCachingMiddleware()];
 
   return createAgent({
-    model,
+    model: orchestrationClient,
     systemPrompt,
     checkpointer,
     tools,
@@ -124,8 +139,8 @@ Navigate to the UI and ask a question that requires real data:
 
 Watch the **Activity** panel on the left — you should see tool calls appear as the agent:
 
-1. Calls `query_financial_planning` to fetch planning rows for that cost center and year.
-2. Calls `run_sql` to aggregate the loaded rows with SQL (`SUM`, `GROUP BY`, etc.).
+1. Calls the `query_financial_planning` tool to fetch planning rows for that cost center and year.
+2. Calls the `run_sql` tool to aggregate the loaded rows with SQL (`SUM`, `GROUP BY`, etc.).
 3. Returns a formatted answer with the aggregated numbers.
 
 ![The Activity panel showing query_financial_planning and run_sql tool calls](img/ex2-activity.png)
@@ -137,16 +152,16 @@ The LLM never had direct access to the database — it issued _instructions_ (to
 
 Here are a few things worth noticing:
 
-- **SQL as a universal adapter:** Instead of many specialised read operations, the agent has one general-purpose SQL tool (`run_sql`).
+- **SQL as a universal adapter:** Instead of many specialized read operations, the agent has one general-purpose SQL tool (`run_sql`).
   This gives the model enormous flexibility: it can filter, join multiple tables, compute running totals, or pivot data — skills it already knows well from its training data.
 
-- **Append semantics:** `query_financial_planning` and `query_journal_entry` always _append_ to their tables.
+- **Append semantics:** The `query_financial_planning` and `query_journal_entry` tools always _append_ rows to their tables.
   If the model calls either tool twice with the same filters, rows are duplicated.
   The system prompt warns the model that overlapping loads may need deduplication by `id` before aggregating.
 
 ## Step 6: Try more complex queries
 
-Try the following prompts to explore the agent's tool-calling behaviour:
+Try the following prompts to explore the agent's tool-calling behavior:
 
 - **Multi-step aggregation:**
 
