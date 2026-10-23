@@ -13,6 +13,7 @@ import { stdin, stdout } from 'node:process';
 import { parseEnv } from 'node:util';
 import { password } from '@inquirer/prompts';
 import { Decrypter, Encrypter } from 'age-encryption';
+import { z } from 'zod';
 
 const REPO_ROOT = resolve(import.meta.dirname, '..');
 const PAYLOAD_PATH = resolve(REPO_ROOT, 'workshop/service-key.age');
@@ -22,37 +23,21 @@ const SERVICE_KEY_ASSIGNMENT = /^\s*(?:export\s+)?AICORE_SERVICE_KEY\s*=/;
 
 class UsageError extends Error {}
 
-type JsonObject = Record<string, unknown>;
-
-function isObject(value: unknown): value is JsonObject {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function requiredString(object: JsonObject, path: string[]): string {
-  let value: unknown = object;
-  for (const segment of path) {
-    if (!isObject(value)) {
-      throw new UsageError(`Service key is missing ${path.join('.')}.`);
-    }
-    value = value[segment];
-  }
-  if (typeof value !== 'string' || value.trim() === '') {
-    throw new UsageError(`Service key is missing ${path.join('.')}.`);
-  }
-  return value;
-}
-
-function requireHttpsUrl(value: string, path: string): void {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new UsageError(`Service key field ${path} is not a valid URL.`);
-  }
-  if (url.protocol !== 'https:') {
-    throw new UsageError(`Service key field ${path} must use HTTPS.`);
-  }
-}
+const serviceKeySchema = z.looseObject({
+  clientid: z.string().min(1, 'Service key is missing clientid.'),
+  clientsecret: z.string().min(1, 'Service key is missing clientsecret.'),
+  url: z.url({
+    protocol: /^https$/,
+    error: 'Service key field url must be a valid HTTPS URL.',
+  }),
+  serviceurls: z.looseObject({
+    AI_API_URL: z.url({
+      protocol: /^https$/,
+      error:
+        'Service key field serviceurls.AI_API_URL must be a valid HTTPS URL.',
+    }),
+  }),
+});
 
 export function normalizeServiceKey(input: string): string {
   let parsed: unknown;
@@ -61,16 +46,23 @@ export function normalizeServiceKey(input: string): string {
   } catch {
     throw new UsageError('AICORE_SERVICE_KEY is not valid JSON.');
   }
-  if (!isObject(parsed)) {
-    throw new UsageError('AICORE_SERVICE_KEY must be a JSON object.');
-  }
 
-  requiredString(parsed, ['clientid']);
-  requiredString(parsed, ['clientsecret']);
-  const authUrl = requiredString(parsed, ['url']);
-  const apiUrl = requiredString(parsed, ['serviceurls', 'AI_API_URL']);
-  requireHttpsUrl(authUrl, 'url');
-  requireHttpsUrl(apiUrl, 'serviceurls.AI_API_URL');
+  const result = serviceKeySchema.safeParse(parsed);
+  if (!result.success) {
+    const issue = result.error.issues[0];
+    if (!issue) throw new UsageError('AICORE_SERVICE_KEY is invalid.');
+    if (issue.code === 'invalid_type') {
+      if (issue.path.length === 0) {
+        throw new UsageError('AICORE_SERVICE_KEY must be a JSON object.');
+      }
+      const path =
+        issue.path.length === 1 && issue.path[0] === 'serviceurls'
+          ? 'serviceurls.AI_API_URL'
+          : issue.path.join('.');
+      throw new UsageError(`Service key is missing ${path}.`);
+    }
+    throw new UsageError(issue.message);
+  }
 
   const normalized = JSON.stringify(parsed);
   if (normalized.includes('#')) {
@@ -79,43 +71,6 @@ export function normalizeServiceKey(input: string): string {
     );
   }
   return normalized;
-}
-function extractJsonObject(value: string): string {
-  const start = value.search(/\S/);
-  if (start === -1 || value[start] !== '{') {
-    throw new UsageError(
-      'AICORE_SERVICE_KEY must contain a complete JSON object.',
-    );
-  }
-
-  const closingCharacters: string[] = [];
-  let inString = false;
-  let escaped = false;
-  for (let index = start; index < value.length; index += 1) {
-    const character = value[index];
-    if (inString) {
-      if (escaped) escaped = false;
-      else if (character === '\\') escaped = true;
-      else if (character === '"') inString = false;
-      continue;
-    }
-
-    if (character === '"') inString = true;
-    else if (character === '{') closingCharacters.push('}');
-    else if (character === '[') closingCharacters.push(']');
-    else if (character === '}' || character === ']') {
-      if (closingCharacters.pop() !== character) {
-        throw new UsageError('AICORE_SERVICE_KEY contains malformed JSON.');
-      }
-      if (closingCharacters.length === 0) {
-        return value.slice(start, index + 1);
-      }
-    }
-  }
-
-  throw new UsageError(
-    'AICORE_SERVICE_KEY must contain a complete JSON object.',
-  );
 }
 export function readServiceKeyFromEnv(contents: string): string {
   const lines = contents.split(/\r?\n/);
@@ -133,21 +88,18 @@ export function readServiceKeyFromEnv(contents: string): string {
     );
   }
 
+  let serviceKey: string | undefined;
   try {
-    const serviceKey = parseEnv(contents)[SERVICE_KEY_NAME];
-    if (serviceKey) return normalizeServiceKey(serviceKey);
+    serviceKey = parseEnv(contents)[SERVICE_KEY_NAME];
   } catch {
-    // Fall through to raw multiline JSON, which dotenv syntax does not cover.
+    throw new UsageError('The root .env file contains invalid dotenv syntax.');
   }
-
-  const assignmentIndex = assignmentIndexes[0];
-  const assignmentLine = lines[assignmentIndex];
-  const valueStart = assignmentLine.indexOf('=') + 1;
-  const rawValue = [
-    assignmentLine.slice(valueStart),
-    ...lines.slice(assignmentIndex + 1),
-  ].join('\n');
-  return normalizeServiceKey(extractJsonObject(rawValue));
+  if (!serviceKey) {
+    throw new UsageError(
+      'AICORE_SERVICE_KEY is missing from the root .env file.',
+    );
+  }
+  return normalizeServiceKey(serviceKey);
 }
 
 export async function encryptServiceKey(

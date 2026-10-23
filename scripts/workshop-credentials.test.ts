@@ -114,7 +114,7 @@ describe('workshop credentials', () => {
             'http://auth.example.test',
           ),
         ),
-      /must use HTTPS/,
+      /valid HTTPS URL/,
     );
     assert.throws(
       () =>
@@ -125,9 +125,21 @@ describe('workshop credentials', () => {
     );
   });
 
-  it('reads compact and raw multiline service keys from the root environment file', () => {
+  it('preserves additional service-key fields', () => {
+    const serviceKeyWithAdditionalField = JSON.stringify({
+      ...JSON.parse(SERVICE_KEY),
+      identityzone: 'workshop',
+    });
+
     assert.equal(
-      readServiceKeyFromEnv(`PORT=3142\nAICORE_SERVICE_KEY='${SERVICE_KEY}'\n`),
+      normalizeServiceKey(serviceKeyWithAdditionalField),
+      serviceKeyWithAdditionalField,
+    );
+  });
+
+  it('reads compact and quoted multiline service keys from the root environment file', () => {
+    assert.equal(
+      readServiceKeyFromEnv(`PORT=3142\nAICORE_SERVICE_KEY=${SERVICE_KEY}\n`),
       SERVICE_KEY,
     );
     const multilineServiceKey = JSON.stringify(
@@ -137,7 +149,7 @@ describe('workshop credentials', () => {
     );
     assert.equal(
       readServiceKeyFromEnv(
-        `PORT=3142\nAICORE_SERVICE_KEY=${multilineServiceKey}\nOTHER=value\n`,
+        `PORT=3142\nAICORE_SERVICE_KEY='${multilineServiceKey}'\nOTHER=value\n`,
       ),
       SERVICE_KEY,
     );
