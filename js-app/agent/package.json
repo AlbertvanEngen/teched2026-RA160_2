@@ -35,6 +35,7 @@
     "@sap-ai-sdk/langchain": "^2.17.0",
     "@sap-ai-sdk/rpt": "^2.17.0",
     "@sap-ai-sdk/tabpfn": "workspace:*",
+    "@sap-ai-sdk/tabular-orchestration": "^2.17.0",
     "@sap-cloud-sdk/odata-v2": "catalog:",
     "@sap-cloud-sdk/resilience": "catalog:",
     "@sap-cloud-sdk/util": "catalog:",

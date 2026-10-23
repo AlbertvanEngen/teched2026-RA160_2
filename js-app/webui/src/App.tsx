@@ -48,6 +48,8 @@ const TOOL_LABELS: Record<string, string> = {
   run_sql: 'Running SQL',
   js_eval: 'Analyzing JSON with JavaScript',
   run_rpt_prediction: 'Running RPT prediction',
+  run_tabular_orchestration_prediction:
+    'Running Tabular Orchestration prediction',
   run_tabpfn_prediction: 'Running TabPFN prediction',
   get_ground_truth: 'Comparing against ground truth',
   drop_table: 'Cleaning up tables',

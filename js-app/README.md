@@ -130,8 +130,8 @@ Verify the result in the browser and inspect the activity rail.
 
 ### Tabular prediction
 
-The agent exposes `run_rpt_prediction` for Parquet-based SAP RPT predictions and `run_tabpfn_prediction` for TabPFN in-context predictions.
-Both tools operate on session tables already loaded via the OData tools.
+The agent exposes `run_rpt_prediction` for direct SAP RPT predictions, `run_tabpfn_prediction` for TabPFN in-context predictions, and `run_tabular_orchestration_prediction` for SAP RPT through Tabular AI Orchestration.
+All prediction tools read session tables or views already prepared with SQL and write their predictions back into session tables.
 
 In SQL mode, the in-memory DB is shared by the Node.js process; database operations are serialized to avoid concurrent DDL races.
 Web sessions use `AsyncLocalStorage` to associate created tables with the active session and expire after 30 minutes of inactivity.

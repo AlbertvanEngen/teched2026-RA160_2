@@ -1,10 +1,16 @@
 import {
   getFoundationModelDeploymentId,
   getOrchestrationDeploymentId,
+  resolveDeploymentId,
 } from '@sap-ai-sdk/ai-api/internal.js';
 
 const prefetches = [
   () => getOrchestrationDeploymentId({}),
+  () =>
+    resolveDeploymentId({
+      scenarioId: 'tabular-orchestration',
+      resourceGroup: 'default',
+    }),
   () => getFoundationModelDeploymentId('sap-rpt-1.6', 'aicore-sap'),
   () => getFoundationModelDeploymentId('tabpfn-3.5-plus', 'prior-labs'),
 ] as const;

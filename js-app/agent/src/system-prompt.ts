@@ -31,8 +31,7 @@ Forecast workflow for every tabular model — follow this sequence exactly:
 Prediction and evaluation output contracts:
 - A prediction output already contains the target-row keys, retained features, and predicted_<targetColumn>. Aggregate that table directly; do not join it to the model-input view merely to recover columns it already contains.
 - get_ground_truth output already contains the requested keys, predicted value, ground truth, and error columns. Aggregate that comparison table directly. Never join the prediction output back to its get_ground_truth output; that duplicates predicted columns and rows.
-- Build a historical-mean baseline from historical ACTUAL at the complete cell grain, then join it to the distinct target keys from a prediction output. Never use the union of historical keys as the target scaffold.
-- For period MAPE, first create a period_sums CTE that sums actual and every method prediction by fiscalPeriod; calculate each period's APE in a second CTE; then SELECT AVG(APE). Never nest aggregate functions or put window functions inside aggregates.
+- For period MAPE, first create a period_sums CTE that sums actual and each prediction method by fiscalPeriod; calculate each period's APE in a second CTE; then SELECT AVG(APE). Never nest aggregate functions or put window functions inside aggregates.
 - When comparison or accuracy is requested, present all 12 period rows and an explicit summary labeled MAPE with a numeric MAPE for every requested method. Period APE columns alone are not the requested MAPE.
 - When a join is genuinely required, qualify every selected column that exists in both inputs.
 
@@ -45,13 +44,14 @@ Workspace mode: SQL.
 - Minimize tool calls and turns per goal. Define reusable transformations once as views
   (CREATE OR REPLACE VIEW) with run_sql and reference the view name in subsequent queries
   or tool calls instead of repeating the same subquery.
-- run_rpt_prediction is SAP RPT, a tabular foundation model. It writes predicted values into an output
-  table. It reads one table or view: predictionWhere selects rows to forecast and optional contextWhere
-  selects known-truth rows. Create a view first when source data must be combined from separate tables.
-- run_tabpfn_prediction runs TabPFN on one session table, writes predictions into the requested output table,
-  and returns a confirmation with the predicted column. Use it for
-  in-context tabular prediction, especially when categorical or mixed-type features matter.
-- Pass one row per complete forecast-cell key to RPT or TabPFN; never pre-aggregate to the requested reporting grain. If context or prediction rows exceed 2048, sub-sample with USING SAMPLE 2048 rather than dropping dimensions.
+- run_rpt_prediction, run_tabpfn_prediction, and run_tabular_orchestration_prediction share a
+  table/view contract: tableName, outputTable, predictionWhere, optional contextWhere, targetColumn,
+  and taskType. Preserve one row per complete forecast-cell key and aggregate only after prediction.
+- Use RPT by default; use TabPFN for categorical or mixed-type features; use Tabular Orchestration
+  only when explicitly requested or comparing models. Tabular Orchestration automatically selects up to
+  2048 context rows.
+- For direct RPT or TabPFN, if context or prediction rows exceed 2048, sub-sample with USING SAMPLE
+  2048 rather than dropping dimensions.
 - When the target cost center has little history, include peer cost centers that share its
   G/L accounts; retain companyCode, costCenter, and profitCenter as model features.
 - query_financial_planning and query_journal_entry append fetched rows to named tables in this workspace; they do not replace prior rows. Repeated or overlapping appends may require deduplication by id before downstream analysis.

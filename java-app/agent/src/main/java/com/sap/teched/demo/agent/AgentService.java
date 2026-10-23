@@ -88,9 +88,7 @@ public class AgentService {
       - If the answer already exists in the data, read it with query_local_db. Adding a prediction \
         to an answerable SQL question just adds noise.
       - If the answer does not exist in the data — a forecast, a projection, a recommended plan \
-        value, a period nobody has filled in yet — use run_rpt_prediction as the primary forecast. \
-        A hand-rolled SQL trend is allowed only as an explicitly labeled baseline for comparison \
-        against RPT — never as the primary answer and never unlabeled.
+        value, a period nobody has filled in yet — use run_rpt_prediction as the primary forecast.
       - When you do predict, RPT's output is the answer. Aggregate its output table to the \
         granularity the user asked for and present that.
       """;

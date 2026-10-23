@@ -37,8 +37,52 @@ git clone https://github.com/SAP-samples/teched2025-AI160.git
 ```
 
 ### Select Your Programming Language
-
 Choose between [JavaScript](js-app/exercises/README.md) or [Java](java-app/exercises/README.md) by clicking the respective links.
+
+The agents read credentials from the `AICORE_SERVICE_KEY` environment variable. Store this in a `.env` file at the repository root — it is loaded automatically by all package scripts and is excluded from version control:
+
+```sh
+AICORE_SERVICE_KEY={"clientid":"...","clientsecret":"...","url":"...","serviceurls":{"AI_API_URL":"..."}}
+```
+
+### Start the web UI (JavaScript)
+
+```sh
+pnpm --filter financial-agent-webui dev
+```
+
+The UI listens on `http://localhost:3142`. The mock S/4HANA OData services (financial planning and journal entries, on the same `/sap/opu/odata/sap/` path structure as a real system) are embedded in the same process and start automatically.
+
+### Java agent — one-command start
+
+```sh
+cd java-app/agent
+./mvnw spring-boot:run
+```
+
+Spring Boot binds to `:3143` and starts the mock S/4HANA server and web UI as child processes. Wait for `webui is ready on port 3142`, then open `http://localhost:3142`. Ctrl-C stops all three processes.
+
+## Exercises
+
+Follow the exercises in order. Each exercise builds on the previous one.
+
+### JavaScript (TypeScript)
+
+| Exercise | Topic |
+| --- | --- |
+| [Exercise 1 – Connecting to AI Core: Building a Chat Agent](js-app/exercises/ex1/README.md) | Connect a TypeScript app to SAP AI Core via `OrchestrationClient`; first LLM round-trip |
+| [Exercise 2 – Equipping the Agent: Tool Calls and the Agentic Loop](js-app/exercises/ex2/README.md) | Add OData and SQL tools; agent queries the mock S/4HANA data and aggregates it in a scratch database |
+| [Exercise 3 – Forecasting with SAP RPT, TabPFN, and Tabular AI Orchestration](js-app/exercises/ex3/README.md) | Register forecasting and ground-truth tools; agent predicts future periods and evaluates actuals |
+| [Exercise 4 – Resilience with Fallback Configs](js-app/exercises/ex4/README.md) | Use the Orchestration service's fallback config to recover automatically from model-level failures |
+
+### Java
+
+| Exercise | Topic |
+| --- | --- |
+| [Exercise 1](java-app/exercises/ex1/README.md) | Connect a Spring Boot app to SAP AI Core; first LLM round-trip |
+| [Exercise 2](java-app/exercises/ex2/README.md) | Add OData and SQL tools; agent queries the mock S/4HANA data and aggregates it in a scratch database |
+| [Exercise 3](java-app/exercises/ex3/README.md) | Add forecasting tools; agent predicts future periods with SAP RPT |
+| [Exercise 4](java-app/exercises/ex4/README.md) | Orchestration fallback configs; agent recovers from model-level failures |
 
 ## Contributing
 Please read the [CONTRIBUTING.md](./CONTRIBUTING.md) to understand the contribution guidelines.

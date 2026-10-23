@@ -250,6 +250,9 @@ importers:
       '@sap-ai-sdk/tabpfn':
         specifier: workspace:*
         version: link:../tabpfn
+      '@sap-ai-sdk/tabular-orchestration':
+        specifier: ^2.17.0
+        version: 2.17.0(debug@4.4.3)
       '@sap-cloud-sdk/odata-v2':
         specifier: 'catalog:'
         version: 4.9.1(debug@4.4.3)
@@ -866,6 +869,9 @@ packages:
 
   '@sap-ai-sdk/rpt@2.17.0':
     resolution: {integrity: sha512-qP3tS+jLerJVx697oJHhMvu0Z9KPUepPAav57bi8jVDcrKKiIGkRhGM0G2NXlJ77TDhdQa48MXikFXU9H/1KAQ==}
+
+  '@sap-ai-sdk/tabular-orchestration@2.17.0':
+    resolution: {integrity: sha512-S6SQTmQVOTtH1XYiYjyX4J3aELSoKuY5gaQgOz5GSFoE6X0nStUl7z3mEMz9hmZ1+Uq9SDayBv2tkQHfKWMVFQ==}
 
   '@sap-cloud-sdk/connectivity@4.9.1':
     resolution: {integrity: sha512-0deJBmdUd1LD1O3CX/wqYjTEKmnrnLsxnrSE8CyGtzbyomjjL1ePEXB3g6QUpQKmClVyOgJG/IbpyJFGGXXL5A==}
@@ -2837,6 +2843,16 @@ snapshots:
       '@sap-cloud-sdk/connectivity': 4.9.1(debug@4.4.3)
       '@sap-cloud-sdk/http-client': 4.9.1(debug@4.4.3)
       '@sap-cloud-sdk/util': 4.9.1(debug@4.4.3)
+    transitivePeerDependencies:
+      - debug
+      - supports-color
+
+  '@sap-ai-sdk/tabular-orchestration@2.17.0(debug@4.4.3)':
+    dependencies:
+      '@sap-ai-sdk/ai-api': 2.17.0(debug@4.4.3)
+      '@sap-ai-sdk/core': 2.17.0(debug@4.4.3)
+      '@sap-cloud-sdk/connectivity': 4.9.1(debug@4.4.3)
+      '@sap-cloud-sdk/http-client': 4.9.1(debug@4.4.3)
     transitivePeerDependencies:
       - debug
       - supports-color

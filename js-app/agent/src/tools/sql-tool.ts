@@ -35,9 +35,8 @@ export const runSqlTool = tool(
       'CREATE OR REPLACE VIEW to define virtual tables, ' +
       'and any other DML or DDL. Standard reporting (WHERE, JOIN, GROUP BY, ' +
       'SUM/AVG/COUNT/MIN/MAX) works, and so do window functions (OVER/QUALIFY, LAG/LEAD, ' +
-      'moving averages) and regression aggregates (REGR_*/CORR/STDDEV) — use these to build ' +
-      'labeled SQL forecast baselines. Tables are populated by ' +
-      'query_financial_planning, query_journal_entry, and the output tables of the RPT tools.',
+      'moving averages) and regression aggregates (REGR_*/CORR/STDDEV). Tables are populated by ' +
+      'query_financial_planning, query_journal_entry, and prediction tool output tables.',
     schema: z.object({
       sql: z
         .string()

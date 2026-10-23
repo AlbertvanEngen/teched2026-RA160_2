@@ -14,12 +14,12 @@ import {
 import { runRptPredictionTool } from './tools/rpt-tool.ts';
 import { runSqlTool } from './tools/sql-tool.ts';
 import { runTabpfnPredictionTool } from './tools/tabpfn-tool.ts';
+import { runTabularOrchestrationPredictionTool } from './tools/tabular-orchestration-tool.ts';
 
 export const AGENT_RECURSION_LIMIT = 64;
 
 function buildFinancialAgent() {
   // YOUR CODE START
-  /*
   const orchestrationClient = new OrchestrationClient([
     {
       promptTemplating: {
@@ -30,9 +30,16 @@ function buildFinancialAgent() {
       },
     },
   ]);
-  */
 
-  const tools: never[] = [];
+  const tools = [
+    queryFinancialPlanningTool,
+    queryJournalEntryTool,
+    runRptPredictionTool,
+    runSqlTool,
+    runTabpfnPredictionTool,
+    runTabularOrchestrationPredictionTool,
+    getGroundTruthTool,
+  ];
 
   const systemPrompt = systemPromptForTools(tools);
 
@@ -40,11 +47,11 @@ function buildFinancialAgent() {
 
   // TODO: Wire the configured model, prompt, tools, and middleware into the agent.
   return createAgent({
-    model: {} as never,
-    systemPrompt: 'TODO',
+    model: orchestrationClient,
+    systemPrompt: systemPrompt,
     checkpointer,
-    tools: [],
-    middleware: [],
+    tools,
+    middleware,
   });
   // YOUR CODE END
 }
