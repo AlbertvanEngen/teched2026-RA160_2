@@ -1,4 +1,5 @@
 import {
+  clearFinancialSession,
   createSession,
   getFinancialAgent,
   sessionContext,
@@ -15,10 +16,23 @@ app.post('/api/session', (c) => {
   const sessionId = createSession();
   return c.json({ sessionId });
 });
-
-// When JAVA_AGENT_URL is set, proxy /api/agent/run to the Java Spring Boot backend
-// (e.g. http://localhost:3143) instead of running the JS agent inline.
+// When JAVA_AGENT_URL is set, proxy agent and session cleanup to the Java backend.
 const JAVA_AGENT_URL = process.env.JAVA_AGENT_URL;
+
+app.delete('/api/session/:sessionId', async (c) => {
+  const sessionId = c.req.param('sessionId');
+  await clearFinancialSession(sessionId);
+  if (JAVA_AGENT_URL) {
+    const upstream = await fetch(
+      `${JAVA_AGENT_URL}/api/session/${encodeURIComponent(sessionId)}`,
+      { method: 'DELETE' },
+    );
+    if (!upstream.ok) {
+      return c.json({ error: `Java backend error: ${upstream.status}` }, 502);
+    }
+  }
+  return c.body(null, 204);
+});
 
 app.post('/api/agent/run', async (c) => {
   const { prompt, sessionId } = await c.req.json<{

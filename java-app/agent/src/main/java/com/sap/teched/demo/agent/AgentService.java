@@ -6,6 +6,7 @@ import com.sap.ai.sdk.orchestration.OrchestrationAiModel;
 import com.sap.ai.sdk.orchestration.OrchestrationModuleConfig;
 import com.sap.ai.sdk.orchestration.spring.OrchestrationChatModel;
 import com.sap.ai.sdk.orchestration.spring.OrchestrationChatOptions;
+import com.sap.teched.demo.db.DuckDbConnection;
 import com.sap.teched.demo.tool.LocalDbTool;
 import com.sap.teched.demo.tool.RptSinglePredictionTool;
 import org.springframework.ai.model.tool.ToolCallingManager;
@@ -35,10 +36,10 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 /**
  * The financial analyst agent.
  *
- * <p>Wraps the SAP AI SDK Orchestration service through its Spring AI integration, registers the
- * four tools (financial planning query, journal entry query, DuckDB SQL, tabular forecast) and
- * lets the model drive the tool-calling loop. Intermediate tool calls and results are streamed live
- * to the client via {@link AgentTrace}.
+ * <p>Wraps the orchestration service through the SAP Cloud SDK for AI's Spring AI
+ * integration, registers the four tools (financial planning query, journal entry query, DuckDB
+ * SQL, tabular forecast) and lets the model drive the tool-calling loop. Intermediate tool calls
+ * and results are streamed live to the client via {@link AgentTrace}.
  */
 @Service
 @Slf4j
@@ -105,6 +106,14 @@ public class AgentService {
   private final GetGroundTruthTool getGroundTruthTool;
   private final RptSinglePredictionTool rptSinglePredictionTool;
   private final Map<String, List<Message>> conversationHistories = new java.util.concurrent.ConcurrentHashMap<>();
+  private final DuckDbConnection duckDb;
+
+  /** Remove all Java-side state associated with a web session. */
+  public void clearSession(final String sessionId) {
+    if (sessionId == null || sessionId.isBlank()) return;
+    conversationHistories.remove(sessionId);
+    duckDb.closeSession(sessionId);
+  }
 
   /**
    * Run the agent for the given prompt, streaming SSE events via the emitter.

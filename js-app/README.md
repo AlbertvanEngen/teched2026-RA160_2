@@ -73,8 +73,8 @@ A browser turn follows this path:
 | `agent/src/tools/rpt-tool.ts` | SAP RPT integrations. |
 | `agent/src/tools/tabpfn-tool.ts` | TabPFN integrations. |
 | `agent/src/tools/get-ground-truth-tool.ts` | Prediction evaluation against mock actuals. |
-| `agent/src/db.ts` | Serialized access to one in-memory DB instance. |
-| `agent/src/session-store.ts` | Web-session bookkeeping and object cleanup. |
+| `agent/src/db.ts` | Runs SQL against the active session's isolated in-memory database. |
+| `agent/src/session-store.ts` | Web-session lifecycle and database cleanup. |
 | `webui/src/app.ts` | Hono API, session handling, and event translation. |
 | `webui/src/App.tsx` | React chat UI and activity rail. |
 | `webui/src/types.ts` | Browser event and view-model types. |

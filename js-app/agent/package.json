@@ -28,8 +28,8 @@
   "dependencies": {
     "@duckdb/node-api": "1.5.6-r.1",
     "@langchain/langgraph-checkpoint": "^1.2.0",
-    "@sap-ai-sdk/langchain": "2.16.1-20261020131140.0",
-    "@sap-ai-sdk/rpt": "^2.16.0",
+    "@sap-ai-sdk/langchain": "^2.17.0",
+    "@sap-ai-sdk/rpt": "^2.17.0",
     "@sap-ai-sdk/tabpfn": "workspace:*",
     "@sap-cloud-sdk/odata-v2": "catalog:",
     "@sap-cloud-sdk/resilience": "catalog:",

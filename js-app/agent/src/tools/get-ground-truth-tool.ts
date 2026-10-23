@@ -12,7 +12,6 @@ import { apiFinplanningentryitemSrv } from '../generated/API_FINPLANNINGENTRYITE
 import { apiJournalentryitembasicSrv } from '../generated/API_JOURNALENTRYITEMBASIC_SRV/index.ts';
 import type { JournalEntryItemBasic } from '../generated/API_JOURNALENTRYITEMBASIC_SRV/JournalEntryItemBasic.ts';
 import { destination } from '../odata-source.ts';
-import { registerSessionObject } from '../session-store.ts';
 
 const gt = (msg: string) => console.log(styleText('green', '[GT] ') + msg);
 
@@ -353,7 +352,6 @@ async function compareWithGroundTruth({
          THEN ${pctOfActual(`ABS(${predicted}) - ABS(${actual})`)} END AS pct_above_actual
      FROM ${joined}`,
   );
-  registerSessionObject(outputTable);
 
   const [m = {}] = await runQuery(
     `SELECT

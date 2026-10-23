@@ -8,7 +8,6 @@ import {
   financialPlanningFilterSchema,
   journalEntryFilterSchema,
 } from '../odata-source.ts';
-import { registerSessionObject } from '../session-store.ts';
 
 const db = (message: string) =>
   console.log(styleText('magenta', '[Session] ') + message);
@@ -106,7 +105,6 @@ export const queryFinancialPlanningTool = tool(
     try {
       const entries = await fetchFinancialPlanningRows(filters);
       await runQuery(FIN_PLANNING_DDL(tableName));
-      registerSessionObject(tableName);
 
       if (entries.length > 0) {
         await withConnection(async (connection) => {
@@ -176,7 +174,6 @@ export const queryJournalEntryTool = tool(
     try {
       const entries = await fetchJournalEntryRows(filters);
       await runQuery(JOURNAL_ENTRY_DDL(tableName));
-      registerSessionObject(tableName);
 
       if (entries.length > 0) {
         await withConnection(async (connection) => {

@@ -36,4 +36,4 @@ Each exercise README describes what the participant implements and what the fini
 - `mock-server/data/seed.sql` is static and checked in; do not edit by hand.
 - `js-app/agent/src/generated/` is pre-committed; EDMX service definitions are not tracked — do not edit generated files by hand.
 - The agent always uses SQL for local analysis: OData tools load rows into the in-memory DB, `run_sql` reports, prediction tools consume session tables.
-- Table names are not namespaced by session; treat concurrent-session collisions as a known demo limitation.
+- Each JavaScript session owns an isolated in-memory DuckDB database; Java sessions likewise use per-session DuckDB state.
