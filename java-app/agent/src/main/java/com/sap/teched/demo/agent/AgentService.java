@@ -1,6 +1,7 @@
 package com.sap.teched.demo.agent;
 
 import static com.sap.ai.sdk.orchestration.OrchestrationAiModel.CLAUDE_4_6_SONNET;
+import static com.sap.ai.sdk.orchestration.OrchestrationAiModel.GEMINI_3_8_FLASH;
 
 import com.sap.ai.sdk.orchestration.OrchestrationAiModel;
 import com.sap.ai.sdk.orchestration.OrchestrationModuleConfig;
@@ -9,25 +10,20 @@ import com.sap.ai.sdk.orchestration.spring.OrchestrationChatOptions;
 import com.sap.teched.demo.db.DuckDbConnection;
 import com.sap.teched.demo.tool.LocalDbTool;
 import com.sap.teched.demo.tool.RptSinglePredictionTool;
-import org.springframework.ai.model.tool.ToolCallingManager;
-import org.springframework.ai.model.tool.ToolExecutionResult;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
 import com.sap.teched.demo.tool.FinancialPlanningTool;
 import com.sap.teched.demo.tool.GetGroundTruthTool;
 import com.sap.teched.demo.tool.JournalEntryTool;
 import com.sap.teched.demo.tool.RptPredictionTool;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.messages.AssistantMessage;
-import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.SystemMessage;
-import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.stereotype.Service;
@@ -105,15 +101,8 @@ public class AgentService {
   private final RptPredictionTool rptPredictionTool;
   private final GetGroundTruthTool getGroundTruthTool;
   private final RptSinglePredictionTool rptSinglePredictionTool;
-  private final Map<String, List<Message>> conversationHistories = new java.util.concurrent.ConcurrentHashMap<>();
+  private final ChatMemory chatMemory;
   private final DuckDbConnection duckDb;
-
-  /** Remove all Java-side state associated with a web session. */
-  public void clearSession(final String sessionId) {
-    if (sessionId == null || sessionId.isBlank()) return;
-    conversationHistories.remove(sessionId);
-    duckDb.closeSession(sessionId);
-  }
 
   /**
    * Run the agent for the given prompt, streaming SSE events via the emitter.
@@ -153,19 +142,22 @@ public class AgentService {
     final ChatModel chatModel = new OrchestrationChatModel();
     final OrchestrationChatOptions options = new OrchestrationChatOptions(config);
 
-    final List<Message> messages = conversationHistories.computeIfAbsent(
-        sessionId,
-        k -> new java.util.ArrayList<>(List.of(new SystemMessage(SYSTEM_PROMPT))));
+    final MessageChatMemoryAdvisor memoryAdvisor = MessageChatMemoryAdvisor.builder(chatMemory).build();
 
-    messages.add(new UserMessage(userInput));
-    final Prompt prompt = new Prompt(messages, options);
+    final ChatClient chatClient = ChatClient.builder(chatModel)
+        .defaultSystem(SYSTEM_PROMPT)
+        .defaultAdvisors(memoryAdvisor)
+        .build();
 
-    final ChatResponse response = chatModel.call(prompt);
-    final String answer = response.getResult().getOutput().getText();
+    final Prompt prompt = new Prompt(userInput, options);
 
-    messages.add(new AssistantMessage(answer));
+    final String answer = chatClient
+        .prompt(prompt)
+        .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, sessionId))
+        .call()
+        .content();
     return answer;
-     */
+    */
     // YOUR CODE END
     // delete the following line
     return "This could be a chat client response.";
@@ -173,7 +165,7 @@ public class AgentService {
   }
 
   /**
-   * EXERCISE 2a: Add tool calls.
+   * EXERCISE 2: Add tool calls.
    * The below method should add the necessary tools to your OrchestrationChatOptions object
    * to connect to the OData service etc.
    * Follow the steps in exercises/ex2/README.md or uncomment the code here to make it work.
@@ -182,7 +174,7 @@ public class AgentService {
    * @param options the OrchestrationChatOptions to which the tools are added
    */
   private OrchestrationChatOptions addToolCalls(final OrchestrationChatOptions options) {
-    // ---------------------------------------- EXERCISE 2a ----------------------------------------
+    // ---------------------------------------- EXERCISE 2 ----------------------------------------
     // YOUR CODE START
     /*
     return options.mutate().toolCallbacks(
@@ -194,44 +186,17 @@ public class AgentService {
                 rptSinglePredictionTool,
                 rptPredictionTool,
                 getGroundTruthTool))).build();
-     */
+    */
     // YOUR CODE END
     // delete the following line
     return options;
-    // ---------------------------------------- EXERCISE 2a ----------------------------------------
+    // ---------------------------------------- EXERCISE 2 ----------------------------------------
   }
 
-  /**
-   * EXERCISE 2b: Add the agentic loop.
-   * The below method should add the agentic loop to call the tools you registered before.
-   * Follow the steps in exercises/ex2/README.md or uncomment the code here to make it work.
-   * We use the Spring AI integration of the SAP Cloud SDK for AI to do this.
-   *
-   * @param chatModel the chatModel used to ma ke the call
-   * @param messages the initial list of messages
-   * @param options the OrchestrationChatOptions including the registered tools
-   */
-  private String callWithTools(final ChatModel chatModel, final List<Message> messages, final OrchestrationChatOptions options) {
-    // ---------------------------------------- EXERCISE 2b ----------------------------------------
-    // YOUR CODE START
-    /*
-    OrchestrationChatOptions optionsWithTools = addToolCalls(options);
-    List<Message> currentMessages = new ArrayList<>(messages);
-    final ToolCallingManager toolCallingManager = ToolCallingManager.builder().build();
-
-    while (true) {
-      final ChatResponse response = chatModel.call(new Prompt(currentMessages, optionsWithTools));
-      if (!response.hasToolCalls()) {
-        return response.getResult().getOutput().getText();
-      }
-      final ToolExecutionResult result = toolCallingManager.executeToolCalls(
-          new Prompt(currentMessages, optionsWithTools), response);
-      currentMessages = result.conversationHistory();
-     */
-      // YOUR CODE END
-      // delete the following line
-    return "";
-      // ---------------------------------------- EXERCISE 2b ----------------------------------------
+  /** Remove all Java-side state associated with a web session. */
+  public void clearSession(final String sessionId) {
+    if (sessionId == null || sessionId.isBlank()) return;
+    chatMemory.clear(sessionId);
+    duckDb.closeSession(sessionId);
   }
-
 }

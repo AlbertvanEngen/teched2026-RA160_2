@@ -39,7 +39,8 @@ This is useful for several real-world scenarios:
 
 Open `AgentService.java` and find `callChatClient` (the method we populated in Exercises 1 and 2).
 
-First, create a config that references a model name that does not exist (the best place to do this is the beginning of the `callChatClient` method):
+First, create a config that references a model name that does not exist. 
+The best place to do this is the beginning of the `callChatClient` method.
 
 ```java
 final var brokenConfig =
@@ -55,7 +56,7 @@ Now use this broken config instead of the working one:
 final ChatModel chatModel = new OrchestrationChatModel();
 final OrchestrationChatOptions options = addToolCalls(new OrchestrationChatOptions(brokenConfig)); // <-- broken config
 
-// ... rest of the loop unchanged
+// ... rest of the method unchanged
 ```
 
 To restart the application, press `CTRL + c` while in your terminal and press `y` to agree to end the subprocesses.
@@ -65,49 +66,57 @@ You should see `TypeError: network error` in the UI and an `OrchestrationClientE
 
 ## Step 2: Add a working config as a fallback
 
-Now create a valid `OrchestrationModuleConfig` and register it as a fallback using `mutate()`:
+Now create a valid `OrchestrationModuleConfig` below the options you just created and register it as a fallback using `mutate()`.
 
 ```java
-final var workingConfig = new OrchestrationModuleConfig(CLAUDE_4_6_SONNET);
+final ChatModel chatModel = new OrchestrationChatModel();
+final OrchestrationChatOptions options = addToolCalls(new OrchestrationChatOptions(brokenConfig));
+
+final var workingConfig = new OrchestrationModuleConfig(CLAUDE_4_6_SONNET); // <-- new working config
 
 final OrchestrationChatOptions optionsWithFallback =
     options.mutate().fallbackConfigs(List.of(workingConfig)).build();
 ```
 
-`mutate().fallbackConfigs(...).build()` returns a new `OrchestrationChatOptions` instance with the fallback list attached — `OrchestrationChatOptions` is immutable so you need the builder.
+`mutate().fallbackConfigs(...).build()` returns a new `OrchestrationChatOptions` instance with the fallback list attached.
+`OrchestrationChatOptions` is immutable so you need the builder.
 
-Now use the `optionsWithFallback` in your `callWithTools()` instead.
+Now use the `optionsWithFallback` in your definition of the `Prompt` instead.
 
 ```java
-final String answer = callWithTools(chatModel, messages, optionsWithFallback);
+final Prompt prompt = new Prompt(userInput, addToolCalls(optionsWithFallback));
 ```
 
 The service tries each config mentioned in `optionsWithFallback` in order: if the first (broken) config fails, it automatically retries with the second (working) config.
 Your application logic does not change — the failover is handled entirely by AI Core Orchestration.
 
 Your complete fallback example should look like this:
-
 ```java
-  private String callChatClient(final String userInput, final String sessionId) {
+private String callChatClient(final String userInput, final String sessionId) {
+
     final var brokenConfig =
         new OrchestrationModuleConfig(new OrchestrationAiModel("broken_model_name", Map.of(), "latest"));
-    final var workingConfig = new OrchestrationModuleConfig(CLAUDE_4_6_SONNET);
-
     final ChatModel chatModel = new OrchestrationChatModel();
     final OrchestrationChatOptions options = addToolCalls(new OrchestrationChatOptions(brokenConfig));
 
+    final var workingConfig = new OrchestrationModuleConfig(CLAUDE_4_6_SONNET);
     final OrchestrationChatOptions optionsWithFallback =
         options.mutate().fallbackConfigs(List.of(workingConfig)).build();
 
-    final List<Message> messages = conversationHistories.computeIfAbsent(
-        sessionId,
-        k -> new java.util.ArrayList<>(List.of(new SystemMessage(SYSTEM_PROMPT))));
+    final MessageChatMemoryAdvisor memoryAdvisor = MessageChatMemoryAdvisor.builder(chatMemory).build();
 
-    messages.add(new UserMessage(userInput));
+    final ChatClient chatClient = ChatClient.builder(chatModel)
+        .defaultSystem(SYSTEM_PROMPT)
+        .defaultAdvisors(memoryAdvisor)
+        .build();
 
-    final String answer = callWithTools(chatModel, messages, optionsWithFallback);
+    final Prompt prompt = new Prompt(userInput, addToolCalls(optionsWithFallback));
 
-    messages.add(new AssistantMessage(answer));
+    final String answer = chatClient
+        .prompt(prompt)
+        .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, sessionId))
+        .call()
+        .content();
     return answer;
 }
 ```
