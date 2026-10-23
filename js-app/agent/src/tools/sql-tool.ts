@@ -2,7 +2,6 @@ import { styleText } from 'node:util';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { runQuery } from '../db.ts';
-import { registerSessionObject } from '../session-store.ts';
 
 export const runSqlTool = tool(
   async ({ sql }) => {
@@ -11,12 +10,6 @@ export const runSqlTool = tool(
         `${styleText('magenta', '[SQL] ')}${styleText('dim', `SQL: ${sql}`)}`,
       );
       const rows = await runQuery(sql);
-      // Track tables and views created by DDL so session reset can remove them.
-      for (const match of sql.matchAll(
-        /\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP(?:ORARY)?\s+)?(?:TABLE|VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?([A-Za-z_][A-Za-z0-9_]*)/gi,
-      )) {
-        registerSessionObject(match[1]);
-      }
       const msg =
         rows.length > 0
           ? `${rows.length} rows returned`

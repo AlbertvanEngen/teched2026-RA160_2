@@ -119,7 +119,6 @@ export { visibleReasoning } from './reasoning-content.ts';
 export {
   clearSession,
   createSession,
-  registerSessionObject,
   sessionContext,
   touchSession,
 } from './session-store.ts';

@@ -42,9 +42,18 @@ test('clearing a financial session removes its database objects and checkpoints'
   await clearFinancialSession(sessionId);
 
   assert.equal(touchSession(sessionId), false);
-  const [{ objectCount }] = await runQuery(
-    `SELECT COUNT(*) AS objectCount FROM information_schema.tables WHERE table_name = '${tableName}'`,
-  );
-  assert.equal(Number(objectCount), 0);
+  const replacementSessionId = createSession();
+  try {
+    const [{ objectCount }] = await sessionContext.run(
+      replacementSessionId,
+      () =>
+        runQuery(
+          `SELECT COUNT(*) AS objectCount FROM information_schema.tables WHERE table_name = '${tableName}'`,
+        ),
+    );
+    assert.equal(Number(objectCount), 0);
+  } finally {
+    await clearFinancialSession(replacementSessionId);
+  }
   assert.equal((await agent.getState(config)).values.messages, undefined);
 });
