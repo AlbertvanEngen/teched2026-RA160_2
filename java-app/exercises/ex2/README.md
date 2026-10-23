@@ -28,14 +28,17 @@ Your application executes the tool, sends the result back, and the model continu
 This back-and-forth is called the **agentic loop**. Schematically:
 
 ```
-User prompt
-    │
-    ▼
- LLM ──── needs data ────► Tool execution
-    ◄──── tool result ─────┘
-    │ (repeat as needed)
-    ▼
- Final answer streamed to UI
+CLIENT SIDE                         SERVER SIDE
+
+  User prompt ──────────────────────► LLM
+                                       │
+  Tool execution ◄─── tool call ───────┤
+        │                              │
+        └──────── tool result ───────► LLM
+                                       │
+             (repeat as needed)        │
+                                       │
+  Final result UI ◄── streamed answer ─┘
 ```
 
 Spring AI can drive this loop with `ToolCallingManager`: after each LLM call, you check whether the response contains tool calls; if it does, `ToolCallingManager.executeToolCalls(...)` runs them and returns an updated conversation history; you feed that back to the model and repeat until the model produces a plain-text answer.
@@ -69,8 +72,8 @@ The method's Javadoc becomes part of the function description the model sees, so
 
 ## Step 2: Register the tools on `OrchestrationChatOptions`
 
-Find the `addToolCalls` method in the `AgentService` class (marked with `EXERCISE 2a` in the code).
-The solution code is commented out inside the `/* ... */` block — your task in the steps below is to put it back in, one piece at a time.
+Find the `addToolCalls` method in the `AgentService` class (marked with `EXERCISE 2` in the code).
+The solution code is commented out inside the `/* ... */` block, your task in the steps below is to put it back in.
 Its job is to attach the tools to the `options` object so the LLM knows they exist.
 
 `OrchestrationChatOptions` is immutable, so use its `mutate()` builder to return a new instance with the tool callbacks set.
@@ -81,7 +84,7 @@ return options.mutate().toolCallbacks(
         ToolCallbacks.from(
             financialPlanningTool,
             journalEntryTool,
-            duckDbTool,
+            localDbTool,
             rptSinglePredictionTool,
             rptPredictionTool,
             getGroundTruthTool))).build();
@@ -90,100 +93,52 @@ return options.mutate().toolCallbacks(
 The RPT forecasting tools (`rptSinglePredictionTool`, `rptPredictionTool`, `getGroundTruthTool`) are already included here even though we will explain them in Exercise 3 — so you only need to touch this method once.
 
 
-## Step 3: Drive the agentic loop with `ToolCallingManager`
+## Step 3: Wire `addToolCalls` into `callChatClient`
 
-With the tool callbacks registered, we need to run the tool-calling loop ourselves.
-For this, find the `callWithTools` method in the `AgentService` class (marked with `EXERCISE 2b` in the code).
-Spring AI's `ToolCallingManager` handles the main part of the agentic tool loop: it inspects each `ChatResponse` for pending tool calls, executes them, and returns an updated conversation history that you pass back to the model.
+We now can use the `addToolCalls` method from our `callChatClient` method we build in Exercise 1.
 
-We first register the tools with the method from Step 2, create a list of the current messages, and initialise the `ToolCallingManager`.
-
+For this, locate the following line which added the `OrchestrationChatOptions` to the `Prompt`.
 ```java
-OrchestrationChatOptions optionsWithTools = addToolCalls(options);
-List<Message> currentMessages = new ArrayList<>(messages);
-final ToolCallingManager toolCallingManager = ToolCallingManager.builder().build();
+final Prompt prompt = new Prompt(userInput, options);
 ```
 
-Now we create the actual loop.
-The loop keeps calling the model and executing tools until `hasToolCalls()` returns `false`, at which point the model has produced a final text answer.
-
+**Replace** the line with the following.
 ```java
-while (true) {
-    final ChatResponse response = chatModel.call(new Prompt(messages, options));
-    if (!response.hasToolCalls()) {
-        return response.getResult().getOutput().getText();
-    }
-    final ToolExecutionResult result = toolCallingManager.executeToolCalls(
-        new Prompt(messages, options), response);
-    messages = result.conversationHistory();
-}
-```
-
-Note that the intermediate tool calls and results are streamed to the browser in the background via `AgentTrace` (which each tool accesses through the `AgentTrace.CURRENT` thread-local), so the user sees the agent's reasoning in real time.
-
-In total, your `callWithTools` method should look like this:
-
-```java
-private String callWithTools(final ChatModel chatModel, final List<Message> messages, final OrchestrationChatOptions options) {
-  OrchestrationChatOptions optionsWithTools = addToolCalls(options);
-  List<Message> currentMessages = new ArrayList<>(messages);
-  final ToolCallingManager toolCallingManager = ToolCallingManager.builder().build();
-
-  while (true) {
-    final ChatResponse response = chatModel.call(new Prompt(currentMessages, optionsWithTools));
-    if (!response.hasToolCalls()) {
-      return response.getResult().getOutput().getText();
-    }
-    final ToolExecutionResult result = toolCallingManager.executeToolCalls(
-            new Prompt(currentMessages, optionsWithTools), response);
-    currentMessages = result.conversationHistory();
-  }
-}
-```
-
-Note that the tools are configured once per request, so there is no shared mutable state between concurrent requests.
-
-
-## Step 4: Wire `callWithTools` into `callChatClient`
-
-We now can call the newly created `callWithTools` method from our `callChatClient` method we build in Exercise 1.
-
-For this, locate the following three lines in the `callChatClient`.
-```java
-final Prompt prompt = new Prompt(messages, options);
-final ChatResponse response = chatModel.call(prompt);
-final String answer = response.getResult().getOutput().getText();
-```
-
-**Replace** these three lines with the following single line.
-```java
-final String answer = callWithTools(chatModel, messages, options);
+final Prompt prompt = new Prompt(userInput, addToolCalls(options));
 ```
 
 The `callChatClient` method should now look like this.
 
 ```java
 private String callChatClient(final String userInput, final String sessionId) {
-    final OrchestrationModuleConfig config = new OrchestrationModuleConfig(CLAUDE_4_6_SONNET);
-    final ChatModel chatModel = new OrchestrationChatModel();
-    final OrchestrationChatOptions options = new OrchestrationChatOptions(config);
 
-    final List<Message> messages = conversationHistories.computeIfAbsent(
-        sessionId,
-        k -> new java.util.ArrayList<>(List.of(new SystemMessage(SYSTEM_PROMPT))));
-    messages.add(new UserMessage(userInput));
+  final OrchestrationModuleConfig config = new OrchestrationModuleConfig(CLAUDE_4_6_SONNET);
+  final ChatModel chatModel = new OrchestrationChatModel();
+  final OrchestrationChatOptions options = new OrchestrationChatOptions(config);
 
-    final String answer = callWithTools(chatModel, messages, options);
+  final MessageChatMemoryAdvisor memoryAdvisor = MessageChatMemoryAdvisor.builder(chatMemory).build();
 
-    messages.add(new AssistantMessage(answer));
-    return answer;
-  }
+  final ChatClient chatClient = ChatClient.builder(chatModel)
+          .defaultSystem(SYSTEM_PROMPT)
+          .defaultAdvisors(memoryAdvisor)
+          .build();
+
+  final Prompt prompt = new Prompt(userInput, addToolCalls(options));
+
+  final String answer = chatClient
+          .prompt(prompt)
+          .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, sessionId))
+          .call()
+          .content();
+  return answer;
+}
 ```
 
 
-## Step 5: Start the application and test it
+## Step 4: Start the application and test it
 
-Restart the application: press `CTRL + c` while in your terminal and then run `pnpm run java-agent` again.
+To restart the application, press `CTRL + c` while in your terminal and press `y` to agree to end the subprocesses.
+Then run `pnpm run java-agent` again.
 
 Navigate to the UI and ask a question that requires data:
 
@@ -196,7 +151,7 @@ Watch the agent trace panel on the left — you should see tool calls appear as 
 3. Returns a formatted answer with the aggregated numbers.
 
 
-## Step 6: Understanding the agentic loop in practice
+## Step 5: Understanding the agentic loop in practice
 
 What you observed in Step 5 is the full agentic loop.
 The LLM never had direct access to the database — it issued _instructions_ (tool-call messages) and your application executed them.
@@ -211,16 +166,18 @@ A few things worth noticing:
   The system prompt instructs the model to deduplicate via SQL when computing totals — look for the `DISTINCT id` pattern in its generated queries.
 
 
-## Step 7: Try more complex queries
+## Step 6: Try more complex queries
 
 Try the following prompts to explore the agent's tool-calling behaviour using its OData capabilities:
 
 - **Multi-step aggregation:**
   > "Compare actual journal entry spend vs. planning ACTUAL for cost center A1000 in 2023."
+  
   The agent needs to load both OData tables and join them in DuckDB.
 
 - **Cross-year comparison:**
   > "How did total planned spend for cost center A1000 change between 2022 and 2024?"
+  
   The agent should load multiple years of planning data and aggregate with `GROUP BY ledgerFiscalYear`.
 
 In each case, watch the trace panel to the left to see exactly which tools are called and with what arguments.
