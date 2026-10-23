@@ -220,13 +220,13 @@ It is especially strong at handling mixed categorical and continuous tabular fea
 
 > **Note:** `@sap-ai-sdk/tabpfn` is bundled as a workspace-local package in this repository. It is already wired into `package.json` — no installation is required.
 
-In the same chat session, prompt the agent to forecast with TabPFN:
+In a new chat session, prompt the agent to forecast with TabPFN:
 
-> "Use TabPFN to predict the planned spend for cost center A1000 in 2026, treating ledger and glAccount as categorical features."
+> "For cost center E5000, load 2022–2024 ACTUAL rows as context and 2022–2026 PLAN, BUDGET, and FORECAST rows as features. Then use TabPFN to predict the 2026 ACTUAL spend, treating ledger and glAccount as categorical features. Return all 12 fiscal periods."
 
 The agent will invoke the `run_tabpfn_prediction` tool with the `taskType` property set to `"regression"` and the `categoricalFeatureColumns` property set to `["ledger", "glAccount"]`, then aggregate and present the results with the `run_sql` tool.
 
-Compare the TabPFN predictions to the RPT forecast from Step 5 — observe how two foundation models approach the same tabular data.
+Use the workshop's 2026 ground truth to evaluate the TabPFN forecast for E5000. Review the period-level results as an illustrative forecast-validation exercise; this does not establish how the model performs in the wild.
 
 ---
 
