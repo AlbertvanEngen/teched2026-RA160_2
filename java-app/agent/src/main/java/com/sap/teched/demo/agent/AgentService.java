@@ -20,6 +20,7 @@ import com.sap.teched.demo.tool.RptPredictionTool;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,23 +43,10 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RequiredArgsConstructor
 public class AgentService {
 
-  private static final String SYSTEM_PROMPT =
+  private static final String SYSTEM_PROMPT_BASE =
       """
       You are a financial data analyst agent with access to two SAP OData services and a local \
       in-memory SQL workspace for reporting and aggregation.
-
-      Tools:
-      - query_financial_planning / query_journal_entry fetch from OData and APPEND into the fixed \
-        tables financial_planning_data / journal_entry_data. Always push all relevant filters \
-        server-side. Tables are created on first use and accumulate across calls.
-      - query_local_db is your primary reporting tool: filter, join, GROUP BY, and aggregate \
-        loaded tables with SUM/AVG/COUNT/MIN/MAX — use it liberally to answer questions from \
-        loaded data.
-      - run_rpt_prediction / run_rpt_prediction_single are SAP RPT, a tabular foundation model. \
-        They write predictions into an output table; use query_local_db afterwards to aggregate. \
-        Consult each tool's description for when to use which mode.
-      - get_ground_truth compares an RPT prediction table against real OData data and writes \
-        percentage accuracy metrics. Consult the tool description for required parameters.
 
       Presentation:
       - When comparing forecasts to actuals, lead with percentages — not raw currency variances. \
@@ -145,7 +133,7 @@ public class AgentService {
     final MessageChatMemoryAdvisor memoryAdvisor = MessageChatMemoryAdvisor.builder(chatMemory).build();
 
     final ChatClient chatClient = ChatClient.builder(chatModel)
-        .defaultSystem(SYSTEM_PROMPT)
+        .defaultSystem(systemPromptForTools(options))
         .defaultAdvisors(memoryAdvisor)
         .build();
 
@@ -191,6 +179,27 @@ public class AgentService {
     // delete the following line
     return options;
     // ---------------------------------------- EXERCISE 2 ----------------------------------------
+  }
+
+  private static String systemPromptForTools(final OrchestrationChatOptions options) {
+    final var callbacks = options.getToolCallbacks();
+    final String availableTools = callbacks.isEmpty()
+        ? "none"
+        : callbacks.stream()
+            .map(cb -> cb.getToolDefinition().name())
+            .collect(Collectors.joining(", "));
+    final boolean hasGroundTruth = callbacks.stream()
+        .anyMatch(cb -> "get_ground_truth".equals(cb.getToolDefinition().name()));
+    final String evaluationBoundary = hasGroundTruth
+        ? "Use get_ground_truth only when the user explicitly requests validation, accuracy, or comparison against actuals, and only after a prediction tool has produced an output table."
+        : "Ground-truth evaluation is unavailable. Do not fetch target-period actuals solely to validate an ex-ante forecast, and do not claim validation, accuracy, actual comparisons, or ground-truth metrics.";
+    return SYSTEM_PROMPT_BASE + ("\nTool boundary:\n"
+        + "- Available tools in this run: " + availableTools + ".\n"
+        + "- Use only the available tools listed above.\n"
+        + "- Never claim that an unavailable tool was called.\n"
+        + "- If the request requires an unavailable capability, say so explicitly.\n"
+        + "- Never fabricate tool results, tables, predictions, or evaluation metrics.\n"
+        + "- " + evaluationBoundary);
   }
 
   /** Remove all Java-side state associated with a web session. */

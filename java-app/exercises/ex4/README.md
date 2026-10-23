@@ -106,11 +106,11 @@ private String callChatClient(final String userInput, final String sessionId) {
     final MessageChatMemoryAdvisor memoryAdvisor = MessageChatMemoryAdvisor.builder(chatMemory).build();
 
     final ChatClient chatClient = ChatClient.builder(chatModel)
-        .defaultSystem(SYSTEM_PROMPT)
+        .defaultSystem(systemPromptForTools(optionsWithFallback))
         .defaultAdvisors(memoryAdvisor)
         .build();
 
-    final Prompt prompt = new Prompt(userInput, addToolCalls(optionsWithFallback));
+    final Prompt prompt = new Prompt(userInput, optionsWithFallback);
 
     final String answer = chatClient
         .prompt(prompt)

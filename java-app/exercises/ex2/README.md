@@ -95,16 +95,18 @@ The RPT forecasting tools (`rptSinglePredictionTool`, `rptPredictionTool`, `getG
 
 ## Step 3: Wire `addToolCalls` into `callChatClient`
 
-We now can use the `addToolCalls` method from our `callChatClient` method we build in Exercise 1.
+We now use `addToolCalls` in `callChatClient` to register the tools and feed the resulting options into `systemPromptForTools` so the system prompt reflects exactly which tools are available.
 
-For this, locate the following line which added the `OrchestrationChatOptions` to the `Prompt`.
+For this, locate the following line which defined the `OrchestrationChatOptions` in `callChatClient`:
+
 ```java
-final Prompt prompt = new Prompt(userInput, options);
+final OrchestrationChatOptions options = new OrchestrationChatOptions(config);
 ```
 
-**Replace** the line with the following.
+**Replace** it with the following, adding the tool calls to the options:
+
 ```java
-final Prompt prompt = new Prompt(userInput, addToolCalls(options));
+final OrchestrationChatOptions options = addToolCalls(new OrchestrationChatOptions(config));
 ```
 
 The `callChatClient` method should now look like this.
@@ -114,16 +116,16 @@ private String callChatClient(final String userInput, final String sessionId) {
 
   final OrchestrationModuleConfig config = new OrchestrationModuleConfig(CLAUDE_4_6_SONNET);
   final ChatModel chatModel = new OrchestrationChatModel();
-  final OrchestrationChatOptions options = new OrchestrationChatOptions(config);
+  final OrchestrationChatOptions options = addToolCalls(new OrchestrationChatOptions(config));
 
   final MessageChatMemoryAdvisor memoryAdvisor = MessageChatMemoryAdvisor.builder(chatMemory).build();
 
   final ChatClient chatClient = ChatClient.builder(chatModel)
-          .defaultSystem(SYSTEM_PROMPT)
+          .defaultSystem(systemPromptForTools(options))
           .defaultAdvisors(memoryAdvisor)
           .build();
 
-  final Prompt prompt = new Prompt(userInput, addToolCalls(options));
+  final Prompt prompt = new Prompt(userInput, options);
 
   final String answer = chatClient
           .prompt(prompt)

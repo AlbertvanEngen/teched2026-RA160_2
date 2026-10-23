@@ -50,8 +50,9 @@ java-app/
 Open [agent/src/main/java/com/sap/teched/demo/agent/AgentService.java](../../agent/src/main/java/com/sap/teched/demo/agent/AgentService.java) and look through it.
 A few things to notice:
 
-- **`SYSTEM_PROMPT`** — the long string constant at the top of the class. This is the standing instruction that shapes the agent's behaviour for every request: which tools it has, how to use them, how to present results. You do not need to change it; just know it is there and that you will pass it to the LLM as part of every call.
-- **Field declarations** — below `SYSTEM_PROMPT` you will see the tool beans injected by Spring (`financialPlanningTool`, `journalEntryTool`, etc.). These are the data and forecasting tools the agent will gain access to in later exercises. For now, you can ignore them.
+- **`SYSTEM_PROMPT_BASE`** — the long string constant at the top of the class. This is the standing instruction that shapes the agent's behaviour for every request: how to use tools, how to present results. You do not need to change it; just know it is there.
+- **`systemPromptForTools(options)`** — a helper method that takes the final `OrchestrationChatOptions` (the one that already has tools registered on it) and builds the complete system prompt by appending a "Tool boundary" section to `SYSTEM_PROMPT_BASE`. That section lists exactly which tools are available in the current run.
+- **Field declarations** — below `SYSTEM_PROMPT_BASE` you will see the tool beans injected by Spring (`financialPlanningTool`, `journalEntryTool`, etc.). These are the data and forecasting tools the agent will gain access to in later exercises. For now, you can ignore them.
 - **`run()`** — the public entry point called by `AgentController` when a prompt arrives from the browser. It sets up an `AgentTrace` for streaming information to the frontend and delegates to `callChatClient`. You do not need to change this method.
 - **`callChatClient()`** — this is where your work starts. It currently contains a commented-out solution block (`/* ... */`). Your task is to implement it step by step using the instructions below.
 - There are additional methods below that. We will tackle them in future exercises.
@@ -121,7 +122,7 @@ It is build from our `ChatModel` object and additionally holds the system prompt
 
 ```java
 final ChatClient chatClient = ChatClient.builder(chatModel)
-    .defaultSystem(SYSTEM_PROMPT)
+    .defaultSystem(systemPromptForTools(options))
     .build();
 ```
 
@@ -173,7 +174,7 @@ This advisor then needs to be added to the `ChatClient` object.
 final MessageChatMemoryAdvisor memoryAdvisor = MessageChatMemoryAdvisor.builder(chatMemory).build();
 
 final ChatClient chatClient = ChatClient.builder(chatModel)
-    .defaultSystem(SYSTEM_PROMPT)
+    .defaultSystem(systemPromptForTools(options))
     .defaultAdvisors(memoryAdvisor)
     .build();
 ```
@@ -210,7 +211,7 @@ private String callChatClient(final String userInput, final String sessionId) {
     final MessageChatMemoryAdvisor memoryAdvisor = MessageChatMemoryAdvisor.builder(chatMemory).build();
 
     final ChatClient chatClient = ChatClient.builder(chatModel)
-        .defaultSystem(SYSTEM_PROMPT)
+        .defaultSystem(systemPromptForTools(options))
         .defaultAdvisors(memoryAdvisor)
         .build();
 
