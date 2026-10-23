@@ -41,3 +41,10 @@ Follow the exercises in order. Each exercise builds on the previous one.
 | [Exercise 2](ex2/README.md)                                     | Add OData and SQL tools; agent queries the mock S/4HANA data and aggregates it in a scratch database |
 | [Exercise 3](ex3/README.md)                                     | Add forecasting tools; agent predicts future periods with SAP RPT |
 | [Exercise 4](ex4/README.md)                                     | Orchestration fallback configs; agent recovers from model-level failures |
+
+### Finding the code
+
+The Java code you need fore these exercises is located at `java-app\agent\src\main\java\com\sap\teched\demo`.
+You will need to work with the two files `/agent/AgentService` (Exercises 1,2, and 4) and `tool/RptPredictionTool` (Exercise 3).
+
+![Pop-up example](img/java-files.png)
