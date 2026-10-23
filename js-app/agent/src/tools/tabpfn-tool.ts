@@ -6,7 +6,6 @@ import { resilience } from '@sap-cloud-sdk/resilience';
 import { z } from 'zod';
 import { runQuery, scratchTable } from '../db.ts';
 import { featureColumns, protectedPredictionColumns } from '../parquet.ts';
-import { registerSessionObject } from '../session-store.ts';
 import { predictionQueries } from './prediction-input.ts';
 
 const tabpfn = (message: string) =>
@@ -143,7 +142,6 @@ async function writeTabpfnPredictionTable(
      JOIN predicted USING (${ROW_ID_COLUMN})
      ORDER BY ${ROW_ID_COLUMN}`,
   );
-  registerSessionObject(outputTable);
 
   return (
     `Wrote ${predictions.length} predicted rows into table '${outputTable}'. ` +

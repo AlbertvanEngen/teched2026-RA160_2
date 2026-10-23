@@ -9,8 +9,11 @@ import java.util.concurrent.Executors;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -62,6 +65,13 @@ public class AgentController {
   @PostMapping("/session")
   public Map<String, String> createSession() {
     return Map.of("sessionId", UUID.randomUUID().toString());
+  }
+
+  /** Clear Java-side state for a session reset initiated by the shared web UI. */
+  @DeleteMapping("/session/{sessionId}")
+  public ResponseEntity<Void> clearSession(@PathVariable final String sessionId) {
+    agentService.clearSession(sessionId);
+    return ResponseEntity.noContent().build();
   }
 
   /**

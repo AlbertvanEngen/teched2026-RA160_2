@@ -18,11 +18,11 @@
     <packaging>jar</packaging>
 
     <name>teched2026-java-agent</name>
-    <description>TechEd 2026 RA160 – Java agent backend (Spring AI + SAP AI SDK + DuckDB)</description>
+    <description>TechEd 2026 RA160 – Java agent backend (Spring AI + SAP Cloud SDK for AI + DuckDB)</description>
 
     <properties>
         <java.version>21</java.version>
-        <ai-sdk.version>2.0.0-M1</ai-sdk.version>
+        <ai-sdk.version>2.0.0</ai-sdk.version>
         <spring-ai.version>2.0.1</spring-ai.version>
         <cloud-sdk.version>5.34.0</cloud-sdk.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -131,7 +131,7 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
                     <!--
-                        Run from the repo root so java-dotenv (used by the SAP AI SDK to load
+                        Run from the repo root so java-dotenv (used by the SAP Cloud SDK for AI to load
                         AICORE_SERVICE_KEY) finds the .env file that lives at the repo root,
                         matching where the JS tooling and the README tell attendees to place it.
                     -->

@@ -10,7 +10,6 @@ import {
   ROW_ID_COLUMN,
   withParquetBlob,
 } from '../parquet.ts';
-import { registerSessionObject } from '../session-store.ts';
 import { predictionQueries } from './prediction-input.ts';
 
 const rpt = (msg: string) => console.log(styleText('cyan', '[RPT] ') + msg);
@@ -235,7 +234,6 @@ async function writePredictionTable(
      JOIN predicted USING (${ROW_ID_COLUMN})
      ORDER BY ${ROW_ID_COLUMN}`,
   );
-  registerSessionObject(outputTable);
 
   const [{ count = 0 } = {}] = await runQuery(
     `SELECT COUNT(*) AS count FROM ${outputTable}`,

@@ -1,6 +1,6 @@
 # Exercise 4 - Fallback Configs: Recovering from Model Failures Gracefully
 
-In this exercise, you will use the SAP Orchestration service's **fallback module** feature to keep your agent working when a model is unavailable.
+In this exercise, you will use the [orchestration service's](https://help.sap.com/docs/ai-launchpad/sap-ai-launchpad/orchestration-4953dc10c6dd48fe85f37b41109dffe2?locale=en-US&q=orchestration) **fallback module** feature to keep your agent working when a model is unavailable.
 You will first deliberately break the configuration to see what an unhandled failure looks like, and then add a fallback so the agent recovers automatically.
 
 This exercise is self-contained — it does not build on `addToolCalls` and can be done independently of Exercises 2 and 3.
@@ -8,7 +8,7 @@ You will write a short, standalone test method directly in `AgentService` to kee
 
 ## Overview
 
-In this task we will explore the fallback module feature of SAP Orchestration.
+In this task we will explore the fallback module feature of the orchestration service.
 In order to do this, we will perform the following steps:
 - Understand what fallback configs are and why you need them.
 - Send a request with a deliberately broken config and observe the error.
@@ -25,7 +25,7 @@ Normally you create one config per call and pass it to `OrchestrationChatOptions
 But what happens when the model you chose is temporarily unavailable, has hit its quota limit, or simply does not exist in the cluster you or your customer is currently using?
 Without any fallback, the call fails and the agent returns an error to the user.
 
-The Orchestration service supports providing **multiple configs** in priority order.
+The orchestration service supports providing **multiple configs** in priority order.
 If a call with the first config fails, the service immediately retries with the second config — transparently, without any retry logic in your code.
 If that also fails, it tries the third, and so on.
 
@@ -47,7 +47,7 @@ final var brokenConfig =
 ```
 
 `OrchestrationAiModel` takes a model name, a map of model parameters, and a version string.
-Passing `"broken_model_name"` as the model name produces a config that the Orchestration service cannot fulfil — the named deployment does not exist.
+Passing `"broken_model_name"` as the model name produces a config that the orchestration service cannot fulfil — the named deployment does not exist.
 
 Now use this broken config instead of the working one:
 
@@ -126,7 +126,7 @@ Fallback is transparent: the caller (your Java code, and the user via the UI) re
 
 ## Step 4: Understanding what happens under the hood
 
-When `OrchestrationChatOptions` carries a non-empty `fallbackConfigs` list, the SAP Orchestration service receives all the configs in the request payload and handles the retry logic server-side.
+When `OrchestrationChatOptions` carries a non-empty `fallbackConfigs` list, the orchestration service receives all the configs in the request payload and handles the retry logic server-side.
 This means:
 - No extra round trips through your application for each retry.
 - No need for a Resilience4j circuit breaker or retry annotation in your code.
@@ -139,11 +139,11 @@ Other error types — network failures, malformed requests — are not retried b
 
 ## Summary
 
-You have configured the financial analyst agent to recover from model-level failures using the SAP Orchestration fallback module feature.
+You have configured the financial analyst agent to recover from model-level failures using the orchestration service's fallback module feature.
 Key takeaways:
 
 - `mutate().fallbackConfigs(List.of(...)).build()` on `OrchestrationChatOptions` registers one or more fallback configs tried in order.
-- Failover is handled server-side by the Orchestration service — no retry logic in your Spring code.
+- Failover is handled server-side by the orchestration service — no retry logic in your Spring code.
 - Works identically for streaming and non-streaming calls.
 - The primary config is tried first; fallbacks are only reached on LLM-layer errors.
 - The calling code and the end user are not aware that a fallback occurred.

@@ -6,7 +6,6 @@ import { runQuery } from '../src/db.ts';
 import {
   clearSession,
   createSession,
-  registerSessionObject,
   sessionContext,
 } from '../src/session-store.ts';
 
@@ -53,7 +52,6 @@ async function evaluatePrediction(
         fiscalPeriod VARCHAR,
         predicted_actualAmount DOUBLE
       )`);
-      registerSessionObject(predictionTable);
       await runQuery(`INSERT INTO ${predictionTable} VALUES (
         '1010', 'A1000', 'PC1000', NULL, NULL, '2026', '001', ${predictedAmount}
       )`);
