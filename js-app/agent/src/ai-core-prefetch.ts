@@ -2,11 +2,21 @@ import {
   getFoundationModelDeploymentId,
   getOrchestrationDeploymentId,
 } from '@sap-ai-sdk/ai-api/internal.js';
+import { getAiCoreDestination } from '@sap-ai-sdk/core';
+
+type AiCoreDestination = Awaited<ReturnType<typeof getAiCoreDestination>>;
 
 const prefetches = [
-  () => getOrchestrationDeploymentId({}),
-  () => getFoundationModelDeploymentId('sap-rpt-1.6', 'aicore-sap'),
-  () => getFoundationModelDeploymentId('tabpfn-3.5-plus', 'prior-labs'),
+  (destination: AiCoreDestination) =>
+    getOrchestrationDeploymentId({}, destination),
+  (destination: AiCoreDestination) =>
+    getFoundationModelDeploymentId('sap-rpt-1.6', 'aicore-sap', destination),
+  (destination: AiCoreDestination) =>
+    getFoundationModelDeploymentId(
+      'tabpfn-3.5-plus',
+      'prior-labs',
+      destination,
+    ),
 ] as const;
 
 let prefetchPromise: Promise<PromiseSettledResult<string>[]> | undefined;
@@ -18,5 +28,9 @@ let prefetchPromise: Promise<PromiseSettledResult<string>[]> | undefined;
 export function prefetchAiCore(): void {
   if (prefetchPromise) return;
 
-  prefetchPromise = Promise.allSettled(prefetches.map((resolve) => resolve()));
+  prefetchPromise = getAiCoreDestination()
+    .then((destination) =>
+      Promise.allSettled(prefetches.map((resolve) => resolve(destination))),
+    )
+    .catch(() => []);
 }
