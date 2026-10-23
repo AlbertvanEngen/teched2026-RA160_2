@@ -75,6 +75,7 @@ Open the following files and read the `tool(...)` definitions:
 | ---------------------------------------------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`rpt-tool.ts`](../../agent/src/tools/rpt-tool.ts)                           | `run_rpt_prediction`    | Runs SAP RPT on one session table or view and writes predicted values into an output table. `predictionWhere` and optional `contextWhere` split context from prediction rows.                                                                                                                                                                         |
 | [`tabpfn-tool.ts`](../../agent/src/tools/tabpfn-tool.ts)                     | `run_tabpfn_prediction` | Runs TabPFN on a session table or view and writes predicted values into an output table. Use for in-context tabular prediction, especially when categorical or mixed-type features matter.                                                                                                                                                                                     |
+| [`tabular-orchestration-tool.ts`](../../agent/src/tools/tabular-orchestration-tool.ts) | `run_tabular_orchestration_prediction` | Runs SAP RPT through Tabular AI Orchestration on a session table or view and writes predictions plus confidence columns into an output table. |
 | [`get-ground-truth-tool.ts`](../../agent/src/tools/get-ground-truth-tool.ts) | `get_ground_truth`      | After a prediction is written into an output table, compares it against real OData data. Fetches journal entries or planning ACTUAL rows, joins on the dimensions you specify, and writes a comparison table with per-row `pct_error`, `pct_of_actual`, `pct_below_actual`, and `pct_above_actual` columns, plus summary MAPE, MAE, and RMSE metrics. |
 
 ## Step 2: Register the prediction and evaluation tools
@@ -95,7 +96,7 @@ const tools = [
 ```
 
 Only add these tools after the SQL workflow is working.
-The model can then choose RPT, TabPFN, or ground-truth evaluation when the request requires it; deterministic questions still go through SQL.
+The model can then choose RPT, TabPFN, Tabular AI Orchestration, or ground-truth evaluation when the request requires it; deterministic questions still go through SQL.
 
 ## Step 3: Understand the forecast workflow
 
@@ -218,24 +219,32 @@ It is especially strong at handling mixed categorical and continuous tabular fea
 
 > **Note:** `@sap-ai-sdk/tabpfn` is bundled as a workspace-local package in this repository. It is already wired into `package.json` — no installation is required.
 
-In the same chat session, prompt the agent to forecast with TabPFN:
+In a new chat session, prompt the agent to forecast with TabPFN:
 
-> "Use TabPFN to predict the planned spend for cost center A1000 in 2026, treating ledger and glAccount as categorical features."
+> "For cost center E5000, load 2022–2024 ACTUAL rows as context and 2022–2026 PLAN, BUDGET, and FORECAST rows as features. Then use TabPFN to predict the 2026 ACTUAL spend, treating ledger and glAccount as categorical features. Return all 12 fiscal periods."
 
 The agent will call `run_tabpfn_prediction` with `taskType = "regression"` and `categoricalFeatureColumns = ["ledger", "glAccount"]`.
-Compare the TabPFN predictions to the RPT predictions from Step 4 — the two models approach the same data differently and may produce slightly different results.
+Compare the TabPFN predictions to the RPT predictions from Step 5 — the two models approach the same data differently and may produce slightly different results.
 
-## Step 8: Compare with a naïve SQL baseline (bonus)
+Use the workshop's 2026 ground truth to evaluate the TabPFN forecast for E5000. Review the period-level results as an illustrative forecast-validation exercise; this does not establish how the model performs in the wild.
 
-A predictive model is most useful when it beats a simple baseline.
-Keep the same chat session so the historical rows, prediction rows, model results, and ground-truth comparison remain available.
 
-Ask the agent to create and evaluate the baseline:
+## Step 8: Try Tabular AI Orchestration (bonus — JavaScript-only)
 
-> "Using the loaded ACTUAL history, build a historical-mean baseline for the same 2026 target cells and compare its 12-period MAPE with RPT and TabPFN. Show the baseline SQL."
+`@sap-ai-sdk/tabular-orchestration` routes a prediction request to a supported tabular foundation model through the Tabular AI Orchestration service.
+The agent-facing tool uses the same in-memory database contract as the direct RPT and TabPFN tools: it reads one session table or view and writes one output table.
 
-Check that the SQL uses the complete key — company code, cost center, profit center, G/L account, ledger, and fiscal period — and excludes 2026 actual values from prediction construction. It must produce exactly one prediction per 2026 target cell before aggregation.
-The task is complete when the response shows the baseline SQL, 12 period-level comparison rows, and magnitude-oriented period MAPE values for the naïve baseline, RPT, and TabPFN. Cell-level MAPE and WAPE are not substitutes. After the target-cell count is verified once, the baseline comparison should need only its construction query, ground-truth call, and final aggregate query.
+In a new chat session, ask the agent to use this path:
+
+> "For cost center A1000, load 2022–2024 ACTUAL rows as context and 2022–2026 PLAN, BUDGET, and FORECAST rows as features. Prepare a single model table with `amountInCompanyCodeCurrency` as the target, then use Tabular AI Orchestration to predict the 2026 ACTUAL spend. Return all 12 fiscal periods."
+
+The Activity panel should show this trace:
+
+1. `query_financial_planning` loads historical ACTUAL context rows.
+2. `query_financial_planning` loads PLAN, BUDGET, and FORECAST feature rows for the context and target years.
+3. `run_sql` prepares one model table with matching context and prediction rows.
+4. `run_tabular_orchestration_prediction` writes `predicted_<targetColumn>` and confidence columns to an output table in the in-memory database.
+5. `run_sql` aggregates the output to fiscal periods 001–012.
 
 ## Step 9: Understanding what RPT does under the hood
 
@@ -269,13 +278,13 @@ This explains why the `run_sql` tool is called *after* the `run_rpt_prediction` 
 
 ## Summary
 
-You have explored the SAP RPT and TabPFN forecasting tools in the financial analyst agent.
+You have explored the SAP RPT, TabPFN, and Tabular AI Orchestration forecasting tools in the financial analyst agent.
 The agent can now:
 
 - Evaluate its own accuracy by fetching ground truth from OData and computing MAPE, MAE, and percentage metrics only when explicitly requested.
 - Alternatively predict using TabPFN for categorical or mixed-type tabular data.
-- Benchmark model forecasts against an item-level naïve SQL baseline and ground truth.
+- Run the same database-backed prediction workflow through Tabular AI Orchestration.
 
-Both models handle the heavy lifting — your role is to give the agent the tools and let the system prompt guide it on when to use them.
+All three prediction paths handle the model call — your role is to give the agent the tools and let the system prompt guide it on when to use them.
 
 Continue to [Exercise 4 - Resilience with Fallback Configs: Handling Model Failures Gracefully](../ex4/README.md).

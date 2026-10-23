@@ -6,7 +6,7 @@ export default defineConfig({
   server: {
     forwardConsole: {
       unhandledErrors: true,
-      logLevels: ['log', 'info', 'warn', 'error', 'debug'],
+      logLevels: ['log', 'info', 'warn', 'error'],
     },
     proxy: {
       '/api': {

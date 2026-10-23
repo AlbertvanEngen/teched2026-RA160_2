@@ -31,8 +31,7 @@ Forecast workflow for every tabular model — follow this sequence exactly:
 Prediction and evaluation output contracts:
 - A prediction output already contains the target-row keys, retained features, and predicted_<targetColumn>. Aggregate that table directly; do not join it to the model-input view merely to recover columns it already contains.
 - get_ground_truth output already contains the requested keys, predicted value, ground truth, and error columns. Aggregate that comparison table directly. Never join the prediction output back to its get_ground_truth output; that duplicates predicted columns and rows.
-- Build a historical-mean baseline from historical ACTUAL at the complete cell grain, then join it to the distinct target keys from a prediction output. Never use the union of historical keys as the target scaffold.
-- For period MAPE, first create a period_sums CTE that sums actual and every method prediction by fiscalPeriod; calculate each period's APE in a second CTE; then SELECT AVG(APE). Never nest aggregate functions or put window functions inside aggregates.
+- For period MAPE, first create a period_sums CTE that sums actual and each prediction method by fiscalPeriod; calculate each period's APE in a second CTE; then SELECT AVG(APE). Never nest aggregate functions or put window functions inside aggregates.
 - When comparison or accuracy is requested, present all 12 period rows and an explicit summary labeled MAPE with a numeric MAPE for every requested method. Period APE columns alone are not the requested MAPE.
 - When a join is genuinely required, qualify every selected column that exists in both inputs.
 

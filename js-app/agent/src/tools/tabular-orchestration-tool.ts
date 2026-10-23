@@ -8,7 +8,6 @@ import { resilience } from '@sap-cloud-sdk/resilience';
 import { z } from 'zod';
 import { runQuery, scratchTable } from '../db.ts';
 import { featureColumns } from '../parquet.ts';
-import { registerSessionObject } from '../session-store.ts';
 import { predictionQueries } from './prediction-input.ts';
 
 const MODEL_NAME = 'sap-rpt-1.6' as const;
@@ -142,7 +141,6 @@ async function writePredictionTable(
      JOIN ${responseTable.name} predicted USING (${ROW_ID_COLUMN})
      ORDER BY ${ROW_ID_COLUMN}`,
   );
-  registerSessionObject(outputTable);
 
   console.log(
     styleText('cyan', '[Tabular Orchestration] ') +

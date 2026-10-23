@@ -212,8 +212,8 @@ importers:
         specifier: 'catalog:'
         version: 2.5.15
       '@sap-ai-sdk/ai-api':
-        specifier: ^2.16.0
-        version: 2.16.0(debug@4.4.3)
+        specifier: ^2.17.0
+        version: 2.17.0(debug@4.4.3)
       '@types/node':
         specifier: ^24.19.0
         version: 24.19.2
@@ -238,6 +238,9 @@ importers:
       '@langchain/langgraph-checkpoint':
         specifier: ^1.2.0
         version: 1.2.0(@langchain/core@1.2.18)
+      '@sap-ai-sdk/ai-api':
+        specifier: ^2.17.0
+        version: 2.17.0(debug@4.4.3)
       '@sap-ai-sdk/langchain':
         specifier: ^2.17.0
         version: 2.17.0(@langchain/core@1.2.18)(debug@4.4.3)(langchain@1.5.18(@langchain/core@1.2.18)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))
@@ -294,11 +297,11 @@ importers:
   js-app/tabpfn:
     dependencies:
       '@sap-ai-sdk/ai-api':
-        specifier: ^2.16.0
-        version: 2.16.0(debug@4.4.3)
+        specifier: ^2.17.0
+        version: 2.17.0(debug@4.4.3)
       '@sap-ai-sdk/core':
-        specifier: ^2.16.0
-        version: 2.16.0(debug@4.4.3)
+        specifier: ^2.17.0
+        version: 2.17.0(debug@4.4.3)
       '@sap-cloud-sdk/connectivity':
         specifier: 'catalog:'
         version: 4.9.1(debug@4.4.3)
@@ -840,14 +843,8 @@ packages:
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
 
-  '@sap-ai-sdk/ai-api@2.16.0':
-    resolution: {integrity: sha512-L5PfhyTE4NIWxACUmfBf7ULlF4I/YOd73j9LfkNaHO/Bhzo1ED36+pkJqqR18Z1dPm0hJcjrb2PDRWHdjoU2KQ==}
-
   '@sap-ai-sdk/ai-api@2.17.0':
     resolution: {integrity: sha512-gX9uEf5KU2QysVNCX+nllVt/fM/aF1uUjiNmT3K+X7LUVV5rPVkDvUScSr+ZNvNRs4BgFkl2t8UoithE6zFfBg==}
-
-  '@sap-ai-sdk/core@2.16.0':
-    resolution: {integrity: sha512-njvfKccou923tIHDOFLgqR1bv+3OMB056Cc9LlJ7vY0XjkZsL5aS3XgTG/HvD9b7hASx5NZen0tu6UYX9cvWnw==}
 
   '@sap-ai-sdk/core@2.17.0':
     resolution: {integrity: sha512-0eS12ogU5j2jqt+imISqFLntvyjQgkxqkX4vzHVEa1MGibpBJfAOgT+zpwC/F2ZZ5KMEm1r+5q4a+ziemqANUA==}
@@ -2775,29 +2772,10 @@ snapshots:
 
   '@rolldown/pluginutils@1.0.1': {}
 
-  '@sap-ai-sdk/ai-api@2.16.0(debug@4.4.3)':
-    dependencies:
-      '@sap-ai-sdk/core': 2.16.0(debug@4.4.3)
-      '@sap-cloud-sdk/connectivity': 4.9.1(debug@4.4.3)
-      '@sap-cloud-sdk/util': 4.9.1(debug@4.4.3)
-    transitivePeerDependencies:
-      - debug
-      - supports-color
-
   '@sap-ai-sdk/ai-api@2.17.0(debug@4.4.3)':
     dependencies:
       '@sap-ai-sdk/core': 2.17.0(debug@4.4.3)
       '@sap-cloud-sdk/connectivity': 4.9.1(debug@4.4.3)
-      '@sap-cloud-sdk/util': 4.9.1(debug@4.4.3)
-    transitivePeerDependencies:
-      - debug
-      - supports-color
-
-  '@sap-ai-sdk/core@2.16.0(debug@4.4.3)':
-    dependencies:
-      '@sap-cloud-sdk/connectivity': 4.9.1(debug@4.4.3)
-      '@sap-cloud-sdk/http-client': 4.9.1(debug@4.4.3)
-      '@sap-cloud-sdk/openapi': 4.9.1(debug@4.4.3)
       '@sap-cloud-sdk/util': 4.9.1(debug@4.4.3)
     transitivePeerDependencies:
       - debug

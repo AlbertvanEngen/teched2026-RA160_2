@@ -4,6 +4,7 @@ import { MemorySaver } from '@langchain/langgraph-checkpoint';
 import { OrchestrationClient } from '@sap-ai-sdk/langchain';
 import { orchestrationPromptCachingMiddleware } from '@sap-ai-sdk/langchain/orchestration/prompt-caching-middleware';
 import { createAgent, type ReactAgent } from 'langchain';
+import { clearSession as clearDatabaseSession } from './session-store.ts';
 import { SYSTEM_PROMPT } from './system-prompt.ts';
 import { getGroundTruthTool } from './tools/get-ground-truth-tool.ts';
 import {
@@ -76,6 +77,19 @@ Tool boundary:
 }
 
 const checkpointer = new MemorySaver();
+/** Clears all process-local state owned by a web session. */
+export async function clearFinancialSession(sessionId: string): Promise<void> {
+  const results = await Promise.allSettled([
+    clearDatabaseSession(sessionId),
+    checkpointer.deleteThread(sessionId),
+  ]);
+  const errors = results.flatMap((result) =>
+    result.status === 'rejected' ? [result.reason] : [],
+  );
+  if (errors.length > 0) {
+    throw new AggregateError(errors, `Failed to clear session ${sessionId}`);
+  }
+}
 
 // Wraps buildFinancialAgent so that exercise starter states (where the model is not
 // yet configured) produce a stub response instead of crashing the server.
@@ -112,7 +126,6 @@ export { visibleReasoning } from './reasoning-content.ts';
 export {
   clearSession,
   createSession,
-  registerSessionObject,
   sessionContext,
   touchSession,
 } from './session-store.ts';
