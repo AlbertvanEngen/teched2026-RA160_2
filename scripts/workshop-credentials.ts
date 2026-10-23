@@ -241,24 +241,67 @@ async function atomicWrite(
 
 const MAX_PASSPHRASE_ATTEMPTS = 3;
 
-async function readHidden(prompt: string): Promise<string> {
+type PassphraseValidation = (
+  value: string,
+) => boolean | string | Promise<boolean | string>;
+
+type PassphrasePrompt = (
+  prompt: string,
+  validate?: PassphraseValidation,
+) => Promise<string>;
+
+async function readHidden(
+  prompt: string,
+  validate?: PassphraseValidation,
+): Promise<string> {
   if (!stdin.isTTY || !stdout.isTTY) {
     throw new UsageError('Run this command in an interactive terminal.');
   }
   return password({
     message: prompt,
     mask: '*',
-    validate: (value) =>
-      value.length === 0 ? 'The workshop passphrase cannot be empty.' : true,
+    validate:
+      validate ??
+      ((value) =>
+        value.length === 0 ? 'The workshop passphrase cannot be empty.' : true),
   });
 }
 
 export async function decryptServiceKeyWithRetry(
   ciphertext: Uint8Array,
-  prompt: (message: string) => Promise<string>,
+  prompt: PassphrasePrompt,
 ): Promise<string> {
+  let validationAttempts = 0;
+  let validatedServiceKey: string | undefined;
+  const validatePassphrase: PassphraseValidation = async (passphrase) => {
+    if (passphrase.length === 0) {
+      return 'The workshop passphrase cannot be empty.';
+    }
+
+    validationAttempts += 1;
+    try {
+      validatedServiceKey = await decryptServiceKey(ciphertext, passphrase);
+      return true;
+    } catch (error) {
+      if (error instanceof Error && error.name === 'ExitPromptError') {
+        throw error;
+      }
+      if (validationAttempts >= MAX_PASSPHRASE_ATTEMPTS) {
+        throw new UsageError(
+          `Could not decrypt the workshop service key after ${MAX_PASSPHRASE_ATTEMPTS} attempts. Ask a workshop instructor for the correct passphrase.`,
+        );
+      }
+      return `Passphrase was not accepted (attempt ${validationAttempts} of ${MAX_PASSPHRASE_ATTEMPTS}). Try again.`;
+    }
+  };
+
   for (let attempt = 1; ; attempt += 1) {
-    const passphrase = await prompt('Workshop passphrase:');
+    const passphrase = await prompt('Workshop passphrase:', validatePassphrase);
+    if (validatedServiceKey !== undefined) {
+      return validatedServiceKey;
+    }
+
+    // Keep supporting simple prompt callbacks used by programmatic callers.
     try {
       return await decryptServiceKey(ciphertext, passphrase);
     } catch (error) {

@@ -56,6 +56,37 @@ describe('workshop credentials', () => {
     assert.equal(serviceKey, SERVICE_KEY);
   });
 
+  it('keeps wrong passphrases inside prompt validation', async () => {
+    const ciphertext = await encryptServiceKey(
+      SERVICE_KEY,
+      'correct-passphrase',
+      10,
+    );
+    const validationMessages: string[] = [];
+
+    const serviceKey = await decryptServiceKeyWithRetry(
+      ciphertext,
+      async (message, validate) => {
+        assert.equal(message, 'Workshop passphrase:');
+        assert.ok(validate);
+
+        for (const passphrase of ['wrong-passphrase', 'correct-passphrase']) {
+          const result = await validate(passphrase);
+          if (result === true) return passphrase;
+          validationMessages.push(result);
+        }
+        throw new Error(
+          'Prompt validation did not accept the correct passphrase.',
+        );
+      },
+    );
+
+    assert.equal(serviceKey, SERVICE_KEY);
+    assert.deepEqual(validationMessages, [
+      'Passphrase was not accepted (attempt 1 of 3). Try again.',
+    ]);
+  });
+
   it('gives up after three rejected passphrases', async () => {
     const ciphertext = await encryptServiceKey(
       SERVICE_KEY,
