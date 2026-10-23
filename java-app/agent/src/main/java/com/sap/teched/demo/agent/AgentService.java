@@ -6,6 +6,7 @@ import com.sap.ai.sdk.orchestration.OrchestrationAiModel;
 import com.sap.ai.sdk.orchestration.OrchestrationModuleConfig;
 import com.sap.ai.sdk.orchestration.spring.OrchestrationChatModel;
 import com.sap.ai.sdk.orchestration.spring.OrchestrationChatOptions;
+import com.sap.teched.demo.db.DuckDbConnection;
 import com.sap.teched.demo.tool.LocalDbTool;
 import com.sap.teched.demo.tool.RptSinglePredictionTool;
 import org.springframework.ai.model.tool.ToolCallingManager;
@@ -105,6 +106,14 @@ public class AgentService {
   private final GetGroundTruthTool getGroundTruthTool;
   private final RptSinglePredictionTool rptSinglePredictionTool;
   private final Map<String, List<Message>> conversationHistories = new java.util.concurrent.ConcurrentHashMap<>();
+  private final DuckDbConnection duckDb;
+
+  /** Remove all Java-side state associated with a web session. */
+  public void clearSession(final String sessionId) {
+    if (sessionId == null || sessionId.isBlank()) return;
+    conversationHistories.remove(sessionId);
+    duckDb.closeSession(sessionId);
+  }
 
   /**
    * Run the agent for the given prompt, streaming SSE events via the emitter.
