@@ -32,7 +32,7 @@ const DEMO_PROMPTS = [
   {
     label: '2. Forecast — FY 2026',
     prompt:
-      'For cost center A1000, use journal entries from fiscal years 2022 through 2025 as signed actuals and forecast the monthly amount for fiscal year 2026. Summarize all 12 fiscal periods.',
+      'For cost center A1000, use planning ACTUAL entries from fiscal years 2022 through 2025 as context and forecast the monthly amount for fiscal year 2026. Summarize all 12 fiscal periods.',
   },
   {
     label: '3. Compare ground truth',
