@@ -10,10 +10,17 @@ Install dependencies (needed for the JS frontend and S/4HANA mock) from the repo
 pnpm install
 ```
 
-### SAP AI Core credentials
+### Configure SAP AI Core credentials
 
-The agents read credentials from the `AICORE_SERVICE_KEY` environment variable. Store this in a `.env` file at the repository root — it is loaded automatically by all package scripts and is excluded from version control.
-It is important that the service key is all in one line, without line breaks.
+During the workshop, configure the shared SAP AI Core credentials from the repository root:
+
+```sh
+pnpm workshop:setup
+```
+
+Enter the passphrase provided by the instructor, on success the command writes the decrypted service key to the root `.env` file.
+
+If you use your own SAP AI Core instance, store its service key as one line in the root `.env` file:
 
 ```sh
 AICORE_SERVICE_KEY={"clientid":"...","clientsecret":"...","url":"...","serviceurls":{"AI_API_URL":"..."}}

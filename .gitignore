@@ -3,6 +3,7 @@ dist
 .envrc
 .idea
 .env
+.workshop-credentials-*
 .agents
 *.tsbuildinfo
 specs/

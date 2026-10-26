@@ -10,12 +10,17 @@ Install dependencies from the repository root:
 pnpm install
 ```
 
-### Obtain SAP AI Core access
+### Configure SAP AI Core access
 
-The workshop organizers provide SAP AI Core access for the session.
-Use the service key and deployment details provided with the workshop materials.
+During the workshop, configure the shared SAP AI Core credentials from the repository root:
 
-If you are using your own SAP AI Core instance, you need the following:
+```sh
+pnpm workshop:setup
+```
+
+Enter the passphrase provided by the instructor, on success the command writes the decrypted service key to the root `.env` file.
+
+If you are using your own SAP AI Core instance instead, you need the following:
 
 - An SAP AI Core service instance with Generative AI Hub access.
 - An orchestration deployment in that instance. Follow the [SAP AI Core documentation for creating an orchestration deployment](https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/create-deployment-for-orchestration?locale=en-US).
@@ -23,9 +28,7 @@ If you are using your own SAP AI Core instance, you need the following:
 
 See [What is SAP AI Core?](https://help.sap.com/docs/sap-ai-core/sap-ai-core-service-guide/what-is-sap-ai-core?locale=en-US) for an overview of SAP AI Core instances and access.
 
-### Configure SAP AI Core credentials
-
-The agents read credentials from the `AICORE_SERVICE_KEY` environment variable. Store this in a `.env` file at the repository root — it is loaded automatically by all package scripts and is excluded from version control:
+Store your service key as one line in the root `.env` file:
 
 ```sh
 AICORE_SERVICE_KEY={"clientid":"...","clientsecret":"...","url":"...","serviceurls":{"AI_API_URL":"..."}}
