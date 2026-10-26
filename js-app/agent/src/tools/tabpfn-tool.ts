@@ -92,7 +92,7 @@ async function tabpfnFromRows(
         features.map((column) => toTabpfnValue(row[column])),
       ),
     },
-    { middleware: resilience({ timeout: 60000 }) },
+    { middleware: resilience({ timeout: 600_000 }) },
   );
   const predictions = predictionValues(response.prediction);
   tabpfn(

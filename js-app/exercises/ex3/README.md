@@ -147,7 +147,7 @@ return withParquetBlob(inputTable, features, (file) =>
       },
     },
     {
-      middleware: resilience({ timeout: 60000 }),
+      middleware: resilience({ timeout: 600_000 }),
     },
   ),
 );
@@ -160,7 +160,7 @@ Key aspects of this implementation:
 - The `predictParquet({ file, ... })` function call sends the Parquet file to SAP AI Core. The `index_column` property allows the tool to join predictions back to the original rows when the response returns.
 - The `task_type: "regression"` property indicates continuous numeric prediction (monetary spend).
 - The `explanations: { top_column_scores: 5 }` property requests feature-importance scores, identifying which columns had the strongest influence on the forecast.
-- The `resilience({ timeout: 60000 })` function wraps the HTTP request with client-side timeout and circuit-breaker handling.
+- The `resilience({ timeout: 600_000 })` function allows up to 10 minutes for the prediction HTTP request and provides circuit-breaker handling.
 
 ### Try changing the prediction configuration
 
