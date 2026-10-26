@@ -6,7 +6,7 @@ spring:
     name: teched2026-java-agent
   mvc:
     async:
-      request-timeout: 120000
+      request-timeout: 600000
 
 logging:
   level:
