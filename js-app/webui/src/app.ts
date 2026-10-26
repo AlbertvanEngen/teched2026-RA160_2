@@ -8,6 +8,7 @@ import {
 } from 'financial-mock-agent';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
+import { Agent } from 'undici';
 
 const app = new Hono();
 const agent = getFinancialAgent();
@@ -18,6 +19,10 @@ app.post('/api/session', (c) => {
 });
 // When JAVA_AGENT_URL is set, proxy agent and session cleanup to the Java backend.
 const JAVA_AGENT_URL = process.env.JAVA_AGENT_URL;
+// Outlast Java's 10-minute SSE deadline, including silent analysis steps.
+const javaAgentDispatcher = JAVA_AGENT_URL
+  ? new Agent({ headersTimeout: 660_000, bodyTimeout: 660_000 })
+  : undefined;
 
 app.delete('/api/session/:sessionId', async (c) => {
   const sessionId = c.req.param('sessionId');
@@ -46,11 +51,16 @@ app.post('/api/agent/run', async (c) => {
 
   // --- Java backend proxy ---
   if (JAVA_AGENT_URL) {
-    const upstream = await fetch(`${JAVA_AGENT_URL}/api/agent/run`, {
+    const requestOptions = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt, sessionId }),
-    });
+      dispatcher: javaAgentDispatcher,
+    };
+    const upstream = await fetch(
+      `${JAVA_AGENT_URL}/api/agent/run`,
+      requestOptions,
+    );
     if (!upstream.ok || !upstream.body) {
       return c.json({ error: `Java backend error: ${upstream.status}` }, 502);
     }

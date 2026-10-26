@@ -318,7 +318,7 @@ async function callRpt(
         },
       },
       {
-        middleware: resilience({ timeout: 60000 }),
+        middleware: resilience({ timeout: 600_000 }),
       },
     ),
   );

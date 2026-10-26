@@ -96,7 +96,7 @@ public class AgentController {
       return err;
     }
 
-    final SseEmitter emitter = new SseEmitter(120_000L);
+    final SseEmitter emitter = new SseEmitter(600_000L);
     final String sessionId = (request.sessionId() != null && !request.sessionId().isBlank())
         ? request.sessionId()
         : UUID.randomUUID().toString();
@@ -106,6 +106,8 @@ public class AgentController {
         agentService.run(request.prompt(), sessionId, emitter);
         emitter.send(SseEmitter.event().name("done").data("{}"));
         emitter.complete();
+      } catch (final IllegalStateException e) {
+        log.debug("Emitter already completed before done event — client disconnected");
       } catch (final Throwable e) {
         log.error("Agent run failed", e);
         try {
@@ -114,7 +116,7 @@ public class AgentController {
                   .name("error")
                   .data(json(Map.of("message", e.getMessage() != null ? e.getMessage() : e.getClass().getName()))));
           emitter.send(SseEmitter.event().name("done").data("{}"));
-        } catch (final IOException ignored) {
+        } catch (final IOException | IllegalStateException ignored) {
           // client already gone
         }
         emitter.completeWithError(e);
