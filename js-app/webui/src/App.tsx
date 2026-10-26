@@ -45,7 +45,9 @@ const DEMO_PROMPTS = [
 const TOOL_LABELS: Record<string, string> = {
   query_financial_planning: 'Querying financial planning data',
   query_journal_entry: 'Querying journal entries',
+  query_local_db: 'Running SQL',
   run_sql: 'Running SQL',
+  run_rpt_prediction_single: 'Running RPT prediction',
   js_eval: 'Analyzing JSON with JavaScript',
   run_rpt_prediction: 'Running RPT prediction',
   run_tabpfn_prediction: 'Running TabPFN prediction',
