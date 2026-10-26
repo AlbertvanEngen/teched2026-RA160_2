@@ -184,6 +184,8 @@ Notice how phrasing, verbosity, and response time change — the system prompt i
 You have connected a TypeScript application to an LLM via SAP AI Core using the SAP Cloud SDK for AI.
 The agent can now receive a user prompt, apply the financial analyst system prompt, and return the model's answer.
 
+You can find more information on how to use the [SAP Cloud SDK for AI](https://sap.github.io/ai-sdk/docs/js/getting-started) and [SAP AI Core](https://help.sap.com/docs/ai-launchpad/sap-ai-launchpad/orchestration-4953dc10c6dd48fe85f37b41109dffe2?locale=en-US&q=orchestration) in the linked docs.
+
 In Exercise 2 you will give the agent access to its data tools — OData services and an in-memory SQL workspace — so it can query and aggregate financial data.
 Exercise 3 then adds the forecasting models.
 

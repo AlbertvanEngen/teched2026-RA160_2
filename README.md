@@ -6,7 +6,7 @@
 
 This repository contains the material for the SAP TechEd 2026 session **RA160 – Build business differentiation with SAP AI Core**.
 
-Experience SAP AI Core as the orchestration layer for enterprise AI. Our engineers help you extend Joule Agents with models from SAP Cloud SDK for AI, ground them in products for SAP Business Data Cloud, and embed them in the flows of SAP S/4HANA. Learn to govern, scale, and monitor AI agents from prototype to production.
+Experience SAP AI Core as the orchestration layer for enterprise AI. Our engineers help you extend Joule Agents with models from [SAP Cloud SDK for AI](https://sap.github.io/ai-sdk/), ground them in products for SAP Business Data Cloud, and embed them in the flows of SAP S/4HANA. Learn to govern, scale, and monitor AI agents from prototype to production.
 
 In this workshop, you will build a financial data agent that queries a mock S/4HANA OData backend, stores the results in a local scratch database, and uses RPT / TabPFN on SAP AI Core to forecast future periods — all wired together through the [orchestration service](https://help.sap.com/docs/ai-launchpad/sap-ai-launchpad/orchestration-4953dc10c6dd48fe85f37b41109dffe2?locale=en-US&q=orchestration). 
 Implementations are provided in both **TypeScript** (LangChain + SAP Cloud SDK for AI) and **Java** (Spring AI + SAP Cloud SDK for AI).
