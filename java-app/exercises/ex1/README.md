@@ -281,6 +281,8 @@ Your application should be back up on the same address in your browser within se
 You have successfully connected a Spring Boot application to an LLM via SAP AI Core using the SAP Cloud SDK for AI.
 Your agent can now receive a user prompt, maintain a per-session conversation history, and return the LLM's answer — meaning follow-up questions are answered with full context of the prior turns.
 
+You can find more information on how to use the [SAP Cloud SDK for AI](https://sap.github.io/ai-sdk/docs/java/getting-started) and [SAP AI Core](https://help.sap.com/docs/ai-launchpad/sap-ai-launchpad/orchestration-4953dc10c6dd48fe85f37b41109dffe2?locale=en-US&q=orchestration) in the linked docs.
+
 In Exercise 2 we will give the agent access to its tools — OData services, a local SQL database, and an AI forecasting model — so it can actually query, aggregate, and forecast financial data.
 
 Continue to [Exercise 2 - Equipping the Agent: Tool Calls and the Agentic Loop](../ex2/README.md).
