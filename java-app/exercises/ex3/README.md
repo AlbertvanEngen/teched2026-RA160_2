@@ -27,6 +27,44 @@ The SAP Cloud SDK for AI provides an `RptClient` you can use directly from Java 
 
 The key insight is that RPT uses **in-context learning on tabular data**: you give it rows where the target is known (context rows) and rows where the target is missing (prediction rows), and it fills in the blanks.
 
+### The Financial Goal: Predicting Future ACTUAL Values
+
+In enterprise financial management, organizations frequently set plans and budgets. However, what leadership and financial controllers ultimately care about is:
+
+> *"What will our **actual spend** really turn out to be when the upcoming fiscal year concludes?"*
+
+To understand how the agent predicts this, let's look at the four values of **`planningCategory`** in SAP financial planning:
+
+| `planningCategory` | What it means | Role in Forecasting |
+| ------------------ | ------------- | ------------------- |
+| **`ACTUAL`** | Realized, historical financial figures recorded from finalized business transactions (what was *actually* spent or earned). | **Target to predict** for the future year (2026), and **context data** from past years (2022–2024). |
+| **`PLAN`** | Operational targets established by business units before the period begins. | **Feature signal** available for both past and future years. |
+| **`BUDGET`** | Formal spending limits approved by management that should not be exceeded. | **Feature signal** available for both past and future years. |
+| **`FORECAST`** | Rolling estimates updated periodically throughout the year reflecting current trends. | **Feature signal** available for both past and future years. |
+
+The core goal in Exercise 3 is to **predict future `ACTUAL` values** (e.g. forecasting what cost center A1000 will actually spend across all 12 periods of fiscal year 2026).
+
+We already know the planned, budgeted, and forecasted amounts (`PLAN`, `BUDGET`, `FORECAST`) for 2026. What we *don't* know is what the actual spend (`ACTUAL`) will be.
+The tabular models learn the relationship between planned/budgeted figures and real actuals from the 2022–2024 context rows, and use those learned patterns to predict the missing 2026 actuals.
+
+### Key Concepts and Terminology
+
+To help you navigate the exercise, here is a quick reference for the key terms used throughout:
+
+- **In-Context Tabular Learning:** Rather than updating model weights via traditional training, the model learns patterns on the fly directly from the rows in your request table.
+- **Context Rows vs. Prediction Rows:**
+  - *Context rows:* Historical rows where the target value (`ACTUAL` spend) is known.
+  - *Prediction rows:* Future rows where input features (`PLAN`, `BUDGET`, `FORECAST`) are known, but the target value is set to `null`. The model fills in these blanks.
+- **Target Column vs. Feature Columns:**
+  - *Target column:* The specific column to predict (e.g., `amountInCompanyCodeCurrency` for `ACTUAL`).
+  - *Feature columns:* The attributes the model learns from (e.g., `costCenter`, `glAccount`, `ledger`, and amounts for `PLAN`, `BUDGET`, `FORECAST`).
+  - *Feature rows:* Rows that provide the input values the model can use to make a prediction. In this exercise, they contain attributes such as cost center, account, and the `PLAN`, `BUDGET`, and `FORECAST` amounts; feature rows may be historical context rows or future prediction rows.
+- **Ground Truth:** Real, verified actual values from completed business operations. In real life, future ground truth is unknown until the year ends; in our mock environment, 2026 actuals exist so we can test how accurate our forecast was.
+- **MAPE (Mean Absolute Percentage Error):** A standard forecast evaluation metric measuring percentage error.
+  Lower MAPE means higher accuracy (e.g., a MAPE of 5% means the predictions were off by 5% on average).
+
+
+
 ## Step 1: Get to know the RPT tools
 
 The three RPT tools in `AgentService` each serve a different scenario:
