@@ -211,26 +211,7 @@ The agent will call the `get_ground_truth` tool, join its predictions against re
 
 ---
 
-## Step 7: Try TabPFN: Alternative tabular prediction (bonus)
-
-In addition to SAP RPT, this JavaScript workspace includes **TabPFN** (Prior-data Fitted Network), a foundation model specifically designed for tabular data.
-
-TabPFN is integrated through in-memory row arrays rather than Parquet blobs.
-It is especially strong at handling mixed categorical and continuous tabular features without manual feature engineering.
-
-> **Note:** `@sap-ai-sdk/tabpfn` is bundled as a workspace-local package in this repository. It is already wired into `package.json` — no installation is required.
-
-In a new chat session, prompt the agent to forecast with TabPFN:
-
-> "For cost center E5000, load 2022–2024 ACTUAL rows as context and 2022–2026 PLAN, BUDGET, and FORECAST rows as features. Then use TabPFN to predict the 2026 ACTUAL spend, treating ledger and glAccount as categorical features. Return all 12 fiscal periods."
-
-The agent will invoke the `run_tabpfn_prediction` tool with the `taskType` property set to `"regression"` and the `categoricalFeatureColumns` property set to `["ledger", "glAccount"]`, then aggregate and present the results with the `run_sql` tool.
-
-Use the workshop's 2026 ground truth to evaluate the TabPFN forecast for E5000. Review the period-level results as an illustrative forecast-validation exercise; this does not establish how the model performs in the wild.
-
----
-
-## Step 8: Understanding what RPT does under the hood
+## Step 7: Understanding what RPT does under the hood
 
 When the `run_rpt_prediction` tool executes, the following pipeline runs inside the [`agent/src/tools/rpt-tool.ts`](../../agent/src/tools/rpt-tool.ts) file:
 
@@ -257,6 +238,25 @@ In-Memory SQL View
 ```
 
 This explains why the `run_sql` tool is called *after* the `run_rpt_prediction` tool: the predicted values do not exist in the database until RPT has completed and written them into the output table.
+
+---
+
+## Step 8: Try TabPFN: Alternative tabular prediction (bonus)
+
+In addition to SAP RPT, this JavaScript workspace includes **TabPFN** (Prior-data Fitted Network), a foundation model specifically designed for tabular data.
+
+TabPFN is integrated through in-memory row arrays rather than Parquet blobs.
+It is especially strong at handling mixed categorical and continuous tabular features without manual feature engineering.
+
+> **Note:** `@sap-ai-sdk/tabpfn` is bundled as a workspace-local package in this repository. It is already wired into `package.json` — no installation is required.
+
+In a new chat session, prompt the agent to forecast with TabPFN:
+
+> "For cost center E5000, load 2022–2024 ACTUAL rows as context and 2022–2026 PLAN, BUDGET, and FORECAST rows as features. Then use TabPFN to predict the 2026 ACTUAL spend, treating ledger and glAccount as categorical features. Return all 12 fiscal periods."
+
+The agent will invoke the `run_tabpfn_prediction` tool with the `taskType` property set to `"regression"` and the `categoricalFeatureColumns` property set to `["ledger", "glAccount"]`, then aggregate and present the results with the `run_sql` tool.
+
+Use the workshop's 2026 ground truth to evaluate the TabPFN forecast for E5000. Review the period-level results as an illustrative forecast-validation exercise; this does not establish how the model performs in the wild.
 
 ---
 
