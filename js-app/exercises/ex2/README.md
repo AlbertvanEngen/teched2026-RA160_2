@@ -20,14 +20,17 @@ This back-and-forth is called the **agentic loop**.
 Schematically:
 
 ```text
-User prompt
-    │
-    ▼
- LLM ──── needs data ────► Tool execution
-    ◄──── tool result ─────┘
-    │ (repeat as needed)
-    ▼
- Final answer streamed to UI
+CLIENT SIDE                         SERVER SIDE
+
+  User prompt ──────────────────────► LLM
+                                       │
+  Tool execution ◄─── tool call ───────┤
+        │                              │
+        └──────── tool result ───────► LLM
+                                       │
+             (repeat as needed)        │
+                                       │
+  Final result UI ◄── streamed answer ─┘
 ```
 
 LangGraph drives this loop automatically.
